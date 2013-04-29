@@ -1,9 +1,12 @@
 #!/usr/bin/env python 2.7.3
+# -*- coding: latin-1 -*-
+"""
+This file generates a SCI, HCMR and CID with a format .docx (Word 2007) based on a specific template.
 
-#
-# Generate Configuration Index Document from Synergy data repository
-# Use TK library ofr the GUI
-#
+"""
+__author__ = "O. Appéré <olivier.appere@gmail.com>"
+__date__ = "03 April 2013"
+__version__ = "$Revision: 0.1 $"
 
 import sys
 ##import protocol
@@ -16,7 +19,11 @@ import sqlite3 as lite
 from Tkinter import *
 ##from Tix import *
 import tkMessageBox
-import docx
+try:
+    import docx
+except ImportError:
+    raise ImportError, "DoCID requires the python-docx library for Python. " \
+                       "See https://github.com/mikemaccana/python-docx/"
 import threading
 import time
 from ConfigParser import ConfigParser
@@ -25,24 +32,145 @@ import zipfile
 from lxml import etree
 import Queue
 import datetime
+from os.path import join
+try:
+    from PIL import Image
+except ImportError:
+    import Image
+try:
+    import Pmw
+except ImportError:
+    raise ImportError, "DoCID requires the Python MegaWidgets for Python. " \
+                       "See http://sourceforge.net/projects/pmw/"
+background = '#E7DAB2' #'grey50'
+foreground = 'black'
+def picture_add(relationshiplist, picname, picdescription, pixelwidth=None, pixelheight=None, nochangeaspect=True, nochangearrowheads=True):
+    '''Take a relationshiplist, picture file name, and return a paragraph containing the image
+    and an updated relationshiplist'''
+    # http://openxmldeveloper.org/articles/462.aspx
+    # Create an image. Size may be specified, otherwise it will based on the
+    # pixel size of image. Return a paragraph containing the picture'''
+    # Copy the file into the media dir
+##    media_dir = join(template_dir, 'word', 'media')
+##    if not os.path.isdir(media_dir):
+##        os.mkdir(media_dir)
+##    shutil.copyfile(picname, join(media_dir, picname))
 
+    # Check if the user has specified a size
+    if not pixelwidth or not pixelheight:
+        # If not, get info from the picture itself
+        pixelwidth, pixelheight = Image.open(picname).size[0:2]
+
+    # OpenXML measures on-screen objects in English Metric Units
+    # 1cm = 36000 EMUs
+    emuperpixel = 12667
+    width = str(pixelwidth * emuperpixel)
+    height = str(pixelheight * emuperpixel)
+
+    # Set relationship ID to the first available
+    picid = '2'
+    picrelid = 'rId'+str(len(relationshiplist)+1)
+    relationshiplist.append([
+        'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+        'media/'+picname])
+
+    # There are 3 main elements inside a picture
+    # 1. The Blipfill - specifies how the image fills the picture area (stretch, tile, etc.)
+    blipfill = docx.makeelement('blipFill', nsprefix='pic')
+    blipfill.append(docx.makeelement('blip', nsprefix='a', attrnsprefix='r',
+                    attributes={'embed': picrelid}))
+    stretch = docx.makeelement('stretch', nsprefix='a')
+    stretch.append(docx.makeelement('fillRect', nsprefix='a'))
+    blipfill.append(docx.makeelement('srcRect', nsprefix='a'))
+    blipfill.append(stretch)
+
+    # 2. The non visual picture properties
+    nvpicpr = docx.makeelement('nvPicPr', nsprefix='pic')
+    cnvpr = docx.makeelement('cNvPr', nsprefix='pic',
+                        attributes={'id': '0', 'name': 'Picture 1', 'descr': picname})
+    nvpicpr.append(cnvpr)
+    cnvpicpr = docx.makeelement('cNvPicPr', nsprefix='pic')
+    cnvpicpr.append(docx.makeelement('picLocks', nsprefix='a',
+                    attributes={'noChangeAspect': str(int(nochangeaspect)),
+                                'noChangeArrowheads': str(int(nochangearrowheads))}))
+    nvpicpr.append(cnvpicpr)
+
+    # 3. The Shape properties
+    sppr = docx.makeelement('spPr', nsprefix='pic', attributes={'bwMode': 'auto'})
+    xfrm = docx.makeelement('xfrm', nsprefix='a')
+    xfrm.append(docx.makeelement('off', nsprefix='a', attributes={'x': '0', 'y': '0'}))
+    xfrm.append(docx.makeelement('ext', nsprefix='a', attributes={'cx': width, 'cy': height}))
+    prstgeom = docx.makeelement('prstGeom', nsprefix='a', attributes={'prst': 'rect'})
+    prstgeom.append(docx.makeelement('avLst', nsprefix='a'))
+    sppr.append(xfrm)
+    sppr.append(prstgeom)
+
+    # Add our 3 parts to the picture element
+    pic = docx.makeelement('pic', nsprefix='pic')
+    pic.append(nvpicpr)
+    pic.append(blipfill)
+    pic.append(sppr)
+
+    # Now make the supporting elements
+    # The following sequence is just: make element, then add its children
+    graphicdata = docx.makeelement('graphicData', nsprefix='a',
+                              attributes={'uri': 'http://schemas.openxmlforma'
+                                                 'ts.org/drawingml/2006/picture'})
+    graphicdata.append(pic)
+    graphic = docx.makeelement('graphic', nsprefix='a')
+    graphic.append(graphicdata)
+
+    framelocks = docx.makeelement('graphicFrameLocks', nsprefix='a',
+                             attributes={'noChangeAspect': '1'})
+    framepr = docx.makeelement('cNvGraphicFramePr', nsprefix='wp')
+    framepr.append(framelocks)
+    docpr = docx.makeelement('docPr', nsprefix='wp',
+                        attributes={'id': picid, 'name': 'Picture 1',
+                                    'descr': picdescription})
+    effectextent = docx.makeelement('effectExtent', nsprefix='wp',
+                               attributes={'l': '25400', 't': '0', 'r': '0',
+                                           'b': '0'})
+    extent = docx.makeelement('extent', nsprefix='wp',
+                         attributes={'cx': width, 'cy': height})
+    inline = docx.makeelement('inline', attributes={'distT': "0", 'distB': "0",
+                                               'distL': "0", 'distR': "0"},
+                         nsprefix='wp')
+    inline.append(extent)
+    inline.append(effectextent)
+    inline.append(docpr)
+    inline.append(framepr)
+    inline.append(graphic)
+    drawing = docx.makeelement('drawing')
+    drawing.append(inline)
+    run = docx.makeelement('r')
+    run.append(drawing)
+    paragraph = docx.makeelement('p')
+    paragraph.append(run)
+    return relationshiplist, paragraph
 
 def startSession(item,database,login,password):
+    ''' Function to start Synergy session
+         - invoke command ccm start ...
+         - display synergy feedback
+         - retrieve last session information
+         - enable SELECT and REFRESH buttons
+         - get list of releases
+        called by the thread '''
     global session_started
+    global description_item
 
     tool = Tool()
-    interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Open Synergy session.\n")
-##    stdout = tool.ccm_query(' status ',"Synergy session started")
-##    print stdout
-##    m = re.search(r'Database:(.*)',stdout)
-##    if m:
-##        print m.group
+##    interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Open Synergy session.\n")
+
     query = 'start /nogui /q /d /usr/local/ccmdb/' + database + ' /u /usr/local/ccmdb/' + database + ' /s ' + tool.ccm_server + ' /n ' + login + ' /pw ' + password
     stdout,stderr = tool.ccm_query(query,"Synergy session started")
     print time.strftime("%H:%M:%S", time.gmtime()) + " " + stdout
     session_started = True
-
+    description_item = tool.getItemDescription(item)
+    interface.project_description.configure(text = "Project: " + description_item)
+    interface.project_description_entry_pg2.configure(text = description_item)
     data = tool.retrieveLastSelection(item)
+
     if data != []:
         if data[0][1] != None:
             interface.reference_entry.insert(0, data[0][1])
@@ -63,10 +191,12 @@ def startSession(item,database,login,password):
         interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " IP address => " + m.group(3) + "\n")
     else:
         interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " " + stdout + stderr)
-##    self.stop()
+    getReleasesList()
+
     return stdout
 
 def getReleasesList():
+    ''' get releases list '''
     global session_started
 
     tool = Tool()
@@ -89,6 +219,8 @@ def getReleasesList():
         interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " No releases found.\n")
 
 def getBaselinesList(release):
+    ''' get baseline list
+            by invoking the command '''
     global session_started
 
     tool = Tool()
@@ -113,12 +245,11 @@ def getBaselinesList(release):
     else:
         interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " No baselines found.\n")
 
-def getProjectsList(release,baseline_selected):
+def getProjectsList(release,baseline_selected,refresh=True):
     global session_started
     global list_projects
     tool = Tool()
-    interface.projectlistbox.delete(0, END)
-    interface.projectlistbox.insert(END, "All")
+
     if session_started:
         interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Get projects available ...\n")
         if release != "" and release != "All":
@@ -146,7 +277,6 @@ def getProjectsList(release,baseline_selected):
                         baseline = re.sub(r".*#",r"",baseline)
                         if baseline == baseline_selected:
                             list_projects.append(project)
-                            interface.projectlistbox.insert(END, project)
                             break
 ##                   baseline_splitted = re.sub(r".*#",r"",baseline_splitted)
 
@@ -156,30 +286,51 @@ def getProjectsList(release,baseline_selected):
                 m = re.match(r'(.*)-(.*);(.*)$',line)
                 if m:
                     project = m.group(1) + "-" + m.group(2)
-                    print "name " + m.group(1) + " version " + m.group(2)
+                    #print "name " + m.group(1) + " version " + m.group(2)
                 else:
                     project = line
                 list_projects.append(project)
+        if refresh == True:
+            interface.projectlistbox.delete(0, END)
+            interface.projectlistbox.insert(END, "All")
+            for project in list_projects:
                 interface.projectlistbox.insert(END, project)
     else:
         interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " No projects found.\n")
 
-def generateDoc(author,reference,release,aircraft,item,project,baseline,object_released,object_integrate):
-    getProjectsList(release,baseline)
+def generateCID(author,reference,revision,release,aircraft,item,project,baseline,object_released,object_integrate):
+    '''
+    get items by invoking synergy command
+    get sources by invoking synergy command
+    get CR by invoking synergy command
+    '''
+    import csv
+    # read config file
+    config_parser = ConfigParser()
+    config_parser.read('docid.ini')
+    type_doc = config_parser.get("Objects","type_doc")
+    for list_type_doc in csv.reader([type_doc]):
+        pass
+    type_src = config_parser.get("Objects","type_src")
+    for list_type_src in csv.reader([type_src]):
+        pass
+
+    if project == "All":
+        getProjectsList(release,baseline,False)
     interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Begin document generation ...\n")
-    cid = BuildDoc(author,reference,release,aircraft,item,project,baseline)
+    cid = BuildDoc(author,reference,revision,release,aircraft,item,project,baseline)
     # Documentations
     interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Items query in progress...\n")
-    tableau_items =cid.getArticles(object_released,object_integrate,("doc","xls"))
+    tableau_items =cid.getArticles(object_released,object_integrate,list_type_doc)
     # Source
     interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Source code query in progress...\n")
-    tableau_sources = cid.getArticles(object_released,object_integrate,("csrc","asmsrc"))
+    tableau_sources = cid.getArticles(object_released,object_integrate,list_type_src)
     # Problem Reports
     interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " PR query in progress...\n")
     cid.getPR()
     interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Creation doc in progress...\n")
     # Create docx
-    docx_filename,exception = cid.createDoc(tableau_items,tableau_sources)
+    docx_filename,exception = cid.createCID(tableau_items,tableau_sources)
     if docx_filename == False:
         interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " " + exception.strerror + ", document not saved.\n")
     else:
@@ -191,6 +342,45 @@ def generateDoc(author,reference,release,aircraft,item,project,baseline,object_r
         interface.output_txt.insert(END, "Available here:\n")
         interface.output_txt.insert(END, docx_filename, "hlink")
         interface.output_txt.insert(END, "\n")
+
+def generateSQAP(author,reference,revision):
+    '''
+
+    '''
+    sqap = BuildDoc(author,reference,revision)
+
+    interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Creation doc in progress...\n")
+    # Create docx
+    docx_filename,exception = sqap.createSQAP()
+    if docx_filename == False:
+        interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " " + exception.strerror + ", document not saved.\n")
+    else:
+        interface.output_txt.tag_configure("hlink", foreground='blue', underline=1)
+        interface.output_txt.tag_bind("hlink", "<Button-1>", sqap.openHLink)
+        interface.output_txt.tag_bind("hlink", "<Enter>", sqap.onLink)
+        interface.output_txt.tag_bind("hlink", "<Leave>", sqap.outsideLink)
+        interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) +  " Word document created.\n")
+        interface.output_txt.insert(END, "Available here:\n")
+        interface.output_txt.insert(END, docx_filename, "hlink")
+        interface.output_txt.insert(END, "\n")
+
+def getSessionStatus():
+    global session_started
+    tool = Tool()
+    if 1==1:
+##            interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Check session...\n")
+        stdout,stderr = tool.ccm_query('status','Check session')
+        print "OUT:" + stdout
+        print "ERR:" + stderr
+        m = re.search(r'Database:(.*)',stdout)
+        if m:
+            print m.group(1)
+##            interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Session checking finished.\n")
+        return_code = m
+    else:
+        return_code = False
+    return return_code
+
 ##def populate_listbox(query,listbox,first):
 ##    # populate systems listbox
 ##    listbox.delete(0, END)
@@ -198,13 +388,91 @@ def generateDoc(author,reference,release,aircraft,item,project,baseline,object_r
 ##    result = sqlite_query(query)
 ##    for item in result:
 ##        listbox.insert(item[0], item[1])
+
+class Demo:
+    def __init__(self, parent):
+    # Create and pack the NoteBook.
+        notebook = Pmw.NoteBook(parent)
+        notebook.pack(fill = 'both', expand = 1, padx = 10, pady = 10)
+
+        # Add the "Appearance" page to the notebook.
+        page = notebook.add('Appearance')
+        notebook.tab('Appearance').focus_set()
+
+        # Create the "Toolbar" contents of the page.
+        group = Pmw.Group(page, tag_text = 'Toolbar')
+        group.pack(fill = 'both', expand = 1, padx = 10, pady = 10)
+        b1 = Checkbutton(group.interior(), text = 'Show toolbar')
+        b1.grid(row = 0, column = 0)
+        b2 = Checkbutton(group.interior(), text = 'Toolbar tips')
+        b2.grid(row = 0, column = 1)
+
+        # Create the "Startup" contents of the page.
+        group = Pmw.Group(page, tag_text = 'Startup')
+        group.pack(fill = 'both', expand = 1, padx = 10, pady = 10)
+        home = Pmw.EntryField(group.interior(), labelpos = 'w',
+            label_text = 'Home page location:')
+        home.pack(fill = 'x', padx = 20, pady = 10)
+
+        # Add two more empty pages.
+        page = notebook.add('Helpers')
+        page = notebook.add('Images')
+
+        notebook.setnaturalsize()
+
 class Tool():
+    '''
+    Class toolbox
+    '''
     def __init__(self):
+        '''
+        get in file .ini information to access synergy server
+        '''
         config_parser = ConfigParser()
         config_parser.read('docid.ini')
         self.ccm_server = config_parser.get("Synergy","synergy_server")
         conf_synergy_dir = config_parser.get("Synergy","synergy_dir")
         self.ccm_exe = os.path.join(conf_synergy_dir, 'ccm')
+    def ccb_minutes(self):
+        pass
+    def plan_review_minutes(self):
+        pass
+    def spec_review_minutes(self):
+        pass
+
+    def scrollEvent(self,event):
+        print event.delta
+        if event.delta >0:
+            print 'déplacement vers le haut'
+            self.help_text.yview_scroll(-2,'units')
+
+        else:
+            print 'déplacement vers le bas'
+            self.help_text.yview_scroll(2,'units')
+
+    def help(self):
+        self.help_window = Tk()
+        self.help_window.iconbitmap("qams.ico")
+        self.help_window.title("Help")
+        self.help_window.resizable(False,False)
+        readme_file = open('README.txt', 'r')
+        readme_text = readme_file.read()
+        readme_file.close()
+        help_frame = Frame(self.help_window, bg = '#80c0c0')
+        help_frame.pack()
+        scrollbar = Scrollbar(help_frame)
+        self.help_window.bind('<MouseWheel>', self.scrollEvent)
+        scrollbar.pack(side=RIGHT, fill=Y)
+        self.help_text = Text(help_frame,wrap=WORD, yscrollcommand=scrollbar.set, width = 100, height = 30)
+        self.help_text.pack()
+        scrollbar.config(command=self.help_text.yview)
+        self.help_text.insert(END, readme_text)
+        bou1 = Button(self.help_window, text='Quit', command = self.help_window.destroy)
+        bou1.pack(side=RIGHT)
+        self.help_window.mainloop()
+
+    def about(self):
+        tkMessageBox.showinfo("Make Configuration Index Document", "DoCID is written by Olivier Appere\n\n (c) Copyright 2013")
 
     def onLink(self,event):
         print "La souris est sur le le lien"
@@ -224,15 +492,36 @@ class Tool():
         for item in result:
             listbox.insert(END, item[0])
 
+    def get_image(self,item):
+        '''
+        Get image in SQLite database
+        '''
+        query = "SELECT img FROM systems WHERE aircraft LIKE '{:s}'".format(item) + " LIMIT 1"
+        result = self.sqlite_query_one(query)
+        if result == None:
+            image_name = None
+        else:
+            image_name = result[0]
+        return image_name
+
     def get_database(self,index):
         query = "SELECT items.database,aircraft FROM items LEFT OUTER JOIN link_systems_items ON items.id = link_systems_items.item_id LEFT OUTER JOIN systems ON systems.id = link_systems_items.system_id WHERE items.name LIKE '" + index + "'"
         result = self.sqlite_query(query)
-        return result
+        print result
+        return result[0][0],result[0][1]
 
     def get_ci_identification(self,index):
-        query = "SELECT ci_identification FROM items WHERE items.name LIKE '" + index + "'"
-        result = self.sqlite_query(query)
-        return result[0][0]
+        if index != "":
+            query = "SELECT ci_identification FROM items WHERE items.name LIKE '" + index + "'"
+            result = self.sqlite_query(query)
+            print result
+            if result == None:
+                ci_id = "TBD"
+            else:
+                ci_id = result[0][0]
+        else:
+            ci_id = None
+        return ci_id
 
     def get_lastquery(self):
         query = 'SELECT database,item,project,release FROM last_query WHERE id = 1'
@@ -303,35 +592,77 @@ class Tool():
         query = "SELECT description FROM items WHERE name LIKE '{:s}'".format(item)
         result = self.sqlite_query_one(query)
         if result == None:
-            description = None
+            description = "None"
         else:
             description = result[0]
         return description
 
+    def getTypeDocDescription(self,item):
+        query = "SELECT description FROM document_types WHERE name LIKE '{:s}'".format(item)
+        result = self.sqlite_query_one(query)
+        if result == None:
+            description = "None"
+        else:
+            description = result[0]
+        return description
+
+    def getDocInfo(self,item):
+        '''
+        Get information on the document
+          - reference allocated to the document according to the project
+          - revision: last revision known
+        '''
+        query = "SELECT reference,last_revision,status FROM documents LEFT OUTER JOIN items ON items.id = documents.item_id LEFT OUTER JOIN status ON status.id = documents.status_id WHERE items.name LIKE '{:s}'".format(item)
+        print query
+        result = self.sqlite_query_one(query)
+        if result == None:
+            reference = "None"
+            revision = "1.0"
+            status = "None"
+        else:
+            reference = result[0]
+            revision = result[1]
+            status = result[2]
+            if revision != None:
+                try:
+                    revision = int(revision)
+                except ValueError:
+                    revision = float(revision) + 0.1
+            else:
+                revision = 1.0
+
+        return reference,revision
+    def updateRevision(self,reference,revision):
+        '''
+        '''
+        pass
+
 # -----------------------------------------------------------------------------
 class BuildDoc(Tool):
-    def __init__(self,author,reference,release,aircraft,item,project,baseline):
+    def __init__(self,author,reference,revision,release="",aircraft="",item="",project="",baseline=""):
         Tool.__init__(self)
         self.author = author
         self.reference = reference
+        self.revision = revision
         self.release = release
         self.aircraft = aircraft
         self.item = item
         self.project = project
         self.baseline = baseline
-##        self.tableau_items = []
-##        self.tableau_source = []
         self.tableau_pr = []
 
-        config_parser = ConfigParser()
-        config_parser.read('docid.ini')
-        try:
-            self.template_name = config_parser.get("Template","name")
-            self.template_type = config_parser.get("Template","type")
-            self.type_doc = config_parser.get("Objects","type_doc").split(",")
-            self.type_src = config_parser.get("Objects","type_src").split(",")
-        except NoSectionError as exception:
-            print "Execution failed:", exception
+##        config_parser = ConfigParser()
+##        config_parser.read('docid.ini')
+##        try:
+##            template_dir = join(os.path.dirname("."), 'template')
+##            template_name = config_parser.get("Template","name")
+##            self.template_name = join(template_dir, template_name)
+##            self.template_type = config_parser.get("Template","type")
+##            self.type_doc = config_parser.get("Objects","type_doc").split(",")
+##            self.type_src = config_parser.get("Objects","type_src").split(",")
+##        except IOError as exception:
+####        except NoSectionError as exception:
+##            print "Execution failed:", exception
 
     def replaceTag(self,doc, tag, replace, fmt = {}):
         """ Searches for {{tag}} and replaces it with replace.
@@ -340,6 +671,7 @@ class BuildDoc(Tool):
     Supported values for type:
     'str': <string> Renders a simple text string
     'tab': <list> Renders a table, use fmt to tune look
+    'img': <list> Renders an image
     """
 
         if replace[0] == 'str':
@@ -354,7 +686,6 @@ class BuildDoc(Tool):
                 print replace[1]
         elif replace[0] == 'tab':
             # Will make a table
-
             unicode_table = []
             for element in replace[1]:
                 try:
@@ -382,6 +713,10 @@ class BuildDoc(Tool):
                     celstyle = fmt['celstyle'] if 'celstyle' in fmt.keys() else None,
     ##                headstyle = fmt['headstyle'] if 'headstyle' in fmt.keys() else {},
                 )
+        elif replace[0] == 'img':
+            relationships = docx.relationshiplist()
+            relationshiplist, repl = picture_add(relationships, replace[1],'This is a test description')
+            return docx.advReplace(doc, '\{\{'+re.escape(tag)+'\}\}', repl),relationshiplist
         else:
             raise NotImplementedError, "Unsupported " + replace[0] + " tag type!"
 
@@ -430,7 +765,7 @@ class BuildDoc(Tool):
                 name, version = self.getProjectInfo(self.project)
                 #% option possible: ccm query "recursive_is_member_of('projname-version','none')"
 ##                query = 'query -sby name -n *.* -u -release ' + self.release + ' "((cvtype=\'xls\') or (cvtype=\'doc\')) and is_member_of(cvtype=\'project\' and name=\'' + name + '\' and version=\'' + version + '\')" -f "%name; %version; %modify_time; %status"'
-                final_query =  query +' and recursive_is_member_of(cvtype=\'project\' and name=\'' + name + '\' and version=\'' + version + '\' , \'none\')" -f "%name; %version; %modify_time; %status"'
+                final_query =  query +' and recursive_is_member_of(cvtype=\'project\' and name=\'' + name + '\' and version=\'' + version + '\' , \'none\')" -f "%project; %name; %version; %modify_time; %status"'
                 stdout,stderr = self.ccm_query(final_query,"Get articles")
                 if stdout != "":
                     output = stdout.splitlines()
@@ -438,7 +773,7 @@ class BuildDoc(Tool):
                         line = re.sub(r"<void>",r"",line)
                         m = re.match(r'(.*);(.*);(.*);(.*);(.*)',line)
                         if m:
-                            self.tableau_items.append([m.group(1),m.group(2),m.group(3),m.group(4),m.group((5))])
+                            tableau.append([m.group(1),m.group(2),m.group(3),m.group(4),m.group(5)])
 
             else:
                 for prj in list_projects:
@@ -481,12 +816,36 @@ class BuildDoc(Tool):
         if len(self.tableau_pr) == 1:
              self.tableau_pr.append(["--","--","--","--","--"])
 
-    def createDoc(self,tableau_items,tableau_source):
+    def createSQAP(self):
+        '''
+        This function creates the document based on the template
+        - open template docx
+        - get sections of the template
+        - replace tag in document
+        - create zip
+         . copy unmodified section
+         . copy modified section
+
+        '''
+        global list_projects
+        # Get config
+        config_parser = ConfigParser()
+        config_parser.read('docid.ini')
+        try:
+            template_dir = join(os.path.dirname("."), 'template')
+            template_name = config_parser.get("Template","sqap")
+            self.template_name = join(template_dir, template_name)
+        except IOError as exception:
+            print "Execution failed:", exception
+
         item_description = self.getItemDescription(self.item)
         ci_identification = self.get_ci_identification(self.item)
         # Load the original template
+        try:
+            template = zipfile.ZipFile(self.template_name,mode='r')
+        except IOError as exception:
+            print "Execution failed:", exception
 
-        template = zipfile.ZipFile(self.template_name,mode='r')
         if template.testzip():
             raise Exception('File is corrupted!')
 
@@ -509,7 +868,6 @@ class BuildDoc(Tool):
         outdoc = {}
         try:
             for curact in actlist:
-                print curact
                 xmlcontent = template.read(curact[0])
                 outdoc[curact[0]] = etree.fromstring(xmlcontent)
 
@@ -517,112 +875,140 @@ class BuildDoc(Tool):
                 docbody = outdoc[curact[0]].xpath(curact[1], namespaces=docx.nsprefixes)[0]
 
                 # Replace some tags
-                if self.template_type == "HCMR":
-                    docbody = self.replaceTag(docbody, 'SUBJECT', ('str', self.item + " Hardware Confguration Management Record") )
-                    docbody = self.replaceTag(docbody, 'TITLE', ('str', self.item + ' HCMR') )
-                elif self.template_type == "SCI":
-                    docbody = self.replaceTag(docbody, 'SUBJECT', ('str', self.item + " Software Configuration Index") )
-                    docbody = self.replaceTag(docbody, 'TITLE', ('str', self.item + ' SCI') )
-                else:
-                    docbody = self.replaceTag(docbody, 'SUBJECT', ('str', self.item + " Configuration Index Document") )
-                    docbody = self.replaceTag(docbody, 'TITLE', ('str', self.item + ' CID') )
-                docbody = self.replaceTag(docbody, 'CI_ID', ('str', ci_identification) )
-                docbody = self.replaceTag(docbody, 'REFERENCE', ('str', self.reference) )
-                docbody = self.replaceTag(docbody, 'ISSUE', ('str', "1D1") )
-                docbody = self.replaceTag(docbody, 'ITEM', ('str', self.item) )
-                docbody = self.replaceTag(docbody, 'ITEM_DESCRIPTION', ('str', item_description) )
+                title = self.item + " " + self.template_type
+                subject = self.item + " " + getTypeDocDescription(self.item)
+                project_text = "The project is not defined"
                 if self.project != "":
-                    if len(list_projects) == 0:
-                        text = "No project selected"
-                    elif len(list_projects) == 1:
-                        text = "The project is " + self.project
+                    if len(list_projects) in (0,1) :
+                        project_text = "The project is " + self.project
                     else:
                         text = "The projects are: "
                         for project in list_projects:
                             text =  text + project + ", "
-                    docbody = self.replaceTag(docbody, 'PROJECT', ('str', text) )
-                else:
-                    docbody = self.replaceTag(docbody, 'PROJECT', ('str', 'The project is not defined.') )
-                if self.release != "":
-                    docbody = self.replaceTag(docbody, 'RELEASE', ('str', self.release) )
-                else:
-                    docbody = self.replaceTag(docbody, 'RELEASE', ('str', 'not defined.') )
-                if self.baseline != "":
-                    docbody = self.replaceTag(docbody, 'BASELINE', ('str', self.baseline) )
-                else:
-                    docbody = self.replaceTag(docbody, 'BASELINE', ('str', 'not defined.') )
-                if self.author != "":
-                    docbody = self.replaceTag(docbody, 'WRITER', ('str', self.author) )
-                else:
-                    docbody = self.replaceTag(docbody, 'WRITER', ('str', 'Nobody') )
-                docbody = self.replaceTag(docbody, 'DATE', ('str', time.strftime("%d %b %Y", time.gmtime())))
+                        # remove last comma
+                        project_text = text[0:-2]
+
+                if self.release == "":
+                    self.release = "not defined"
+
+                if self.baseline == "":
+                    self.baseline = "not defined"
+
+                if self.author == "":
+                    self.author = "Nobody"
+
                 colw = [1000,2300,200,1000,500,500,500] # 5000 = 100%
-                docbody = self.replaceTag(docbody, 'TABLEITEMS', ('tab', tableau_items),
-                {
-                    'heading': True,
-                    'colw': colw,
-                    'cwunit': 'pct',
-                    'tblw': 5000,
-                    'twunit': 'pct',
-                    'borders': {
-                        'all': {
-                            'color': 'auto',
-                            'space': 0,
-                            'sz': 6,
-                            'val': 'single',
-                        },
-                    },
-        ##            'celstyle': [
-        ##                {'align': 'center'},
-        ##                {'align': 'left'},
-        ##                {'align': 'right'},
-        ##            ],
-        ##            'headstyle': { 'fill':'C6D9F1', 'themeFill':None, 'themeFillTint':None },
-                })
-                docbody = self.replaceTag(docbody, 'TABLESOURCE', ('tab', tableau_source),
-                {
-                    'heading': True,
-                    'colw': colw,
-                    'cwunit': 'pct',
-                    'tblw': 5000,
-                    'twunit': 'pct',
-                    'borders': {
-                        'all': {
-                            'color': 'auto',
-                            'space': 0,
-                            'sz': 6,
-                            'val': 'single',
-                        },
-                    },
-        ##            'celstyle': [
-        ##                {'align': 'center'},
-        ##                {'align': 'left'},
-        ##                {'align': 'right'},
-        ##            ],
-        ##            'headstyle': { 'fill':'C6D9F1', 'themeFill':None, 'themeFillTint':None },
-                })
-                docbody = self.replaceTag(docbody, 'TABLEPRS', ('tab', self.tableau_pr),
-                {
-                    'heading': True,
-                    'colw': [500,3000,500,500,500], # 5000 = 100%
-                    'cwunit': 'pct',
-                    'tblw': 5000,
-                    'twunit': 'pct',
-                    'borders': {
-                        'all': {
-                            'color': 'auto',
-                            'space': 0,
-                            'sz': 6,
-                            'val': 'single',
-                        },
-                    },
-        ##            'celstyle': [
-        ##                {'align': 'center'},
-        ##                {'align': 'left'},
-        ##                {'align': 'right'},
-        ##            ],
-        ##            'headstyle': { 'fill':'C6D9F1', 'themeFill':None, 'themeFillTint':None },
-                })
+
+                list_tags = {
+                            'SUBJECT':{
+                                'type':'str',
+                                'text':subject
+                                },
+                            'TITLE':{
+                                'type':'str',
+                                'text':title
+                                },
+                            'CI_ID':{
+                                'type':'str',
+                                'text':ci_identification
+                                },
+                            'REFERENCE':{
+                                'type':'str',
+                                'text':self.reference
+                                },
+                            'ISSUE':{
+                                'type':'str',
+                                'text':self.revision
+                                },
+                            'ITEM':{
+                                'type':'str',
+                                'text':self.item
+                                },
+                            'ITEM_DESCRIPTION':{
+                                'type':'str',
+                                'text':item_description
+                                },
+                            'DATE':{
+                                'type':'str',
+                                'text':time.strftime("%d %b %Y", time.gmtime())
+                                },
+                            'PROJECT':{
+                                'type':'str',
+                                'text':project_text
+                                },
+                            'RELEASE':{
+                                'type':'str',
+                                'text':self.release
+                                },
+                            'BASELINE':{
+                                'type':'str',
+                                'text':self.baseline
+                                },
+                            'WRITER':{
+                                'type':'str',
+                                'text':self.author
+                                },
+                            'TABLEITEMS':{
+                                'type':'tab',
+                                'text':{
+                                    'heading': True,
+                                    'colw': colw,
+                                    'cwunit': 'pct',
+                                    'tblw': 5000,
+                                    'twunit': 'pct',
+                                    'borders': {
+                                        'all': {
+                                            'color': 'auto',
+                                            'space': 0,
+                                            'sz': 6,
+                                            'val': 'single',
+                                            }  ,
+                                        },
+                                    }
+                                },
+                            'TABLESOURCE':{
+                                'type':'tab',
+                                'text':{
+                                    'heading': True,
+                                    'colw': colw,
+                                    'cwunit': 'pct',
+                                    'tblw': 5000,
+                                    'twunit': 'pct',
+                                    'borders': {
+                                        'all': {
+                                            'color': 'auto',
+                                            'space': 0,
+                                            'sz': 6,
+                                            'val': 'single',
+                                            }  ,
+                                        },
+                                    }
+                                },
+                            'TABLEPRS':{
+                                'type':'tab',
+                                'text':{
+                                    'heading': True,
+                                    'colw': [500,3000,500,500,500], # 5000 = 100%
+                                    'cwunit': 'pct',
+                                    'tblw': 5000,
+                                    'twunit': 'pct',
+                                    'borders': {
+                                        'all': {
+                                            'color': 'auto',
+                                            'space': 0,
+                                            'sz': 6,
+                                            'val': 'single',
+                                            }  ,
+                                        },
+                                    }
+                                }
+                            }
+                # Loop to replace tags
+                for key, value in list_tags.items():
+                    docbody = self.replaceTag(docbody, key, (value['type'], value['text']) )
+
+##                docbody,relationships = self.replaceTag(docbody, 'IMAGE', ('img', 'HW.png') )
+##                wordrelationships = docx.wordrelationships(relationships)
                 # Cleaning
                 docbody = docx.clean(docbody)
         except KeyError as exception:
@@ -637,15 +1023,284 @@ class BuildDoc(Tool):
         try:
             outfile = zipfile.ZipFile(self.docx_filename,mode='w',compression=zipfile.ZIP_DEFLATED)
 
+##            # Copy relationships
+##            actlist.append(('word/_rels/document.xml.rels', '/w:document/w:wordrelationships'))
+##            # Serialize our trees into out zip file
+##            treesandfiles = {wordrelationships: 'word/_rels/document.xml.rels'}
+##            for tree in treesandfiles:
+##                treestring = etree.tostring(tree, pretty_print=True)
+##                outfile.writestr(treesandfiles[tree], treestring)
+
+            # Copy image
+            image_name = self.get_image(self.aircraft)
+            # Replace image if image exists in SQLite database
+            if image_name != None:
+                actlist.append(('word/media/image1.png', ''))
+                img = open('img/' + image_name,'rb')
+                data = img.read()
+                outfile.writestr('word/media/image1.png',data)
+                img.close()
+
             # Copy unmodified sections
-            for f in template.namelist():
-                if not f in map(lambda i: i[0], actlist):
-                    fo = template.open(f,'rU')
+            for file in template.namelist():
+                if not file in map(lambda i: i[0], actlist):
+                    fo = template.open(file,'rU')
                     data = fo.read()
-                    outfile.writestr(f,data)
+                    outfile.writestr(file,data)
                     fo.close()
 
-            # The copy modified sections
+            # The copy of modified sections
+            for sec in outdoc.keys():
+                treestring = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "\n"
+                treestring += etree.tostring(outdoc[sec], pretty_print=True)
+                outfile.writestr(sec,treestring)
+            # Done. close files.
+            outfile.close()
+            exception = ""
+        except IOError as exception:
+            print >>sys.stderr, "Execution failed:", exception
+            self.docx_filename = False
+
+        template.close()
+        return self.docx_filename,exception
+
+    def createCID(self,tableau_items,tableau_source):
+        '''
+        This function creates the document based on the template
+        - open template docx
+        - get sections of the template
+        - replace tag in document
+        - create zip
+         . copy unmodified section
+         . copy modified section
+
+        '''
+        global list_projects
+        # Get config
+        config_parser = ConfigParser()
+        config_parser.read('docid.ini')
+        try:
+            template_dir = join(os.path.dirname("."), 'template')
+            template_name = config_parser.get("Template","name")
+            self.template_name = join(template_dir, template_name)
+            self.template_type = config_parser.get("Template","type")
+            self.type_doc = config_parser.get("Objects","type_doc").split(",")
+            self.type_src = config_parser.get("Objects","type_src").split(",")
+        except IOError as exception:
+            print "Execution failed:", exception
+
+        item_description = self.getItemDescription(self.item)
+        ci_identification = self.get_ci_identification(self.item)
+        # Load the original template
+        try:
+            template = zipfile.ZipFile(self.template_name,mode='r')
+        except IOError as exception:
+            print "Execution failed:", exception
+
+        if template.testzip():
+            raise Exception('File is corrupted!')
+
+        # List of section to modify
+        # (<section>, <namespace>)
+        actlist = []
+        actlist.append(('word/document.xml', '/w:document/w:body'))
+
+        list = template.namelist()
+        for entry in list:
+            m = re.match(r'^word/header.*',entry)
+            if m:
+                actlist.append((entry, '/w:hdr'))
+
+            m = re.match(r'^word/footer.*',entry)
+            if m:
+                actlist.append((entry, '/w:ftr'))
+
+        # Will store modified sections here
+        outdoc = {}
+        try:
+            for curact in actlist:
+                xmlcontent = template.read(curact[0])
+                outdoc[curact[0]] = etree.fromstring(xmlcontent)
+
+                # Will work on body
+                docbody = outdoc[curact[0]].xpath(curact[1], namespaces=docx.nsprefixes)[0]
+
+                # Replace some tags
+                title = self.item + " " + self.template_type
+                subject = self.item + " " + getTypeDocDescription(self.item)
+                project_text = "The project is not defined"
+                if self.project != "":
+                    if len(list_projects) in (0,1) :
+                        project_text = "The project is " + self.project
+                    else:
+                        text = "The projects are: "
+                        for project in list_projects:
+                            text =  text + project + ", "
+                        # remove last comma
+                        project_text = text[0:-2]
+
+                if self.release == "":
+                    self.release = "not defined"
+
+                if self.baseline == "":
+                    self.baseline = "not defined"
+
+                if self.author == "":
+                    self.author = "Nobody"
+
+                colw = [1000,2300,200,1000,500,500,500] # 5000 = 100%
+
+                list_tags = {
+                            'SUBJECT':{
+                                'type':'str',
+                                'text':subject
+                                },
+                            'TITLE':{
+                                'type':'str',
+                                'text':title
+                                },
+                            'CI_ID':{
+                                'type':'str',
+                                'text':ci_identification
+                                },
+                            'REFERENCE':{
+                                'type':'str',
+                                'text':self.reference
+                                },
+                            'ISSUE':{
+                                'type':'str',
+                                'text':self.revision
+                                },
+                            'ITEM':{
+                                'type':'str',
+                                'text':self.item
+                                },
+                            'ITEM_DESCRIPTION':{
+                                'type':'str',
+                                'text':item_description
+                                },
+                            'DATE':{
+                                'type':'str',
+                                'text':time.strftime("%d %b %Y", time.gmtime())
+                                },
+                            'PROJECT':{
+                                'type':'str',
+                                'text':project_text
+                                },
+                            'RELEASE':{
+                                'type':'str',
+                                'text':self.release
+                                },
+                            'BASELINE':{
+                                'type':'str',
+                                'text':self.baseline
+                                },
+                            'WRITER':{
+                                'type':'str',
+                                'text':self.author
+                                },
+                            'TABLEITEMS':{
+                                'type':'tab',
+                                'text':{
+                                    'heading': True,
+                                    'colw': colw,
+                                    'cwunit': 'pct',
+                                    'tblw': 5000,
+                                    'twunit': 'pct',
+                                    'borders': {
+                                        'all': {
+                                            'color': 'auto',
+                                            'space': 0,
+                                            'sz': 6,
+                                            'val': 'single',
+                                            }  ,
+                                        },
+                                    }
+                                },
+                            'TABLESOURCE':{
+                                'type':'tab',
+                                'text':{
+                                    'heading': True,
+                                    'colw': colw,
+                                    'cwunit': 'pct',
+                                    'tblw': 5000,
+                                    'twunit': 'pct',
+                                    'borders': {
+                                        'all': {
+                                            'color': 'auto',
+                                            'space': 0,
+                                            'sz': 6,
+                                            'val': 'single',
+                                            }  ,
+                                        },
+                                    }
+                                },
+                            'TABLEPRS':{
+                                'type':'tab',
+                                'text':{
+                                    'heading': True,
+                                    'colw': [500,3000,500,500,500], # 5000 = 100%
+                                    'cwunit': 'pct',
+                                    'tblw': 5000,
+                                    'twunit': 'pct',
+                                    'borders': {
+                                        'all': {
+                                            'color': 'auto',
+                                            'space': 0,
+                                            'sz': 6,
+                                            'val': 'single',
+                                            }  ,
+                                        },
+                                    }
+                                }
+                            }
+                # Loop to replace tags
+                for key, value in list_tags.items():
+                    docbody = self.replaceTag(docbody, key, (value['type'], value['text']) )
+
+##                docbody,relationships = self.replaceTag(docbody, 'IMAGE', ('img', 'HW.png') )
+##                wordrelationships = docx.wordrelationships(relationships)
+                # Cleaning
+                docbody = docx.clean(docbody)
+        except KeyError as exception:
+            print >>sys.stderr, "Execution failed:", exception
+
+        # ------------------------------
+        # Save output
+        # ------------------------------
+
+        # Prepare output file
+        self.docx_filename = self.aircraft + "_" + self.item + "_" + self.template_type + "_" + self.reference + ".docx"
+        try:
+            outfile = zipfile.ZipFile(self.docx_filename,mode='w',compression=zipfile.ZIP_DEFLATED)
+
+##            # Copy relationships
+##            actlist.append(('word/_rels/document.xml.rels', '/w:document/w:wordrelationships'))
+##            # Serialize our trees into out zip file
+##            treesandfiles = {wordrelationships: 'word/_rels/document.xml.rels'}
+##            for tree in treesandfiles:
+##                treestring = etree.tostring(tree, pretty_print=True)
+##                outfile.writestr(treesandfiles[tree], treestring)
+
+            # Copy image
+            image_name = self.get_image(self.aircraft)
+            # Replace image if image exists in SQLite database
+            if image_name != None:
+                actlist.append(('word/media/image1.png', ''))
+                img = open('img/' + image_name,'rb')
+                data = img.read()
+                outfile.writestr('word/media/image1.png',data)
+                img.close()
+
+            # Copy unmodified sections
+            for file in template.namelist():
+                if not file in map(lambda i: i[0], actlist):
+                    fo = template.open(file,'rU')
+                    data = fo.read()
+                    outfile.writestr(file,data)
+                    fo.close()
+
+            # The copy of modified sections
             for sec in outdoc.keys():
                 treestring = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "\n"
                 treestring += etree.tostring(outdoc[sec], pretty_print=True)
@@ -682,30 +1337,16 @@ class ThreadQuery(threading.Thread,Tool):
 
         self.verrou =threading.Lock()
 
-##    def getSessionStatus(self):
-##        global session_started
-##        if session_started:
-##            interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Check session...\n")
-##            proc = Popen(self.ccm_exe + ' status ', stdout=PIPE, stderr=PIPE)
-##            stdout, stderr = proc.communicate()
-##            print stdout
-##            if stderr:
-##                print 'Error while starting a synergy Session: ' + stderr
-##            time.sleep(1)
-##            return_code = proc.wait() #\/usr\/local\/ccmdb\/
-##            m = re.search(r'Database:(.*)',stdout)
-##            if m:
-##                print m.group
-##            interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Session checking finished.\n")
-##            return_code = m
-##        else:
-##            return_code = False
-##        return return_code
-
     def stopSession(self):
         stdout,stderr = self.ccm_query('stop','Stop Synergy session')
 
     def storeSelection(self,project,item,release,baseline):
+        '''
+        Store selection in SQLite database
+         -project
+         -release
+         -baseline
+        '''
         try:
             now = datetime.datetime.now()
             if baseline == "All":
@@ -722,9 +1363,9 @@ class ThreadQuery(threading.Thread,Tool):
             data = cur.fetchone()
             if data != None:
                 id = data[0]
-                cur.execute("UPDATE last_query SET database=?,project=?,release=?,baseline=?,input_date=? WHERE id= ?",(self.database,project,release,baseline,now,id))
+                cur.execute("UPDATE last_query SET database=?,reference=?,revision=?,project=?,release=?,baseline=?,input_date=? WHERE id= ?",(self.database,self.reference,self.revision,project,release,baseline,now,id))
             else:
-                cur.execute("INSERT INTO last_query(database,project,item,release,baseline,input_date) VALUES(?,?,?,?,?,?)",(self.database,project,item,release,baseline,now))
+                cur.execute("INSERT INTO last_query(database,reference,revision,project,item,release,baseline,input_date) VALUES(?,?,?,?,?,?,?,?)",(self.database,self.reference,self.revision,project,item,release,baseline,now))
             cur.execute("DELETE FROM last_query WHERE id NOT IN ( SELECT id FROM ( SELECT id FROM last_query ORDER BY input_date DESC LIMIT 4) x )")
             lid = cur.lastrowid
 ##            print "The last Id of the inserted row is %d" % lid
@@ -742,28 +1383,47 @@ class ThreadQuery(threading.Thread,Tool):
 
     def processIncoming(self):
         global session_started
+        global interface
         """
         Handle all the messages currently in the queue (if any).
+         - BUILD_DOCX
+          . Store selection
+         - START_SESSION
+         - GET_BASELINES
+         - GET_RELEASES
+         - GET_PROJECTS
+
         """
         while self.queue.qsize():
             try:
                 # Check contents of message
                 action = self.queue.get(0)
                 print action
-                if action == "BUILD_DOCX":
+                if action == "BUILD_CID":
                     data = self.queue.get(1)
                     author = data[0]
-                    reference = data[1]
-                    release = data[2]
-                    project = data[3]
-                    baseline = data[4]
-                    object_released = data[5]
-                    object_integrate = data[6]
+                    self.reference = data[1]
+                    self.revision = data[2]
+                    release = data[3]
+                    project = data[4]
+                    baseline = data[5]
+                    object_released = data[6]
+                    object_integrate = data[7]
 
                     interface.output_txt.delete(1.0, END)
                     #store information in sqlite db
                     self.storeSelection(project,self.item,release,baseline)
-                    self.build_doc_thread = threading.Thread(None,generateDoc,None,(author,reference,release,self.aircraft,self.item,project,baseline,object_released,object_integrate))
+                    self.build_doc_thread = threading.Thread(None,generateCID,None,(author,self.reference,self.revision,release,self.aircraft,self.item,project,baseline,object_released,object_integrate))
+                    self.build_doc_thread.start()
+                    # Make a query to synergy
+
+                if action == "BUILD_SQAP":
+                    data = self.queue.get(1)
+                    author = data[0]
+                    self.reference = data[1]
+                    self.revision = data[2]
+
+                    self.build_doc_thread = threading.Thread(None,generateSQAP,None,(author,self.reference,self.revision))
                     self.build_doc_thread.start()
                     # Make a query to synergy
 
@@ -776,12 +1436,12 @@ class ThreadQuery(threading.Thread,Tool):
                     self.item = data[3]
                     self.aircraft = data[4]
                     self.start_session_thread = threading.Thread(None,startSession,None,(self.item,self.database,login,password))
-                    if session_started:
-                        interface.button_select.configure(state=DISABLED)
-                        interface.button_find_baselines.configure(state=DISABLED)
-                        interface.button_find_releases.configure(state=DISABLED)
-                        interface.button_find_projects.configure(state=DISABLED)
-##                        self.stopSession()
+##                    if session_started:
+##                        interface.button_select.configure(state=DISABLED)
+##                        interface.button_find_baselines.configure(state=DISABLED)
+##                        interface.button_find_releases.configure(state=DISABLED)
+##                        interface.button_find_projects.configure(state=DISABLED)
+
                     self.start_session_thread.start()
 
                 elif action == "GET_BASELINES":
@@ -800,6 +1460,11 @@ class ThreadQuery(threading.Thread,Tool):
                     self.get_projects_thread = threading.Thread(None,getProjectsList,None,(release,baseline))
                     self.get_projects_thread.start()
 
+                elif action == "READ_STATUS":
+                    print "set_status thread"
+                    self.set_status_thread = threading.Thread(None,getSessionStatus,None)
+                    self.set_status_thread.start()
+
                 else:
                     pass
             except Queue.Empty:
@@ -807,7 +1472,7 @@ class ThreadQuery(threading.Thread,Tool):
 
     def periodicCall(self):
         """
-        Check every 200 ms if there is something new in the queue.
+        Check every 1000 ms if there is something new in the queue.
         """
 ##        print time.strftime("%H:%M:%S", time.gmtime())
         self.processIncoming()
@@ -816,7 +1481,7 @@ class ThreadQuery(threading.Thread,Tool):
             # some cleanup before actually shutting it down.
             import sys
             sys.exit(1)
-        self.master.after(200, self.periodicCall)
+        self.master.after(1000, self.periodicCall)
 
     def run(self):
         self.periodicCall()
@@ -826,6 +1491,14 @@ class ThreadQuery(threading.Thread,Tool):
 
 class Login (Frame,Tool):
     def __init__(self, fenetre, **kwargs):
+        '''
+        init login class
+             - create GUI
+             - invoke sqlite query SELECT name FROM systems ORDER BY systems.name ASC
+               to populate system listbox
+        '''
+        global background
+        global foreground
         global queue
         self.queue = queue
         # read config file
@@ -836,89 +1509,97 @@ class Login (Frame,Tool):
         # Create widgets
         entry_size = 30
         # Create top frame, with scrollbar and listbox
-        background = 'grey50'
         Frame.__init__(self, fenetre, width=768, height=576,relief =GROOVE, bg = background,**kwargs)
         self.pack(fill=BOTH)
-        self.can = Canvas(self, width =64, height =64, bg =background,highlightthickness=0)
-        bitmap = PhotoImage(file="doc.gif")
-##        bitmap = BitmapImage(file="zodiac.xbm")
-        self.can.create_image(32,32,image =bitmap)
-        self.can.bitmap = bitmap
-        self.login_txt = Label(self, text='Login:', fg='white',bg = background)
-        self.login_entry = Entry(self, state=NORMAL,width=entry_size)
-        self.login_entry.insert(END, self.login)
-        self.password_txt = Label(self, text='Password:', fg='white',bg = background)
-        self.password_entry = Entry(self, state=NORMAL,width=entry_size)
-        self.password_entry.configure(show='*')
-        self.password_entry.insert(END, self.password)
-
-##        self.varcombo = StringVar()
-##        self.database_txt = Label(self, text='Systems:', fg='white',bg = background)
-##        self.combo = ComboBox(fenetre, editable=1, dropdown=1, variable=self.varcombo, command = self.Affiche)
-##        self.combo.entry.config(width=8,state='readonly')  ## met la zone de texte en lecture seule
-        # populate systems listbox with table of systems
-##        result = sqlite_query('SELECT id,name FROM systems')
-##        print result
-##        for item in result:
-##            self.combo.insert(item[0], item[1])
-##        combo.insert(0, 'NT')
-##        combo.insert(1, 'Linux')
-##        self.combo.pack()
-
-
-        self.database_txt = Label(self, text='Systems:', fg='white',bg = background)
-        self.listbox = Listbox(self,height=12,width=entry_size,exportselection=0)
+        self.listbox_txt = Label(self, text='Systems:', fg=foreground,bg = background)
+        self.listbox_frame = Frame(self, bg = '#80c0c0')
+        self.vbar_1 = vbar_1 = Scrollbar(self.listbox_frame, name="vbar_1")
+        self.vbar_1.pack(side=RIGHT, fill=Y)
+        self.listbox = Listbox(self.listbox_frame,height=6,width=entry_size,exportselection=0,yscrollcommand=vbar_1.set)
+        self.listbox.pack()
         self.populate_listbox('SELECT name FROM systems ORDER BY systems.name ASC',self.listbox,"None")
         # Tie listbox and scrollbar together
-        self.vbar_1 = vbar_1 = Scrollbar(self, name="vbar_1")
         vbar_1["command"] = self.listbox.yview
-        self.listbox["yscrollcommand"] = vbar_1.set
         # Bind events to the list box
         self.listbox.bind("<ButtonRelease-1>", self.select_system)
         self.listbox.bind("<Key-Up>", self.up_event_1)
         self.listbox.bind("<Key-Down>", self.down_event_1)
 
-        self.items_txt = Label(self, text='Items:', fg='white',bg = background)
-        self.itemslistbox = Listbox(self,height=6,width=entry_size,exportselection=0)
+         # Create and pack the dropdown ComboBox.
+##        colours = ('cornsilk1', 'snow1', 'seashell1', 'antiquewhite1',
+##                'bisque1', 'peachpuff1', 'navajowhite1', 'lemonchiffon1',
+##                'ivory1', 'honeydew1', 'lavenderblush1', 'mistyrose1')
+##        dropdown = Pmw.ComboBox(fenetre,
+##                label_text = 'Dropdown ComboBox:',
+##                labelpos = 'nw',
+##                selectioncommand = self.changeColour,
+##                scrolledlist_items = colours,
+##        )
+##        dropdown.pack(side = 'left', anchor = 'n',
+##                fill = 'x', expand = 1, padx = 8, pady = 8)
+
+        self.items_txt = Label(self, text='Items:', fg=foreground,bg = background)
+        self.itemslistbox_frame = Frame(self, bg = '#80c0c0')
+        self.vbar_2 = vbar_2 = Scrollbar(self.itemslistbox_frame , name="vbar_2")
+        self.vbar_2.pack(side=RIGHT, fill=Y)
+        self.itemslistbox = Listbox(self.itemslistbox_frame ,height=3,width=entry_size,exportselection=0,yscrollcommand=vbar_2.set)
+        self.itemslistbox.pack()
         self.itemslistbox.insert(END, "All")
-        self.vbar_2 = vbar_2 = Scrollbar(self, name="vbar_2")
         vbar_2["command"] = self.itemslistbox.yview
-        self.itemslistbox["yscrollcommand"] = vbar_2.set
         self.itemslistbox.bind("<ButtonRelease-1>", self.select_item)
 ##        self.itemslistbox.bind("<Double-ButtonRelease-1>", self.double_click_item)
         self.itemslistbox.bind("<Key-Up>", self.up_event_2)
         self.itemslistbox.bind("<Key-Down>", self.down_event_2)
 
-        self.button_select = Button(self, text='OK', state=DISABLED, command = self.click_select)
-        self.button_quit = Button(self, text='Quit', command = self.click_quit)
-
+        # Login
         row_index = 1
+        self.login_txt = Label(self, text='Login:', fg=foreground,bg = background)
+        self.login_entry = Entry(self, state=NORMAL,width=entry_size)
+        self.login_entry.insert(END, self.login)
         self.login_txt.grid(row =row_index,sticky='ES')
         self.login_entry.grid(row =row_index, column =1,sticky='E')
-        self.can.grid(row =0, column =3,rowspan =6, padx =10, pady =5,sticky='W')
 
+        #Drawing
+        self.can = Canvas(self, width =64, height =256, bg =background,highlightthickness=0)
+        bitmap = PhotoImage(file="img/doc.gif")
+        self.can.create_image(32,32,image =bitmap)
+        self.can.bitmap = bitmap
+        self.can.grid(row =0, column =3,rowspan =6, padx =5, pady =5,sticky='W')
+
+        # Password
         row_index = row_index + 1
+        self.password_txt = Label(self, text='Password:', fg=foreground,bg = background)
+        self.password_entry = Entry(self, state=NORMAL,width=entry_size)
+        self.password_entry.configure(show='*')
+        self.password_entry.insert(END, self.password)
         self.password_txt.grid(row =row_index,sticky='E')
         self.password_entry.grid(row =row_index, column =1,sticky='E')
 
-        # Database
+        # Systems
         row_index = row_index + 1
-        self.database_txt.grid(row =row_index,sticky='E')
-        self.listbox.grid(row =row_index, column =1,sticky='E')
-        self.vbar_1.grid(row =row_index, column =2,sticky='W')
+        self.listbox_txt.grid(row =row_index,sticky='E')
+        self.listbox_frame.grid(row =row_index, column =1,sticky='E')
+##        self.vbar_1.grid(row =row_index, column =2,sticky='W')
 
-        # Item
+        # Items
         row_index = row_index + 1
         self.items_txt.grid(row =row_index,sticky='E')
-        self.itemslistbox.grid(row =row_index, column =1,sticky='E')
-        self.vbar_2.grid(row =row_index, column =2,sticky='W')
+        self.itemslistbox_frame.grid(row =row_index, column =1,sticky='E')
+##        self.vbar_2.grid(row =row_index, column =2,sticky='W')
 
         # Build & Quit
         row_index = row_index + 1
+        self.button_select = Button(self, text='OK', state=DISABLED, command = self.click_select)
+        self.button_quit = Button(self, text='Quit', command = self.click_quit)
         self.button_select.grid(row =row_index, column =1,sticky='E')
         self.button_quit.grid(row =row_index, column =2,sticky='W')
 
+    def changeColour(self, colour):
+        print 'Colour: ' + colour
+        self.listbox_txt.configure(background = colour)
+
     def select_item(self, event):
+        ''' select item and enable OK button to goto the next popup window'''
         item_id = self.itemslistbox.curselection()
         self.item_id = item_id
         self.button_select.configure(state=NORMAL)
@@ -929,17 +1610,31 @@ class Login (Frame,Tool):
         if system_id != () and '0' not in system_id:
             system = self.listbox.get(system_id)
             # Populate items list box
-            query = 'SELECT items.name FROM items LEFT OUTER JOIN link_systems_items ON items.id = link_systems_items.item_id LEFT OUTER JOIN systems ON systems.id = link_systems_items.system_id WHERE systems.name = \'' + system + '\' ORDER BY items.name ASC'
+            query = 'SELECT items.name FROM items LEFT OUTER JOIN link_systems_items ON items.id = link_systems_items.item_id LEFT OUTER JOIN systems ON systems.id = link_systems_items.system_id WHERE systems.name LIKE \'' + system + '\' ORDER BY items.name ASC'
             self.populate_listbox(query,self.itemslistbox,"All")
             self.listbox.activate(system_id)
+        else:
+            self.itemslistbox.delete(0, END)
+
+    def press_ctrl_b(self,event):
+        '''
+        Bypass login. No message START_SESSION sent.
+        '''
+        global login_success
+
+        login_success = True
+        self.destroy()
+        login_window.destroy()
 
     def click_select(self):
         global login_success
+        global project_item
         if self.item_id != () and '0' not in self.item_id:
             item = self.itemslistbox.get(self.item_id)
-            value = self.get_database(item)
-            self.database = value[0][0]
-            self.aircraft = value[0][1]
+            project_item = item
+            self.database,self.aircraft = self.get_database(item)
+##            self.database = database[0]
+##            self.aircraft = aircraft[1]
             # Get login and password information
             login = self.login_entry.get()
             password = self.password_entry.get()
@@ -1007,8 +1702,12 @@ class Login (Frame,Tool):
         return "break"
 
 class Interface (Frame,Tool):
-    def __init__(self, fenetre, **kwargs):
+    def __init__(self, notebook, **kwargs):
+        global background
+        global foreground
         global queue
+        global entry_size
+
         self.queue = queue
         # read config file
         config_parser = ConfigParser()
@@ -1017,8 +1716,8 @@ class Interface (Frame,Tool):
         self.password = config_parser.get("User","password")
         self.author = config_parser.get("User","author")
 
-        self.reference = "ET1234-V"
-        self.revision = "1D1"
+        self.reference = "" #"ET1234-V"
+        self.revision = "" #"1D1"
         self.database = ""
         self.project = "All"
         self.aircraft = ""
@@ -1029,140 +1728,74 @@ class Interface (Frame,Tool):
         self.session_started = False
         # Create widgets
         entry_size = 30
+        # Add pages to the notebook.
+        page_create_cid = notebook.add('Create CID')
+        page_create_sqap = notebook.add('Create SQAP')
+        page_create_checklist = notebook.add('Create checklist')
+        page_create_ccb = notebook.add('Create CCB minutes')
         # Create top frame, with scrollbar and listbox
-        background = 'grey50'
-        Frame.__init__(self, fenetre, width=768, height=576,relief =GROOVE, bg = background,**kwargs)
+        Frame.__init__(self, page_create_cid, width=768, height=576,relief =GROOVE, bg = background,**kwargs)
         self.pack(fill=BOTH)
-        self.can = Canvas(self, width =64, height =64, bg =background,highlightthickness=0)
-        bitmap = PhotoImage(file="doc.gif")
-##        bitmap = BitmapImage(file="zodiac.xbm")
-        self.can.create_image(32,32,image =bitmap)
-        self.can.bitmap = bitmap
-##        self.login_txt = Label(self, text='Login:', fg='white',bg = background)
-##        self.login_entry = Entry(self, state=NORMAL,width=entry_size)
-##        self.login_entry.insert(END, self.login)
-##        self.password_txt = Label(self, text='Password:', fg='white',bg = background)
-##        self.password_entry = Entry(self, state=NORMAL,width=entry_size)
-##        self.password_entry.configure(show='*')
-##        self.password_entry.insert(END, self.password)
-        self.author_txt = Label(self, text='Author:', fg='white',bg = background)
+
+        # Author
+        row_index = 1
+        # Create the "Toolbar" contents of the page.
+
+        self.author_txt = Label(self, text='Author:', fg=foreground,bg = background)
+        self.author_txt.grid(row =row_index,sticky='E')
         self.author_entry = Entry(self, state=NORMAL,width=entry_size)
         self.author_entry.insert(END, self.author)
-        self.reference_txt = Label(self, text='Reference:', fg='white',bg = background)
+        self.author_entry.grid(row = row_index, column =1,sticky='E')
+
+        # Description of the selected project
+        self.project_description = Label(self, fg=foreground,bg = background)
+        self.project_description.grid(row =row_index,column =4,sticky='E')
+
+        # Image
+        self.can = Canvas(self, width =240, height =116, bg =background,highlightthickness=0)
+        bitmap = PhotoImage(file="img/earhart12_240x116.gif")
+##        bitmap = BitmapImage(file="zodiac.xbm")
+        self.can.create_image(120,58,image =bitmap)
+        self.can.bitmap = bitmap
+        self.can.grid(row =row_index+1, column =4,rowspan =5, padx =20, pady =5,sticky='W')
+
+        # Reference
+        row_index = row_index + 1
+        self.reference_txt = Label(self, text='Reference:', fg=foreground,bg = background)
         self.reference_entry = Entry(self, state=NORMAL,width=entry_size)
         self.reference_entry.insert(END, self.reference)
-        self.revision_txt = Label(self, text='Issue:', fg='white',bg = background)
+        self.reference_txt.grid(row =row_index,sticky='E')
+        self.reference_entry.grid(row = row_index, column =1,sticky='E')
+
+        # Revision
+        row_index = row_index + 1
+        self.revision_txt = Label(self, text='Issue:', fg=foreground,bg = background)
         self.revision_entry = Entry(self, state=NORMAL,width=entry_size)
         self.revision_entry.insert(END, self.revision)
-        self.vbar_1 = vbar_1 = Scrollbar(self, name="vbar_1")
-        self.vbar_2 = vbar_2 = Scrollbar(self, name="vbar_2")
-        self.vbar_3 = vbar_3 = Scrollbar(self, name="vbar_3")
-        self.vbar_4 = vbar_4 = Scrollbar(self, name="vbar_4")
-        self.vbar_5 = vbar_5 = Scrollbar(self, name="vbar_5")
+        self.revision_txt.grid(row =row_index,sticky='E')
+        self.revision_entry.grid(row =row_index, column =1,sticky='E')
 
-##        self.database_txt = Label(self, text='Systems:', fg='white',bg = background)
-##        self.listbox = Listbox(self,height=3,width=entry_size,exportselection=0)
-##        # Tie listbox and scrollbar together
-##        vbar_1["command"] = self.listbox.yview
-##        self.listbox["yscrollcommand"] = vbar_1.set
-##        # Bind events to the list box
-##        self.listbox.bind("<ButtonRelease-1>", self.select_system)
-##        self.listbox.bind("<Double-ButtonRelease-1>", self.double_click_system)
-##        self.listbox.bind("<Key-Up>", self.up_event_1)
-##        self.listbox.bind("<Key-Down>", self.down_event_1)
-##
-##        self.items_txt = Label(self, text='Items:', fg='white',bg = background)
-##        self.itemslistbox = Listbox(self,height=3,width=entry_size,exportselection=0)
-##        self.itemslistbox.insert(END, "All")
-##        if self.item != "":
-##            self.itemslistbox.insert(END, self.item)
-##        vbar_2["command"] = self.itemslistbox.yview
-##        self.itemslistbox["yscrollcommand"] = vbar_2.set
-##        self.itemslistbox.bind("<ButtonRelease-1>", self.select_item)
-####        self.itemslistbox.bind("<Double-ButtonRelease-1>", self.double_click_item)
-##        self.itemslistbox.bind("<Key-Up>", self.up_event_2)
-##        self.itemslistbox.bind("<Key-Down>", self.down_event_2)
-
-        self.release_txt = Label(self, text='Release:', fg='white',bg = background)
+        # Release
+        row_index = row_index + 1
+        self.release_txt = Label(self, text='Release:', fg=foreground,bg = background)
         self.releaselistbox = Listbox(self,height=3,width=entry_size,exportselection=0)
         self.releaselistbox.insert(END, "All")
-##        if self.release != "*":
-##            self.releaselistbox.insert(END, self.release)
+        self.vbar_3 = vbar_3 = Scrollbar(self, name="vbar_3")
         vbar_3["command"] = self.releaselistbox.yview
         self.releaselistbox["yscrollcommand"] = vbar_3.set
         self.releaselistbox.bind("<ButtonRelease-1>", self.select_release)
         self.releaselistbox.bind("<Key-Up>", self.up_event_3)
         self.releaselistbox.bind("<Key-Down>", self.down_event_3)
         self.button_find_releases = Button(self, text='Refresh', state=DISABLED, command = self.find_releases)
-
-        self.project_txt = Label(self, text='Project:', fg='white',bg = background)
-        self.projectlistbox = Listbox(self,height=3,width=entry_size,exportselection=0)
-        self.projectlistbox.insert(END, "All")
-##        if self.project != "*":
-##            self.projectlistbox.insert(END, self.project)
-        vbar_4["command"] = self.projectlistbox.yview
-        self.projectlistbox["yscrollcommand"] = vbar_4.set
-        self.projectlistbox.bind("<ButtonRelease-1>", self.select_project)
-        self.projectlistbox.bind("<Key-Up>", self.up_event_4)
-        self.projectlistbox.bind("<Key-Down>", self.down_event_4)
-        self.button_find_projects = Button(self, text='Refresh', state=DISABLED, command = self.find_projects)
-
-        self.directory_txt = Label(self, text='Directory:', fg='white',bg = background)
-        self.directory_entry = Entry(self, state=NORMAL,width=entry_size)
-        self.directory_entry.insert(END, "*")
-        self.button_select = Button(self, text='Build', state=DISABLED, command = self.click_select)
-        self.button_quit = Button(self, text='Quit', command = self.click_quit)
-        self.status_released = IntVar()
-        self.check_button_status_released = Checkbutton(self, text="Released", variable=self.status_released,fg='grey',bg = background,command=self.cb_released)
-        self.status_integrate = IntVar()
-        self.check_button_status_integrate = Checkbutton(self, text="Integrate", variable=self.status_integrate,fg='grey',bg = background,command=self.cb_integrate)
-        self.output_label = Label(self, text='Output:',fg='white',bg = background)
-        self.output_txt = Text(self, width = 44, height = 12)
-
-        row_index = 1
-##        self.login_txt.grid(row =row_index,sticky='ES')
-##        self.login_entry.grid(row =row_index, column =1,sticky='E')
-##        self.can.grid(row =0, column =3,rowspan =6, padx =10, pady =5,sticky='W')
-##
-##        row_index = row_index + 1
-##        self.password_txt.grid(row =row_index,sticky='E')
-##        self.password_entry.grid(row =row_index, column =1,sticky='E')
-        self.author_txt.grid(row =row_index,sticky='E')
-        self.author_entry.grid(row = row_index, column =1,sticky='E')
-
-        row_index = row_index + 1
-        self.reference_txt.grid(row =row_index,sticky='E')
-        self.reference_entry.grid(row = row_index, column =1,sticky='E')
-
-        row_index = row_index + 1
-        self.revision_txt.grid(row =row_index,sticky='E')
-        self.revision_entry.grid(row =row_index, column =1,sticky='E')
-
-##        # Database
-##        row_index = row_index + 1
-##        self.database_txt.grid(row =row_index,sticky='E')
-##        self.listbox.grid(row =row_index, column =1,sticky='E')
-##        self.vbar_1.grid(row =row_index, column =2,sticky='W')
-##
-##        # Item
-##        row_index = row_index + 1
-##        self.items_txt.grid(row =row_index,sticky='E')
-##        self.itemslistbox.grid(row =row_index, column =1,sticky='E')
-##        self.vbar_2.grid(row =row_index, column =2,sticky='W')
-
-        # Release
-        row_index = row_index + 1
         self.release_txt.grid(row =row_index,sticky='E')
         self.releaselistbox.grid(row =row_index, column =1,sticky='E')
         self.vbar_3.grid(row =row_index, column =2,sticky='W')
         self.button_find_releases.grid(row =row_index, column =2,sticky='W',padx=20)
 
         # Baseline
-        self.baseline_txt = Label(self, text='Baseline:', fg='white',bg = background)
+        self.baseline_txt = Label(self, text='Baseline:', fg=foreground,bg = background)
         self.baselinelistbox = Listbox(self,height=3,width=entry_size,exportselection=0)
-        self.baselinelistbox.insert(END, "All")
-##        if self.baseline != "*":
-##            self.baselinelistbox.insert(END, self.release)
+        self.vbar_5 = vbar_5 = Scrollbar(self, name="vbar_5")
         vbar_5["command"] = self.baselinelistbox.yview
         self.baselinelistbox["yscrollcommand"] = vbar_5.set
         self.baselinelistbox.bind("<ButtonRelease-1>", self.select_baseline)
@@ -1178,30 +1811,116 @@ class Interface (Frame,Tool):
 
         # Project
         row_index = row_index + 1
+        self.project_txt = Label(self, text='Project:', fg=foreground,bg = background)
+        self.projectlistbox = Listbox(self,height=3,width=entry_size,exportselection=0)
+        self.vbar_4 = vbar_4 = Scrollbar(self, name="vbar_4")
+        vbar_4["command"] = self.projectlistbox.yview
+        self.projectlistbox["yscrollcommand"] = vbar_4.set
+        self.projectlistbox.bind("<ButtonRelease-1>", self.select_project)
+        self.projectlistbox.bind("<Key-Up>", self.up_event_4)
+        self.projectlistbox.bind("<Key-Down>", self.down_event_4)
+        self.button_find_projects = Button(self, text='Refresh', state=DISABLED, command = self.find_projects)
         self.project_txt.grid(row =row_index,sticky='E')
         self.projectlistbox.grid(row =row_index, column =1,sticky='E')
         self.vbar_4.grid(row =row_index, column =2,sticky='W')
         self.button_find_projects.grid(row =row_index, column =2,sticky='W',padx=20)
 
-        #self.directory_txt.grid(row =8,sticky='E')
-        #self.directory_entry.grid(row =8, column =1,sticky='E')
-        # Build & Quit
+        # Build
         row_index = row_index + 1
+        self.button_select = Button(self, text='Build', state=DISABLED, command = self.click_build_cid)
         self.button_select.grid(row =row_index, column =1,pady=5,sticky='E')
-        self.button_quit.grid(row =row_index, column =2,pady=5,sticky='W')
+
         # Check buttons
         row_index = row_index + 1
-        self.objects_txt = Label(self, text='Objects:', fg='white',bg = background)
+##        group = Pmw.Group(fenetre, tag_text = 'Objects status')
+##        group.grid(row =row_index,sticky='E')
+        self.status_released = IntVar()
+        self.check_button_status_released = Checkbutton(self, text="Released", variable=self.status_released,fg=foreground,bg = background,command=self.cb_released)
+        self.status_integrate = IntVar()
+        self.check_button_status_integrate = Checkbutton(self, text="Integrate", variable=self.status_integrate,fg=foreground,bg = background,command=self.cb_integrate)
+
+        self.objects_txt = Label(self, text='Objects:', fg=foreground,bg = background)
         self.objects_txt.grid(row =row_index,sticky='E')
         self.check_button_status_released.grid(row =row_index, column =1, padx=10,sticky='W')
         self.check_button_status_integrate.grid(row =row_index, column =1,sticky='E')
+
         # Output
+        self.output_label = Label(self, text='Output:',fg=foreground,bg = background)
+        self.output_txt = Text(self, width = 72, height = 12)
         row_index = row_index + 1
         self.output_label.grid(row =row_index,sticky='E')
         row_index = row_index + 1
-        self.output_txt.grid(row =row_index ,columnspan =4, pady =20,padx = 10)
-        # populate systems listbox with table of systems
-##        self.populate_listbox('SELECT id,name FROM systems',self.listbox,"None")
+        self.output_txt.grid(row =row_index ,columnspan =5, pady =20,padx = 10)
+
+        # Build SQAP folder in the notebook
+        self.build_sqap_folder(page_create_sqap,**kwargs)
+
+    def build_sqap_folder(self,page_create_sqap,**kwargs):
+        global entry_size
+        global project_item
+
+        self.item = project_item
+        # Create top frame, with scrollbar and listbox
+        Frame.__init__(self, page_create_sqap, width=768, height=576,relief =GROOVE, bg = background,**kwargs)
+        self.pack(fill=BOTH)
+
+        row_index = 1
+        # Description of the selected project
+        self.project_description_pg2 = Label(self, text="Project:",fg=foreground,bg = background)
+        self.project_description_pg2.grid(row =row_index,sticky='E')
+        self.project_description_entry_pg2 = Entry(self,width=entry_size)
+        self.project_description_entry_pg2.insert(END, self.getItemDescription(project_item))
+        self.project_description_entry_pg2.grid(row =row_index,column =1,sticky='E')
+
+        # Author
+        row_index = row_index + 1
+        self.author_txt_pg2 = Label(self, text='Author:', fg=foreground,bg = background)
+        self.author_txt_pg2.grid(row =row_index,sticky='E')
+        self.author_entry_pg2 = Entry(self, state=NORMAL,width=entry_size)
+        self.author_entry_pg2.insert(END, self.author)
+        self.author_entry_pg2.grid(row = row_index, column =1,sticky='E')
+
+        reference,revision,status = self.getDocInfo(project_item)
+        # Reference
+        row_index = row_index + 1
+        self.reference_txt_pg2 = Label(self, text='Reference:', fg=foreground,bg = background)
+        self.reference_entry_pg2 = Entry(self, state=NORMAL,width=entry_size)
+        self.reference_entry_pg2.insert(END, reference)
+        self.reference_txt_pg2.grid(row =row_index,sticky='E')
+        self.reference_entry_pg2.grid(row = row_index, column =1,sticky='E')
+
+        # Revision
+        row_index = row_index + 1
+        self.revision_txt_pg2 = Label(self, text='Issue:', fg=foreground,bg = background)
+        self.revision_entry_pg2 = Entry(self, state=NORMAL,width=entry_size)
+        self.revision_entry_pg2.insert(END, revision)
+        self.revision_txt_pg2.grid(row =row_index,sticky='E')
+        self.revision_entry_pg2.grid(row =row_index, column =1,sticky='E')
+
+        # Status
+        row_index = row_index + 1
+        self.status_txt = Label(self, text='Status:', fg=foreground,bg = background)
+        self.status_entry = Entry(self, state=NORMAL,width=entry_size)
+        self.status_entry.insert(END, status)
+        self.status_txt.grid(row =row_index,sticky='E')
+        self.status_entry.grid(row =row_index, column =1,sticky='E')
+
+        # Build
+        row_index = row_index + 1
+        self.button_select_pg2 = Button(self, text='Build', state=NORMAL, command = self.click_build_sqap)
+        self.button_select_pg2.grid(row =row_index, column =1,pady=5,sticky='E')
+
+        # Output
+        self.output_label_pg2 = Label(self, text='Output:',fg=foreground,bg = background)
+        self.output_txt_pg2 = Text(self, width = 72, height = 12)
+        row_index = row_index + 1
+        self.output_label_pg2.grid(row =row_index,sticky='E')
+        row_index = row_index + 1
+        self.output_txt_pg2.grid(row =row_index ,columnspan =5, pady =20,padx = 10)
+
+    def press_ctrl_t(self,event):
+        print "TEST CTRL + T"
+        self.queue.put("READ_STATUS") # order to read session status
 
     def cb_released(self):
         print "variable is", self.status_released.get()
@@ -1212,23 +1931,6 @@ class Interface (Frame,Tool):
     def __del__(self):
         # kill threads
         pass
-
-    def help(self):
-        help_window = Tk()
-        help_window.iconbitmap("qams.ico")
-        help_window.title("Help")
-        help_window.resizable(False,False)
-        readme_file = open('README.txt', 'r')
-        readme_text = readme_file.read()
-        readme_file.close()
-        tex1 = Label(help_window, text=readme_text, fg='grey50')
-        tex1.pack()
-        bou1 = Button(help_window, text='Quitter', command = fen1.destroy)
-        bou1.pack()
-        help_window.mainloop()
-
-    def about(self):
-        tkMessageBox.showinfo("Make configuration Index Document", "docid is written by Olivier Appere\n\n (c) Copyright 2013")
 
     def click_event(self, event):
         self.listbox.activate("@%d,%d" % (event.x, event.y))
@@ -1249,15 +1951,6 @@ class Interface (Frame,Tool):
 
     def select(self, event):
        pass
-
-##    def select_system(self, event):
-##        # populate items listbox
-##        system_id = self.listbox.curselection()
-##        if system_id != () and '0' not in system_id:
-##            # Populate items list box
-##            query = 'SELECT items.id, items.name FROM items LEFT OUTER JOIN link_systems_items ON items.id = link_systems_items.item_id WHERE link_systems_items.system_id = {:s}'.format(system_id[0] + " ORDER BY items.name ASC")
-##            self.populate_listbox(query,self.itemslistbox,"All")
-##            self.listbox.activate(system_id)
 
     def select_item(self, event):
         item_id = self.itemslistbox.curselection()
@@ -1457,31 +2150,69 @@ class Interface (Frame,Tool):
             self.destroy()
             fenetre.destroy()
 
-    def click_select(self):
-            # Get author
-            author = self.author
-            # Get reference
-            reference = self.reference_entry.get()
-            # Get baseline
-            baseline = self.baseline
-            # Get release
-            release = self.release
-            # Get project
-            project = self.project
-            # Get aircraft
+    def click_build_cid(self):
+        '''
+        Function which put
+        - author
+        - reference
+        - revision
+        - release
+        - project
+        - baseline
+        - status_released
+        - status_integrate
+
+        into the queue
+        called when the user press the Build button
+        '''
+        # Get author
+        author = self.author
+        # Get reference
+        reference = self.reference_entry.get()
+        if reference == "":
+            reference = "TBD"
+        # Get revision
+        revision = self.revision_entry.get()
+        if revision == "":
+            revision = "TBD"
+        # Get baseline
+        baseline = self.baseline
+        # Get release
+        release = self.release
+        # Get project
+        project = self.project
+        # Get aircraft
 ##            aircraft = self.aircraft
-            # Get item
-            #index = self.itemslistbox.curselection()
-##            index = self.item_id
-##            if index == "":
-##                tkMessageBox.showerror("Item selection", "No item selected.")
-##            else:
-##                item = self.itemslistbox.get(index)
-##                # Get directory
-##                directory = self.directory_entry.get()
-            # Get project and database listbox information
-            self.queue.put("BUILD_DOCX") # order to build docx
-            self.queue.put([self.author,self.reference,self.release,self.project,self.baseline,self.status_released.get(),self.status_integrate.get()])
+        # Get item
+
+        # Get project and database listbox information
+        self.queue.put("BUILD_CID") # order to build docx
+        self.queue.put([author,reference,revision,self.release,self.project,self.baseline,self.status_released.get(),self.status_integrate.get()])
+
+    def click_build_sqap(self):
+        '''
+        Function which put
+        - author
+        - reference
+        - revision
+
+        into the queue
+        called when the user press the Build button
+        '''
+        # Get author
+        author = self.author
+        # Get reference
+        reference = self.reference_entry_pg2.get()
+        if reference == "":
+            reference = "TBD"
+        # Get revision
+        revision = self.revision_entry_pg2.get()
+        if revision == "":
+            revision = "TBD"
+
+        self.queue.put("BUILD_SQAP") # order to build docx
+        self.queue.put([author,reference,revision])
+
 def destroy_app():
     global thread_build_docx
     thread_build_docx.stop()
@@ -1489,7 +2220,9 @@ def destroy_app():
 
 if __name__ == '__main__':
     try:
+        # Begin DoCID
         session_started = False
+        project_item = ""
         list_projects = []
         login_success = False
         verrou = threading.Lock()
@@ -1498,31 +2231,69 @@ if __name__ == '__main__':
         queue = Queue.Queue()
 
         login_window = Tk()
+        Pmw.initialise(login_window)
         login_window.iconbitmap("qams.ico")
         login_window.title("Login")
         login_window.resizable(False,False)
+
         interface_login = Login(login_window)
+        # create a toplevel menu
+        mainmenu = Menu(login_window)
+        menubar = Menu(mainmenu)
+        menubar.add_command(label="Help", command=interface_login.help)
+        menubar.add_separator()
+        menubar.add_command(label="Quit", command=interface_login.click_quit)
+        mainmenu.add_cascade(label = "Home", menu = menubar)
+        mainmenu.add_command(label="About", command=interface_login.about)
+        # Bind control keys
+        mainmenu.bind_all("<Control-b>", interface_login.press_ctrl_b)
+
+        # display the menu
+        login_window.configure(menu = mainmenu)
         interface_login.mainloop()
 
         if login_success:
     ##        sys.exit()
             fenetre = Tk()
+            Pmw.initialise(fenetre)
             fenetre.iconbitmap("qams.ico")
             fenetre.title("Create Configuration Index Document")
             fenetre.resizable(False,False)
-            interface = Interface(fenetre)
+            #notebook
+            notebook = Pmw.NoteBook(fenetre)
+            notebook.pack(fill = 'both', expand = 1, padx = 10, pady = 10)
+####            notebook.configure('canvasSize'={768,640})
+##            # Add pages to the notebook.
+##            page_create_cid = notebook.add('Create CID')
+##            page_create_sqap = notebook.add('Create SQAP')
+##            page_create_checklist = notebook.add('Create checklist')
+##            page_create_ccb = notebook.add('Create CCB minutes')
 
+            interface = Interface(notebook)
+            interface.button_quit = Button(fenetre, text='Quit', command = interface.click_quit)
+            interface.button_quit.pack(side=RIGHT)
+##            self.button_quit.grid(row =row_index, column =2,pady=5,sticky='W')
+            notebook.tab('Create CID').focus_set()
+            # Important pour que le notebook ai la taille du frame
+            notebook.setnaturalsize()
             # create a toplevel menu
             mainmenu = Menu(fenetre)
             menubar = Menu(mainmenu)
-            menubar.add_command(label="Help", command=interface.help)
+            menubar.add_command(label="Create CCB minutes", command=interface.ccb_minutes)
+            menubar.add_separator()
+            menubar.add_command(label="Create Plan Review minutes", command=interface.plan_review_minutes)
+            menubar.add_command(label="Create Specification Review minutes", command=interface.spec_review_minutes)
             menubar.add_separator()
             menubar.add_command(label="Quit", command=interface.click_quit)
             mainmenu.add_cascade(label = "Home", menu = menubar)
             mainmenu.add_command(label="About", command=interface.about)
+            mainmenu.add_command(label="Help", command=interface.help)
+            # Bind control keys
+            mainmenu.bind_all("<Control-t>", interface.press_ctrl_t)
             # display the menu
             fenetre.configure(menu = mainmenu)
-
+##            import time
+##            time.sleep(5)
             # instance threads
             thread_build_docx = ThreadQuery(queue,fenetre)
             thread_build_docx.start()
