@@ -160,12 +160,15 @@ def startSession(item,database,login,password):
     global description_item
 
     tool = Tool()
-##    interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Open Synergy session.\n")
+    interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Open Synergy session.\n")
 
     query = 'start /nogui /q /d /usr/local/ccmdb/' + database + ' /u /usr/local/ccmdb/' + database + ' /s ' + tool.ccm_server + ' /n ' + login + ' /pw ' + password
     stdout,stderr = tool.ccm_query(query,"Synergy session started")
     print time.strftime("%H:%M:%S", time.gmtime()) + " " + stdout
-    session_started = True
+    if stderr:
+        session_started = False
+    else:
+        session_started = True
     description_item = tool.getItemDescription(item)
     interface.project_description.configure(text = "Project: " + description_item)
     interface.project_description_entry_pg2.configure(text = description_item)
@@ -298,7 +301,17 @@ def getProjectsList(release,baseline_selected,refresh=True):
     else:
         interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " No projects found.\n")
 
-def generateCID(author,reference,revision,release,aircraft,item,project,baseline,object_released,object_integrate):
+def generateCID(author,
+                reference,
+                revision,
+                release,
+                aircraft,
+                item,
+                project,
+                baseline,
+                object_released,
+                object_integrate,
+                cid_type):
     '''
     get items by invoking synergy command
     get sources by invoking synergy command
@@ -318,7 +331,7 @@ def generateCID(author,reference,revision,release,aircraft,item,project,baseline
     if project == "All":
         getProjectsList(release,baseline,False)
     interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Begin document generation ...\n")
-    cid = BuildDoc(author,reference,revision,release,aircraft,item,project,baseline)
+    cid = BuildDoc(author,reference,revision,aircraft,item,release,project,baseline)
     # Documentations
     interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Items query in progress...\n")
     tableau_items =cid.getArticles(object_released,object_integrate,list_type_doc)
@@ -330,7 +343,7 @@ def generateCID(author,reference,revision,release,aircraft,item,project,baseline
     cid.getPR()
     interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Creation doc in progress...\n")
     # Create docx
-    docx_filename,exception = cid.createCID(tableau_items,tableau_sources)
+    docx_filename,exception = cid.createCID(tableau_items,tableau_sources,cid_type)
     if docx_filename == False:
         interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " " + exception.strerror + ", document not saved.\n")
     else:
@@ -343,26 +356,30 @@ def generateCID(author,reference,revision,release,aircraft,item,project,baseline
         interface.output_txt.insert(END, docx_filename, "hlink")
         interface.output_txt.insert(END, "\n")
 
-def generateSQAP(author,reference,revision):
+def generateSQAP(author,
+                reference,
+                revision,
+                aircraft,
+                item):
     '''
 
     '''
-    sqap = BuildDoc(author,reference,revision)
+    sqap = BuildDoc(author,reference,revision,aircraft,item)
 
-    interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Creation doc in progress...\n")
+    interface.output_txt_pg2.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Creation doc in progress...\n")
     # Create docx
     docx_filename,exception = sqap.createSQAP()
     if docx_filename == False:
-        interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " " + exception.strerror + ", document not saved.\n")
+        interface.output_txt_pg2.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " " + exception.strerror + ", document not saved.\n")
     else:
-        interface.output_txt.tag_configure("hlink", foreground='blue', underline=1)
-        interface.output_txt.tag_bind("hlink", "<Button-1>", sqap.openHLink)
-        interface.output_txt.tag_bind("hlink", "<Enter>", sqap.onLink)
-        interface.output_txt.tag_bind("hlink", "<Leave>", sqap.outsideLink)
-        interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) +  " Word document created.\n")
-        interface.output_txt.insert(END, "Available here:\n")
-        interface.output_txt.insert(END, docx_filename, "hlink")
-        interface.output_txt.insert(END, "\n")
+        interface.output_txt_pg2.tag_configure("hlink", foreground='blue', underline=1)
+        interface.output_txt_pg2.tag_bind("hlink", "<Button-1>", sqap.openHLink_qap)
+        interface.output_txt_pg2.tag_bind("hlink", "<Enter>", sqap.onLink)
+        interface.output_txt_pg2.tag_bind("hlink", "<Leave>", sqap.outsideLink)
+        interface.output_txt_pg2.insert(END, time.strftime("%H:%M:%S", time.gmtime()) +  " Word document created.\n")
+        interface.output_txt_pg2.insert(END, "Available here:\n")
+        interface.output_txt_pg2.insert(END, docx_filename, "hlink")
+        interface.output_txt_pg2.insert(END, "\n")
 
 def getSessionStatus():
     global session_started
@@ -523,16 +540,52 @@ class Tool():
             ci_id = None
         return ci_id
 
+    def get_ear(self,item):
+        if item != "":
+            query = "SELECT ear FROM items LEFT OUTER JOIN link_systems_items ON item_id = items.id LEFT OUTER JOIN systems ON systems.id = system_id WHERE items.name LIKE '" + item + "'"
+            result = self.sqlite_query(query)
+            if result == None:
+                ear = ""
+            else:
+                ear = result[0][0]
+        else:
+            ear = None
+        return ear
+
     def get_lastquery(self):
         query = 'SELECT database,item,project,release FROM last_query WHERE id = 1'
         item = self.sqlite_query(query)
         item = cur.fetchall()
         return item
 
+    def sqlite_create(self):
+        try:
+            con = lite.connect('docid.db3')
+            cur = con.cursor()
+            cur.executescript("""
+            BEGIN TRANSACTION;
+            CREATE TABLE document_types (id INTEGER PRIMARY KEY, description TEXT, name TEXT);
+            CREATE TABLE documents (id INTEGER PRIMARY KEY, status_id NUMERIC, reference TEXT, last_revision TEXT,  item_id NUMERIC, type NUMERIC);
+            CREATE TABLE history (id INTEGER PRIMARY KEY, writer_id NUMERIC, date TEXT, issue TEXT, document_id NUMERIC, modifications TEXT);
+            CREATE TABLE items (id INTEGER PRIMARY KEY, ci_identification TEXT, database TEXT, description TEXT, name TEXT);
+            CREATE TABLE link_systems_items (id INTEGER PRIMARY KEY, item_id NUMERIC, system_id NUMERIC);
+            CREATE TABLE status (id INTEGER PRIMARY KEY, description TEXT,  name TEXT, transition TEXT, type TEXT);
+            CREATE TABLE systems (id INTEGER PRIMARY KEY, img TEXT, aircraft TEXT,  name TEXT, ear TEXT);
+            CREATE TABLE writers (id INTEGER PRIMARY KEY, name TEXT);
+            COMMIT;
+            """)
+            con.commit()
+            print 'New SQLite database created.'
+        except lite.Error, e:
+            print "Error %s:" % e.args[0]
+            sys.exit(1)
+        finally:
+            if con:
+                con.close()
     # SQLite
     def sqlite_query(self,query):
         try:
-            con = lite.connect('synergy.db')
+            con = lite.connect('docid.db3')
             cur = con.cursor()
             cur.execute(query)
             print time.strftime("%H:%M:%S", time.gmtime()) + " " + query
@@ -547,7 +600,7 @@ class Tool():
 
     def sqlite_query_one(self,query):
         try:
-            con = lite.connect('synergy.db')
+            con = lite.connect('docid.db3')
             cur = con.cursor()
             cur.execute(query)
             print time.strftime("%H:%M:%S", time.gmtime()) + " " + query
@@ -559,10 +612,41 @@ class Tool():
             if con:
                 con.close()
         return result
+    # Apache
+    def apache_start(self,config="httpd_home.conf"):
+        # read config file
+        config_parser = ConfigParser()
+        config_parser.read('docid.ini')
+        httpd_dir = config_parser.get("Apache","httpd_dir")
+        conf_dir = config_parser.get("Apache","conf_dir")
+        mysql_dir = config_parser.get("Apache","mysql_dir")
+        config = conf_dir + config
+
+        # hide commmand DOS windows
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        # default config
+        proc_httpd = subprocess.Popen(httpd_dir + "httpd.exe -f " + config, stdout=subprocess.PIPE, stderr=subprocess.PIPE,startupinfo=startupinfo)
+        proc_mysql = subprocess.Popen(mysql_dir + "mysqld --defaults-file=mysql\bin\my.ini --standalone --console", stdout=subprocess.PIPE, stderr=subprocess.PIPE,startupinfo=startupinfo)
+        stdout_httpd, stderr_httpd = proc_httpd.communicate()
+        stdout_mysql, stderr_mysql = proc_mysql.communicate()
+    ##    print time.strftime("%H:%M:%S", time.gmtime()) + " " + stdout
+        if stderr_httpd:
+            print "Error while executing httpd command: " + stderr_httpd
+        elif stderr_mysql:
+            print "Error while executing mysql command: " + stderr_mysql
+
+##        time.sleep(1)
+##        return_code_httpd = proc_httpd.wait()
+##        return_code_mysql = proc_mysql.wait()
+##        print stdout_httpd
+##        print stdout_mysql
 
     # Synergy
     def ccm_query(self,query,cmd_name):
         print time.strftime("%H:%M:%S", time.gmtime()) + " ccm " + query
+        # hide commmand DOS windows
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = subprocess.SW_HIDE
@@ -588,6 +672,16 @@ class Tool():
             pass
         return data
 
+    def getSystemName(self,item):
+        query = "SELECT systems.name FROM systems LEFT OUTER JOIN link_systems_items ON link_systems_items.system_id = systems.id LEFT OUTER JOIN items ON items.id = link_systems_items.item_id WHERE items.name LIKE '{:s}'".format(item)
+        print query
+        result = self.sqlite_query_one(query)
+        if result == None:
+            description = "None"
+        else:
+            description = result[0]
+        return description
+
     def getItemDescription(self,item):
         query = "SELECT description FROM items WHERE name LIKE '{:s}'".format(item)
         result = self.sqlite_query_one(query)
@@ -596,6 +690,24 @@ class Tool():
         else:
             description = result[0]
         return description
+
+    def getListModifs(self,item):
+        query = "SELECT issue,date,modifications,writers.name FROM history LEFT OUTER JOIN documents ON documents.id = document_id LEFT OUTER JOIN items ON items.id = documents.item_id LEFT OUTER JOIN writers ON writers.id = history.writer_id WHERE items.name LIKE '{:s}'".format(item)
+        result = self.sqlite_query(query)
+        if result == None:
+            history = "None"
+        else:
+            history = result
+        return history
+
+    def getModificationLog(self,item):
+        query = "SELECT modifications FROM history LEFT OUTER JOIN documents ON documents.id = history.document_id WHERE documents.reference LIKE '{:s}' ORDER BY date DESC LIMIT 1".format(item)
+        result = self.sqlite_query(query)
+        if result == None:
+            modif = "None"
+        else:
+            modif = result[0]
+        return modif
 
     def getTypeDocDescription(self,item):
         query = "SELECT description FROM document_types WHERE name LIKE '{:s}'".format(item)
@@ -612,26 +724,33 @@ class Tool():
           - reference allocated to the document according to the project
           - revision: last revision known
         '''
-        query = "SELECT reference,last_revision,status FROM documents LEFT OUTER JOIN items ON items.id = documents.item_id LEFT OUTER JOIN status ON status.id = documents.status_id WHERE items.name LIKE '{:s}'".format(item)
-        print query
+        query = "SELECT reference,last_revision,status.name FROM documents LEFT OUTER JOIN items ON items.id = documents.item_id LEFT OUTER JOIN status ON status.id = documents.status_id WHERE items.name LIKE '{:s}'".format(item)
         result = self.sqlite_query_one(query)
         if result == None:
             reference = "None"
             revision = "1.0"
             status = "None"
         else:
-            reference = result[0]
-            revision = result[1]
-            status = result[2]
-            if revision != None:
+            if result[0] != None:
+                reference = result[0]
+            else:
+                reference = "None"
+
+            if result[1] != None:
                 try:
-                    revision = int(revision)
+                    revision = int(result[1])
                 except ValueError:
-                    revision = float(revision) + 0.1
+                    revision = float(result[1]) + 0.1
             else:
                 revision = 1.0
 
-        return reference,revision
+            if result[2] != None:
+                status = result[2]
+            else:
+                status = "None"
+
+        return reference,revision,status
+
     def updateRevision(self,reference,revision):
         '''
         '''
@@ -639,7 +758,7 @@ class Tool():
 
 # -----------------------------------------------------------------------------
 class BuildDoc(Tool):
-    def __init__(self,author,reference,revision,release="",aircraft="",item="",project="",baseline=""):
+    def __init__(self,author,reference,revision,aircraft="",item="",release="",project="",baseline=""):
         Tool.__init__(self)
         self.author = author
         self.reference = reference
@@ -673,17 +792,16 @@ class BuildDoc(Tool):
     'tab': <list> Renders a table, use fmt to tune look
     'img': <list> Renders an image
     """
-
         if replace[0] == 'str':
             try:
                 repl = unicode(replace[1], errors='ignore')
             except TypeError as exception:
                 print "Execution failed:", exception
                 repl = replace[1]
-                print repl
+##                print repl
             except UnicodeDecodeError as exception:
                 print "Execution failed:", exception
-                print replace[1]
+##                print replace[1]
         elif replace[0] == 'tab':
             # Will make a table
             unicode_table = []
@@ -693,11 +811,11 @@ class BuildDoc(Tool):
                     unicode_table.append( map(lambda i: unicode(i, errors='ignore'), element) )
                 except TypeError as exception:
                     print "Execution failed:", exception
-                    repl = replace[1]
-                    print element
+                    unicode_table.append(element)
+##                    print element
                 except UnicodeDecodeError as exception:
                     print "Execution failed:", exception
-                    print element
+                    unicode_table.appen(element)
             if not len(unicode_table):
                 # Empty table
                 repl = ''
@@ -726,6 +844,13 @@ class BuildDoc(Tool):
         start, end = interface.output_txt.tag_prevrange("hlink",
         interface.output_txt.index("@%s,%s" % (event.x, event.y)))
         print "Going to %s..." % interface.output_txt.get(start, end)
+        os.startfile(self.docx_filename, 'open')
+        #webbrowser.open
+
+    def openHLink_qap(self,event):
+        start, end = interface.output_txt_pg2.tag_prevrange("hlink",
+        interface.output_txt_pg2.index("@%s,%s" % (event.x, event.y)))
+        print "Going to %s..." % interface.output_txt_pg2.get(start, end)
         os.startfile(self.docx_filename, 'open')
         #webbrowser.open
 
@@ -792,29 +917,33 @@ class BuildDoc(Tool):
         return tableau
 
     def getPR(self):
-##        proc = Popen(self.ccm_exe + ' query -sby crstatus -f "%problem_number;%problem_synopsis;%crstatus" "(cvtype=\'problem\') and ((crstatus=\'concluded\') or (crstatus=\'entered\') or (crstatus=\'in_review\') or (crstatus=\'assigned\') or (crstatus=\'resolved\') or (crstatus=\'deferred\'))"', stdout=PIPE, stderr=PIPE)
-        query = 'query -sby crstatus '
-        if self.release != "":
-            condition = '"(cvtype=\'problem\') and (implemented_in=\''+ self.release +'\')" '
-        else:
-            condition = '"(cvtype=\'problem\')" '
-##        query = 'query -sby crstatus "(cvtype=\'problem\') and (implemented_in=\''+ self.release +'\')" -f "%problem_number;%problem_synopsis;%crstatus;%detected_on;%implemented_in"'
-        query = query + condition + '-f "%problem_number;%problem_synopsis;%crstatus;%detected_on;%implemented_in"'
-        stdout,stderr = self.ccm_query(query,"Get PRs")
-        interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Query completed.\n")
+        global session_started
+
         self.tableau_pr = []
         # Header
         self.tableau_pr.append(["ID","Synopsis","Status","Detected on","Implemented in"])
-        if stdout != "":
-            output = stdout.splitlines()
-            for line in output:
-                line = re.sub(r"<void>",r"",line)
-                line = re.sub(r"^ *[0-9]{1,3}\) ",r"",line)
-                m = re.match(r'(.*);(.*);(.*);(.*);(.*)',line)
-                if m:
-                    self.tableau_pr.append([m.group(1),m.group(2),m.group(3),m.group(4),m.group(5)])
-        if len(self.tableau_pr) == 1:
-             self.tableau_pr.append(["--","--","--","--","--"])
+        if session_started:
+    ##        proc = Popen(self.ccm_exe + ' query -sby crstatus -f "%problem_number;%problem_synopsis;%crstatus" "(cvtype=\'problem\') and ((crstatus=\'concluded\') or (crstatus=\'entered\') or (crstatus=\'in_review\') or (crstatus=\'assigned\') or (crstatus=\'resolved\') or (crstatus=\'deferred\'))"', stdout=PIPE, stderr=PIPE)
+            query = 'query -sby crstatus '
+            if self.release != "":
+                condition = '"(cvtype=\'problem\') and (implemented_in=\''+ self.release +'\')" '
+            else:
+                condition = '"(cvtype=\'problem\')" '
+    ##        query = 'query -sby crstatus "(cvtype=\'problem\') and (implemented_in=\''+ self.release +'\')" -f "%problem_number;%problem_synopsis;%crstatus;%detected_on;%implemented_in"'
+            query = query + condition + '-f "%problem_number;%problem_synopsis;%crstatus;%detected_on;%implemented_in"'
+            stdout,stderr = self.ccm_query(query,"Get PRs")
+            interface.output_txt.insert(END, time.strftime("%H:%M:%S", time.gmtime()) + " Query completed.\n")
+
+            if stdout != "":
+                output = stdout.splitlines()
+                for line in output:
+                    line = re.sub(r"<void>",r"",line)
+                    line = re.sub(r"^ *[0-9]{1,3}\) ",r"",line)
+                    m = re.match(r'(.*);(.*);(.*);(.*);(.*)',line)
+                    if m:
+                        self.tableau_pr.append([m.group(1),m.group(2),m.group(3),m.group(4),m.group(5)])
+            if len(self.tableau_pr) == 1:
+                 self.tableau_pr.append(["--","--","--","--","--"])
 
     def createSQAP(self):
         '''
@@ -828,12 +957,14 @@ class BuildDoc(Tool):
 
         '''
         global list_projects
+
+        template_type="SQAP"
         # Get config
         config_parser = ConfigParser()
         config_parser.read('docid.ini')
         try:
             template_dir = join(os.path.dirname("."), 'template')
-            template_name = config_parser.get("Template","sqap")
+            template_name = config_parser.get("Template",template_type)
             self.template_name = join(template_dir, template_name)
         except IOError as exception:
             print "Execution failed:", exception
@@ -875,82 +1006,90 @@ class BuildDoc(Tool):
                 docbody = outdoc[curact[0]].xpath(curact[1], namespaces=docx.nsprefixes)[0]
 
                 # Replace some tags
-                title = self.item + " " + self.template_type
-                subject = self.item + " " + getTypeDocDescription(self.item)
-                project_text = "The project is not defined"
-                if self.project != "":
-                    if len(list_projects) in (0,1) :
-                        project_text = "The project is " + self.project
-                    else:
-                        text = "The projects are: "
-                        for project in list_projects:
-                            text =  text + project + ", "
-                        # remove last comma
-                        project_text = text[0:-2]
+                title = self.item + " " + template_type
+                subject = self.item + " " + self.getTypeDocDescription(template_type)
 
-                if self.release == "":
-                    self.release = "not defined"
-
-                if self.baseline == "":
-                    self.baseline = "not defined"
 
                 if self.author == "":
                     self.author = "Nobody"
+                ear_txt = self.get_ear(self.item)
+                # get list of modifications
+                table_listmodifs = self.getListModifs(self.item)
+                #convert tuple in array
+                table_modifs = []
+                # Header
+                table_modifs.append(["Issue","Date","Purpose of Modification","Writer"])
 
-                colw = [1000,2300,200,1000,500,500,500] # 5000 = 100%
+                for issue,date,modification,author in table_listmodifs:
+                    table_modifs.append([issue,date,modification,author])
+                table_modifs.append([self.revision,time.strftime("%d %b %Y", time.gmtime()),"Next",self.author])
 
+##                print table_listmodifs
+##                tableau = []
+##                tableau.append(["Project","Data","Revision","Modified time","Status"])
+##                table_listmodifs = [["TEST","DATE","TEXT","WRITER"]]
+                colw = [500,1000,3000,500] # 5000 = 100%
+                system_name = self.getSystemName(self.item)
                 list_tags = {
                             'SUBJECT':{
                                 'type':'str',
-                                'text':subject
+                                'text':subject,
+                                'fmt':{}
                                 },
                             'TITLE':{
                                 'type':'str',
-                                'text':title
+                                'text':title,
+                                'fmt':{}
+                                },
+                            'TYPE':{
+                                'type':'str',
+                                'text':template_type,
+                                'fmt':{}
+                                },
+                            'EAR':{
+                                'type':'str',
+                                'text': ear_txt,
+                                'fmt':{}
                                 },
                             'CI_ID':{
                                 'type':'str',
-                                'text':ci_identification
+                                'text':ci_identification,
+                                'fmt':{}
                                 },
                             'REFERENCE':{
                                 'type':'str',
-                                'text':self.reference
+                                'text':self.reference,
+                                'fmt':{}
                                 },
                             'ISSUE':{
                                 'type':'str',
-                                'text':self.revision
+                                'text':self.revision,
+                                'fmt':{}
                                 },
                             'ITEM':{
                                 'type':'str',
-                                'text':self.item
+                                'text':system_name,
+                                'fmt':{}
                                 },
                             'ITEM_DESCRIPTION':{
                                 'type':'str',
-                                'text':item_description
+                                'text':item_description,
+                                'fmt':{}
                                 },
                             'DATE':{
                                 'type':'str',
-                                'text':time.strftime("%d %b %Y", time.gmtime())
-                                },
-                            'PROJECT':{
-                                'type':'str',
-                                'text':project_text
-                                },
-                            'RELEASE':{
-                                'type':'str',
-                                'text':self.release
-                                },
-                            'BASELINE':{
-                                'type':'str',
-                                'text':self.baseline
+                                'text':time.strftime("%d %b %Y", time.gmtime()),
+                                'fmt':{}
                                 },
                             'WRITER':{
                                 'type':'str',
-                                'text':self.author
+                                'text':self.author,
+                                'fmt':{}
                                 },
-                            'TABLEITEMS':{
+                            'TABLELISTMODIFS':{
                                 'type':'tab',
-                                'text':{
+                                'text':table_modifs,
+                                'fmt':{
                                     'heading': True,
                                     'colw': colw,
                                     'cwunit': 'pct',
@@ -962,50 +1101,14 @@ class BuildDoc(Tool):
                                             'space': 0,
                                             'sz': 6,
                                             'val': 'single',
-                                            }  ,
-                                        },
-                                    }
-                                },
-                            'TABLESOURCE':{
-                                'type':'tab',
-                                'text':{
-                                    'heading': True,
-                                    'colw': colw,
-                                    'cwunit': 'pct',
-                                    'tblw': 5000,
-                                    'twunit': 'pct',
-                                    'borders': {
-                                        'all': {
-                                            'color': 'auto',
-                                            'space': 0,
-                                            'sz': 6,
-                                            'val': 'single',
-                                            }  ,
-                                        },
-                                    }
-                                },
-                            'TABLEPRS':{
-                                'type':'tab',
-                                'text':{
-                                    'heading': True,
-                                    'colw': [500,3000,500,500,500], # 5000 = 100%
-                                    'cwunit': 'pct',
-                                    'tblw': 5000,
-                                    'twunit': 'pct',
-                                    'borders': {
-                                        'all': {
-                                            'color': 'auto',
-                                            'space': 0,
-                                            'sz': 6,
-                                            'val': 'single',
-                                            }  ,
-                                        },
+                                            }
+                                        }
                                     }
                                 }
                             }
                 # Loop to replace tags
                 for key, value in list_tags.items():
-                    docbody = self.replaceTag(docbody, key, (value['type'], value['text']) )
+                    docbody = self.replaceTag(docbody, key, (value['type'], value['text']),value['fmt'] )
 
 ##                docbody,relationships = self.replaceTag(docbody, 'IMAGE', ('img', 'HW.png') )
 ##                wordrelationships = docx.wordrelationships(relationships)
@@ -1019,7 +1122,7 @@ class BuildDoc(Tool):
         # ------------------------------
 
         # Prepare output file
-        self.docx_filename = self.aircraft + "_" + self.item + "_" + self.template_type + "_" + self.reference + ".docx"
+        self.docx_filename = self.aircraft + "_" + self.item + "_" + template_type + "_" + self.reference + ".docx"
         try:
             outfile = zipfile.ZipFile(self.docx_filename,mode='w',compression=zipfile.ZIP_DEFLATED)
 
@@ -1064,7 +1167,7 @@ class BuildDoc(Tool):
         template.close()
         return self.docx_filename,exception
 
-    def createCID(self,tableau_items,tableau_source):
+    def createCID(self,tableau_items,tableau_source,cid_type):
         '''
         This function creates the document based on the template
         - open template docx
@@ -1080,10 +1183,12 @@ class BuildDoc(Tool):
         config_parser = ConfigParser()
         config_parser.read('docid.ini')
         try:
+            # get template name
+
             template_dir = join(os.path.dirname("."), 'template')
-            template_name = config_parser.get("Template","name")
+            template_name = config_parser.get("Template",cid_type)
             self.template_name = join(template_dir, template_name)
-            self.template_type = config_parser.get("Template","type")
+            self.template_type = cid_type
             self.type_doc = config_parser.get("Objects","type_doc").split(",")
             self.type_src = config_parser.get("Objects","type_src").split(",")
         except IOError as exception:
@@ -1127,7 +1232,7 @@ class BuildDoc(Tool):
 
                 # Replace some tags
                 title = self.item + " " + self.template_type
-                subject = self.item + " " + getTypeDocDescription(self.item)
+                subject = self.item + " " + self.getTypeDocDescription(self.item)
                 project_text = "The project is not defined"
                 if self.project != "":
                     if len(list_projects) in (0,1) :
@@ -1153,55 +1258,68 @@ class BuildDoc(Tool):
                 list_tags = {
                             'SUBJECT':{
                                 'type':'str',
-                                'text':subject
+                                'text':subject,
+                                'fmt':{}
                                 },
                             'TITLE':{
                                 'type':'str',
-                                'text':title
+                                'text':title,
+                                'fmt':{}
                                 },
                             'CI_ID':{
                                 'type':'str',
-                                'text':ci_identification
+                                'text':ci_identification,
+                                'fmt':{}
                                 },
                             'REFERENCE':{
                                 'type':'str',
-                                'text':self.reference
+                                'text':self.reference,
+                                'fmt':{}
                                 },
                             'ISSUE':{
                                 'type':'str',
-                                'text':self.revision
+                                'text':self.revision,
+                                'fmt':{}
                                 },
                             'ITEM':{
                                 'type':'str',
-                                'text':self.item
+                                'text':self.item,
+                                'fmt':{}
                                 },
                             'ITEM_DESCRIPTION':{
                                 'type':'str',
-                                'text':item_description
+                                'text':item_description,
+                                'fmt':{}
                                 },
                             'DATE':{
                                 'type':'str',
-                                'text':time.strftime("%d %b %Y", time.gmtime())
+                                'text':time.strftime("%d %b %Y", time.gmtime()),
+                                'fmt':{}
                                 },
                             'PROJECT':{
                                 'type':'str',
-                                'text':project_text
+                                'text':project_text,
+                                'fmt':{}
                                 },
                             'RELEASE':{
                                 'type':'str',
-                                'text':self.release
+                                'text':self.release,
+                                'fmt':{}
                                 },
                             'BASELINE':{
                                 'type':'str',
-                                'text':self.baseline
+                                'text':self.baseline,
+                                'fmt':{}
                                 },
                             'WRITER':{
                                 'type':'str',
-                                'text':self.author
+                                'text':self.author,
+                                'fmt':{}
                                 },
                             'TABLEITEMS':{
                                 'type':'tab',
-                                'text':{
+                                'text':tableau_items,
+                                'fmt':{
                                     'heading': True,
                                     'colw': colw,
                                     'cwunit': 'pct',
@@ -1213,13 +1331,14 @@ class BuildDoc(Tool):
                                             'space': 0,
                                             'sz': 6,
                                             'val': 'single',
-                                            }  ,
-                                        },
+                                            }
+                                        }
                                     }
                                 },
                             'TABLESOURCE':{
                                 'type':'tab',
-                                'text':{
+                                'text':tableau_source,
+                                'fmt':{
                                     'heading': True,
                                     'colw': colw,
                                     'cwunit': 'pct',
@@ -1231,13 +1350,14 @@ class BuildDoc(Tool):
                                             'space': 0,
                                             'sz': 6,
                                             'val': 'single',
-                                            }  ,
-                                        },
+                                            }
+                                        }
                                     }
                                 },
                             'TABLEPRS':{
                                 'type':'tab',
-                                'text':{
+                                'text':self.tableau_pr,
+                                'fmt':{
                                     'heading': True,
                                     'colw': [500,3000,500,500,500], # 5000 = 100%
                                     'cwunit': 'pct',
@@ -1249,14 +1369,31 @@ class BuildDoc(Tool):
                                             'space': 0,
                                             'sz': 6,
                                             'val': 'single',
-                                            }  ,
-                                        },
+                                            }
+                                        }
                                     }
                                 }
                             }
+##                docbody = self.replaceTag(docbody, 'TABLESOURCE', ('tab', tableau_source),
+##                            {
+##                                    'heading': True,
+##                                    'colw': colw,
+##                                    'cwunit': 'pct',
+##                                    'tblw': 5000,
+##                                    'twunit': 'pct',
+##                                    'borders': {
+##                                        'all': {
+##                                            'color': 'auto',
+##                                            'space': 0,
+##                                            'sz': 6,
+##                                            'val': 'single',
+##                                            }
+##                                        }
+##                                    })
                 # Loop to replace tags
                 for key, value in list_tags.items():
-                    docbody = self.replaceTag(docbody, key, (value['type'], value['text']) )
+                    print value
+                    docbody = self.replaceTag(docbody, key, (value['type'], value['text']), value['fmt'] )
 
 ##                docbody,relationships = self.replaceTag(docbody, 'IMAGE', ('img', 'HW.png') )
 ##                wordrelationships = docx.wordrelationships(relationships)
@@ -1338,7 +1475,9 @@ class ThreadQuery(threading.Thread,Tool):
         self.verrou =threading.Lock()
 
     def stopSession(self):
-        stdout,stderr = self.ccm_query('stop','Stop Synergy session')
+        global session_started
+        if session_started:
+            stdout,stderr = self.ccm_query('stop','Stop Synergy session')
 
     def storeSelection(self,project,item,release,baseline):
         '''
@@ -1355,7 +1494,7 @@ class ThreadQuery(threading.Thread,Tool):
                 release = ""
             if project == "All":
                 project = ""
-            con = lite.connect('synergy.db', isolation_level=None)
+            con = lite.connect('docid.db3', isolation_level=None)
             cur = con.cursor()
 ##            cur.execute("DROP TABLE IF EXISTS last_query")
             cur.execute("CREATE TABLE IF NOT EXISTS last_query (id INTEGER PRIMARY KEY, reference TEXT, revision TEXT ,database TEXT, project TEXT, item TEXT, release TEXT, baseline TEXT, input_date timestamp)")
@@ -1409,11 +1548,12 @@ class ThreadQuery(threading.Thread,Tool):
                     baseline = data[5]
                     object_released = data[6]
                     object_integrate = data[7]
+                    cid_type = data[8]
 
                     interface.output_txt.delete(1.0, END)
                     #store information in sqlite db
                     self.storeSelection(project,self.item,release,baseline)
-                    self.build_doc_thread = threading.Thread(None,generateCID,None,(author,self.reference,self.revision,release,self.aircraft,self.item,project,baseline,object_released,object_integrate))
+                    self.build_doc_thread = threading.Thread(None,generateCID,None,(author,self.reference,self.revision,release,self.aircraft,self.item,project,baseline,object_released,object_integrate,cid_type))
                     self.build_doc_thread.start()
                     # Make a query to synergy
 
@@ -1423,7 +1563,7 @@ class ThreadQuery(threading.Thread,Tool):
                     self.reference = data[1]
                     self.revision = data[2]
 
-                    self.build_doc_thread = threading.Thread(None,generateSQAP,None,(author,self.reference,self.revision))
+                    self.build_doc_thread = threading.Thread(None,generateSQAP,None,(author,self.reference,self.revision,self.aircraft,self.item))
                     self.build_doc_thread.start()
                     # Make a query to synergy
 
@@ -1484,6 +1624,9 @@ class ThreadQuery(threading.Thread,Tool):
         self.master.after(1000, self.periodicCall)
 
     def run(self):
+        # sleep to enables the GUI to finish its setting
+        import time
+        time.sleep(2)
         self.periodicCall()
 
     def stop(self):
@@ -1615,7 +1758,10 @@ class Login (Frame,Tool):
             self.listbox.activate(system_id)
         else:
             self.itemslistbox.delete(0, END)
-
+    def press_ctrl_h(self,event):
+        config= "httpd_ece.conf"
+        self.apache_start(config)
+        pass
     def press_ctrl_b(self,event):
         '''
         Bypass login. No message START_SESSION sent.
@@ -1737,10 +1883,23 @@ class Interface (Frame,Tool):
         Frame.__init__(self, page_create_cid, width=768, height=576,relief =GROOVE, bg = background,**kwargs)
         self.pack(fill=BOTH)
 
-        # Author
+        # Type of CID
         row_index = 1
-        # Create the "Toolbar" contents of the page.
+        self.cid_type_txt = Label(self, text='CID type:', fg=foreground,bg = background)
 
+        self.cid_var_type = StringVar()
+        self.radiobutton_sci = Radiobutton(self, indicatoron=0,width = 6,text="SCI", variable=self.cid_var_type,value="SCI",fg=foreground,bg = background,command=self.cid_type)
+        self.radiobutton_hci = Radiobutton(self, indicatoron=0,width = 6,text="HCI", variable=self.cid_var_type,value="HCI",fg=foreground,bg = background,command=self.cid_type)
+        self.radiobutton_cid = Radiobutton(self, indicatoron=0,width = 6,text="CID", variable=self.cid_var_type,value="CID",fg=foreground,bg = background,command=self.cid_type)
+        self.cid_var_type.set("SCI") # initialize
+
+        self.cid_type_txt.grid(row =row_index,sticky='E')
+        self.radiobutton_sci.grid(row =row_index, column =1, padx=10,sticky='W')
+        self.radiobutton_hci.grid(row =row_index, column =1, padx=58,sticky='W')
+        self.radiobutton_cid.grid(row =row_index, column =1, padx=31,sticky='E')
+
+        # Author
+        row_index = row_index + 1
         self.author_txt = Label(self, text='Author:', fg=foreground,bg = background)
         self.author_txt.grid(row =row_index,sticky='E')
         self.author_entry = Entry(self, state=NORMAL,width=entry_size)
@@ -1832,6 +1991,7 @@ class Interface (Frame,Tool):
 
         # Check buttons
         row_index = row_index + 1
+        self.objects_txt = Label(self, text='Objects:', fg=foreground,bg = background)
 ##        group = Pmw.Group(fenetre, tag_text = 'Objects status')
 ##        group.grid(row =row_index,sticky='E')
         self.status_released = IntVar()
@@ -1839,18 +1999,24 @@ class Interface (Frame,Tool):
         self.status_integrate = IntVar()
         self.check_button_status_integrate = Checkbutton(self, text="Integrate", variable=self.status_integrate,fg=foreground,bg = background,command=self.cb_integrate)
 
-        self.objects_txt = Label(self, text='Objects:', fg=foreground,bg = background)
         self.objects_txt.grid(row =row_index,sticky='E')
         self.check_button_status_released.grid(row =row_index, column =1, padx=10,sticky='W')
         self.check_button_status_integrate.grid(row =row_index, column =1,sticky='E')
 
         # Output
-        self.output_label = Label(self, text='Output:',fg=foreground,bg = background)
-        self.output_txt = Text(self, width = 72, height = 12)
-        row_index = row_index + 1
-        self.output_label.grid(row =row_index,sticky='E')
-        row_index = row_index + 1
-        self.output_txt.grid(row =row_index ,columnspan =5, pady =20,padx = 10)
+        output_frame = Frame(page_create_cid, bg = '#80c0c0')
+        output_frame.pack()
+        self.output_label = Label(output_frame, text='Output:',fg=foreground,bg = background)
+        self.output_label.pack(fill=X);
+        self.output_txt = Text(output_frame,wrap=WORD, width = 100, height = 10)
+        self.output_txt.pack()
+
+##        self.output_label = Label(self, text='Output:',fg=foreground,bg = background)
+##        self.output_txt = Text(self, width = 72, height = 12)
+##        row_index = row_index + 1
+##        self.output_label.grid(row =row_index,sticky='E')
+##        row_index = row_index + 1
+##        self.output_txt.grid(row =row_index ,columnspan =5, pady =20,padx = 10)
 
         # Build SQAP folder in the notebook
         self.build_sqap_folder(page_create_sqap,**kwargs)
@@ -1910,17 +2076,42 @@ class Interface (Frame,Tool):
         self.button_select_pg2 = Button(self, text='Build', state=NORMAL, command = self.click_build_sqap)
         self.button_select_pg2.grid(row =row_index, column =1,pady=5,sticky='E')
 
+        # Modifications log
+
+        modification_log_text = self.getModificationLog(reference)
+        modif_log_frame = Frame(page_create_sqap, bg = '#80c0c0')
+        modif_log_frame.pack()
+        scrollbar = Scrollbar(modif_log_frame)
+        page_create_sqap.bind('<MouseWheel>', self.scrollEvent)
+        scrollbar.pack(side=RIGHT, fill=Y)
+        self.modif_log_label = Label(modif_log_frame, text='Modifications log:',fg=foreground,bg = background)
+        self.modif_log_label.pack(fill=X);
+        self.modif_log = Text(modif_log_frame,wrap=WORD, yscrollcommand=scrollbar.set, width = 100, height = 10)
+        self.modif_log.pack()
+        scrollbar.config(command=self.modif_log.yview)
+        self.modif_log.insert(END, modification_log_text)
+        output_frame = Frame(page_create_sqap, bg = '#80c0c0')
+        output_frame.pack()
+        self.output_label_pg2 = Label(output_frame, text='Output:',fg=foreground,bg = background)
+        self.output_label_pg2.pack(fill=X);
+        self.output_txt_pg2 = Text(output_frame,wrap=WORD, yscrollcommand=scrollbar.set, width = 100, height = 10)
+        self.output_txt_pg2.pack()
+
         # Output
-        self.output_label_pg2 = Label(self, text='Output:',fg=foreground,bg = background)
-        self.output_txt_pg2 = Text(self, width = 72, height = 12)
-        row_index = row_index + 1
-        self.output_label_pg2.grid(row =row_index,sticky='E')
-        row_index = row_index + 1
-        self.output_txt_pg2.grid(row =row_index ,columnspan =5, pady =20,padx = 10)
+##        row_index = row_index + 1
+##        self.output_label_pg2 = Label(self, text='Output:',fg=foreground,bg = background)
+##        self.output_label_pg2.grid(row =row_index,sticky='E')
+##
+##        row_index = row_index + 1
+##        self.output_txt_pg2 = Text(self, width = 72, height = 12)
+##        self.output_txt_pg2.grid(row =row_index ,columnspan =5, pady =20,padx = 10)
 
     def press_ctrl_t(self,event):
         print "TEST CTRL + T"
         self.queue.put("READ_STATUS") # order to read session status
+
+    def cid_type(self):
+        print "CID type is '{:s}'".format(self.cid_var_type.get())
 
     def cb_released(self):
         print "variable is", self.status_released.get()
@@ -2187,7 +2378,7 @@ class Interface (Frame,Tool):
 
         # Get project and database listbox information
         self.queue.put("BUILD_CID") # order to build docx
-        self.queue.put([author,reference,revision,self.release,self.project,self.baseline,self.status_released.get(),self.status_integrate.get()])
+        self.queue.put([author,reference,revision,self.release,self.project,self.baseline,self.status_released.get(),self.status_integrate.get(),self.cid_var_type.get()])
 
     def click_build_sqap(self):
         '''
@@ -2225,6 +2416,14 @@ if __name__ == '__main__':
         project_item = ""
         list_projects = []
         login_success = False
+        # Verify if the database SQLite exists
+        try:
+            with open('docid.db3'):
+                pass
+        except IOError:
+            print 'SQLite database does not exists.'
+            tool = Tool()
+            tool.sqlite_create()
         verrou = threading.Lock()
 
         # Create the queue
@@ -2247,6 +2446,7 @@ if __name__ == '__main__':
         mainmenu.add_command(label="About", command=interface_login.about)
         # Bind control keys
         mainmenu.bind_all("<Control-b>", interface_login.press_ctrl_b)
+        mainmenu.bind_all("<Control-h>", interface_login.press_ctrl_h)
 
         # display the menu
         login_window.configure(menu = mainmenu)
@@ -2292,8 +2492,6 @@ if __name__ == '__main__':
             mainmenu.bind_all("<Control-t>", interface.press_ctrl_t)
             # display the menu
             fenetre.configure(menu = mainmenu)
-##            import time
-##            time.sleep(5)
             # instance threads
             thread_build_docx = ThreadQuery(queue,fenetre)
             thread_build_docx.start()
