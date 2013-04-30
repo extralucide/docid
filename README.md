@@ -64,10 +64,10 @@ type_doc=doc,xls
 type_src=csrc,asmsrc
 
 [Template]
-name=HCMR_template.docx
-type=HCMR/SCI/CID
-
-sqap=SQAP_template.docx
+SCI=SCI_template.docx
+HCI=HCI_template.docx
+CID=CID_template.docx
+SQAP=SQAP_template.docx
 
 Ce sont des informations utilisateurs.
 
