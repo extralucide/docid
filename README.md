@@ -1,15 +1,22 @@
 docid
-=====
+-----
 
 generate document from IBM Rational Synergy Configuration Management tool
 
 CID/HCMR/SCI generator
-======================
+---------------------
 
 Cet outil permet de générer un CID à partir de l'outil de gestion de configuration Synergy.
 La génération s'appuie sur un modèle de document.
+
+Développement
+-------------
+
 Il est écrit en Python et est compatible avec la version 2.7.3.2.
-Il utilise également l'interface Tk.
+Il utilise également:
+ - l'interface TCL/Tk,
+ - PMW version 1.3.3a,
+ - Python-docx version 0.2
 
 Fichier de configuration
 ------------------------
@@ -31,13 +38,15 @@ type_src=csrc,asmsrc
 name=HCMR_template.docx
 type=HCMR/SCI/CID
 
+sqap=SQAP_template.docx
+
 Ce sont des informations utilisateurs.
 
 Base de données SQLite
 ----------------------
 
 Le fichier synergy.db contient les tables suivantes:
-  - systems: liste les systèmes
+  	- systems: liste les systèmes
 	- items: liste les items
 	- link_systems_items: fait le lien entre items et systèmes
 	- last_query: contient les 10 dernières requêtes
@@ -74,21 +83,36 @@ Modèle de document
 
 Le modèle de document doit être au format docx peut contenir les tags suivant:
 
-{{SUBJECT}}				Titre dans l'entête du document
-{{CI_ID}}               Numéro d'identification (A295, etc.)
-{{REFERENCE}}			Référence du document
-{{ISSUE}}				Version du document
-{{TITLE}}				Titre de la première page
-{{ITEM}}				Abbréviation de l'équipement (LRU)
+{{SUBJECT}}		Titre dans l'entête du document
+
+{{CI_ID}}Numéro d'identification (A295, etc.)
+
+{{REFERENCE}}Référence du document
+
+{{ISSUE}}		Version du document
+
+{{TITLE}}		Titre de la première page
+
+{{ITEM}}		Abbréviation de l'équipement (LRU)
+
 {{ITEM_DESCRIPTION}}	Description de l'équipement
-{{PROJECT}}				Nom du projet
-{{RELEASE}}				Release Synergy
-{{BASELINE}}			Baseline Synergy
-{{WRITER}}				Auteur du document
-{{DATE}}				Date de génération du document
-{{TABLEITEMS}}			Liste des documents excel et word
-{{TABLESOURCE}}			Liste des sources (type c,asm,h,vhd etc.)
-{{TABLEPRS}}			Liste des PRs implémentés dans la release
+
+{{PROJECT}}		Nom du projet
+
+{{RELEASE}}		Release Synergy
+
+{{BASELINE}}		Baseline Synergy
+
+{{WRITER}}		Auteur du document
+
+{{DATE}}		Date de génération du document
+
+{{TABLEITEMS}}		Liste des documents excel et word
+
+{{TABLESOURCE}}		Liste des sources (type c,asm,h,vhd etc.)
+
+{{TABLEPRS}}		Liste des PRs implémentés dans la release
+
 
 TODO
 ----
