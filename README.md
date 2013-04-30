@@ -18,6 +18,8 @@ Il utilise également:
  - PMW version 1.3.3a,
  - Python-docx version 0.2
 
+Pour généer l'exécutable il faut lancer la commande: python setup.py py2exe
+
 Fichier de configuration
 ------------------------
 Le fichier de configuration docid.ini Contient les paramètres suivant:
