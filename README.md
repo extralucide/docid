@@ -12,17 +12,23 @@ La génération s'appuie sur un modèle de document.
 Installation
 -------------
 
-Outre les fichiers
-- docid.py
-- docid.ini
+Outre les fichiers:
+-docid.py
+-docid.ini
 
-le programme nécessite la base de donnée SQLite: 
-- synergy.db
-Le répertoire img qui contient les images
-- doc.gif
-- earhart12_240x116.gif
-Le module python-docx
-Le répertoire template avec les fichiers au format open xml
+le programme nécessite la base de donnée SQLite: docid.db3 (Si elle n'existe pas le programme en créé une vierge.)
+
+Le répertoire img qui contient les images:
+
+-doc.gif
+
+-earhart12_240x116.gif
+
+.le fichier icone qams.ico
+
+.Le module python-docx
+
+.Le répertoire template avec les fichiers au format open xml
 
 Développement
 -------------
