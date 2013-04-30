@@ -13,22 +13,21 @@ Installation
 -------------
 
 Outre les fichiers:
--docid.py
--docid.ini
+> docid.py
 
-le programme nécessite la base de donnée SQLite: docid.db3 (Si elle n'existe pas le programme en créé une vierge.)
+> docid.ini
 
-Le répertoire img qui contient les images:
+- le programme nécessite la base de donnée SQLite docid.db3 (Si elle n'existe pas le programme en créé une vierge.)
 
--doc.gif
+- Le répertoire img qui contient les images:
 
--earhart12_240x116.gif
+> doc.gif
 
-.le fichier icone qams.ico
+> earhart12_240x116.gif
 
-.Le module python-docx
-
-.Le répertoire template avec les fichiers au format open xml
+- le fichier icone qams.ico
+- Le module python-docx
+- Le répertoire template avec les fichiers au format open xml
 
 Développement
 -------------
@@ -50,6 +49,7 @@ Il faut de plus créer le répertoire Microsoft.VC90.CRT avec mles fichiers suiv
 Fichier de configuration
 ------------------------
 Le fichier de configuration docid.ini Contient les paramètres suivant:
+<pre>
 [User]
 login
 password
@@ -68,7 +68,7 @@ SCI=SCI_template.docx
 HCI=HCI_template.docx
 CID=CID_template.docx
 SQAP=SQAP_template.docx
-
+</pre>
 Ce sont des informations utilisateurs.
 
 Base de données SQLite
@@ -111,37 +111,24 @@ Modèle de document
 ------------------
 
 Le modèle de document doit être au format docx peut contenir les tags suivant:
-
+<pre>
 {{SUBJECT}}		Titre dans l'entête du document
-
-{{CI_ID}}Numéro d'identification (A295, etc.)
-
-{{REFERENCE}}Référence du document
-
+{{TABLELISTMODIFS}}	Log des modifications gardé dans la base SQLite
+{{CI_ID}		}Numéro d'identification (A295, etc.)
+{{REFERENCE}}		Référence du document
 {{ISSUE}}		Version du document
-
 {{TITLE}}		Titre de la première page
-
 {{ITEM}}		Abbréviation de l'équipement (LRU)
-
 {{ITEM_DESCRIPTION}}	Description de l'équipement
-
 {{PROJECT}}		Nom du projet
-
 {{RELEASE}}		Release Synergy
-
 {{BASELINE}}		Baseline Synergy
-
 {{WRITER}}		Auteur du document
-
 {{DATE}}		Date de génération du document
-
 {{TABLEITEMS}}		Liste des documents excel et word
-
 {{TABLESOURCE}}		Liste des sources (type c,asm,h,vhd etc.)
-
 {{TABLEPRS}}		Liste des PRs implémentés dans la release
-
+</pre>
 
 TODO
 ----
@@ -152,4 +139,6 @@ TODO
 - récupérer le nom de la database associée à la session
 - Ajouter Group (PMW)
 - Remplacer les combobox
+- Ajouter espacer dans les tableaux openxml
+
 
