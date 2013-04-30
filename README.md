@@ -30,7 +30,7 @@ Développement
 Il est écrit en Python et est compatible avec la version 2.7.3.2.
 Il utilise également:
  - l'interface TCL/Tk,
- - SQLite
+ - SQLite v3.x
  - PMW version 1.3.3a (à installer dans les librairies de Python),
  - Python-docx version 0.2 (copier le répertoire python-docx à la racine du projet dans le répertoire)
 
