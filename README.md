@@ -9,16 +9,37 @@ CID/HCMR/SCI generator
 Cet outil permet de générer un CID à partir de l'outil de gestion de configuration Synergy.
 La génération s'appuie sur un modèle de document.
 
+Installation
+-------------
+
+Outre les fichiers
+- docid.py
+- docid.ini
+
+le programme nécessite la base de donnée SQLite: 
+- synergy.db
+Le répertoire img qui contient les images
+- doc.gif
+- earhart12_240x116.gif
+Le module python-docx
+Le répertoire template avec les fichiers au format open xml
+
 Développement
 -------------
 
 Il est écrit en Python et est compatible avec la version 2.7.3.2.
 Il utilise également:
  - l'interface TCL/Tk,
- - PMW version 1.3.3a,
- - Python-docx version 0.2
+ - SQLite
+ - PMW version 1.3.3a (à installer dans les librairies de Python),
+ - Python-docx version 0.2 (copier le répertoire python-docx à la racine du projet dans le répertoire)
 
 Pour généer l'exécutable il faut lancer la commande: python setup.py py2exe
+Il faut de plus créer le répertoire Microsoft.VC90.CRT avec mles fichiers suivant:
+ - Microsoft.VC90.CRT.manifest
+ - msvcm90.dll
+ - msvcp90.dll
+ - msvcr90.dll
 
 Fichier de configuration
 ------------------------
