@@ -1,7 +1,7 @@
 docid
 -----
 
-generate document from IBM Rational Synergy Configuration Management tool
+generate Configuration Index Document and more from IBM Rational Synergy Configuration Management System tool
 
 CID/HCMR/SCI generator
 ---------------------
