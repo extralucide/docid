@@ -5,7 +5,7 @@ This file generates a SCI, HCMR and CID with a format .docx (Word 2007) based on
 
 """
 __author__ = "O. Appéré <olivier.appere@gmail.com>"
-__date__ = "03 April 2013"
+__date__ = "02 Mai 2013"
 __version__ = "$Revision: 0.1 $"
 
 import sys
@@ -541,7 +541,7 @@ class Tool():
         return ci_id
 
     def get_ear(self,item):
-        if item != "":
+        if item != "" and item != "None":
             query = "SELECT ear FROM items LEFT OUTER JOIN link_systems_items ON item_id = items.id LEFT OUTER JOIN systems ON systems.id = system_id WHERE items.name LIKE '" + item + "'"
             result = self.sqlite_query(query)
             if result == None:
@@ -549,7 +549,7 @@ class Tool():
             else:
                 ear = result[0][0]
         else:
-            ear = None
+            ear = ""
         return ear
 
     def get_lastquery(self):
@@ -572,6 +572,7 @@ class Tool():
             CREATE TABLE status (id INTEGER PRIMARY KEY, description TEXT,  name TEXT, transition TEXT, type TEXT);
             CREATE TABLE systems (id INTEGER PRIMARY KEY, img TEXT, aircraft TEXT,  name TEXT, ear TEXT);
             CREATE TABLE writers (id INTEGER PRIMARY KEY, name TEXT);
+            CREATE TABLE review_types (id INTEGER PRIMARY KEY, description TEXT, name TEXT);
             COMMIT;
             """)
             con.commit()
@@ -700,14 +701,30 @@ class Tool():
             history = result
         return history
 
-    def getModificationLog(self,item):
-        query = "SELECT modifications FROM history LEFT OUTER JOIN documents ON documents.id = history.document_id WHERE documents.reference LIKE '{:s}' ORDER BY date DESC LIMIT 1".format(item)
-        result = self.sqlite_query(query)
-        if result == None:
-            modif = "None"
+    def getLastModificationLog(self,item):
+        if item != "" and item != "None":
+            query = "SELECT modifications FROM history LEFT OUTER JOIN documents ON documents.id = history.document_id WHERE documents.reference LIKE '{:s}' ORDER BY date DESC LIMIT 1".format(item)
+            result = self.sqlite_query(query)
+            if result == None:
+                modif = "None"
+            else:
+                modif = result[0]
         else:
-            modif = result[0]
+            modif = "None"
         return modif
+
+    def updateLastModificationLog(self):
+        now = datetime.datetime.now()
+        con = lite.connect('docid.db3', isolation_level=None)
+        cur = con.cursor()
+        cur.execute("SELECT history.id FROM history LEFT OUTER JOIN documents ON documents.id = history.document_id WHERE reference LIKE '" + self.reference + "' AND issue LIKE '" + self.revision + "' LIMIT 1")
+        data = cur.fetchone()
+        if data != None:
+            id = data[0]
+            cur.execute("UPDATE history SET date=?,writer_id=?,modifications=? WHERE id= ?",(now,1,interface.modif_log.get(1.0,END),id))
+        else:
+            cur.execute("INSERT INTO history(document_id,issue,writer_id,date,modifications) VALUES(?,?,?,?,?)",(3,self.revision,1,now,interface.modif_log.get(1.0,END)))
+
 
     def getTypeDocDescription(self,item):
         query = "SELECT description FROM document_types WHERE name LIKE '{:s}'".format(item)
@@ -716,6 +733,15 @@ class Tool():
             description = "None"
         else:
             description = result[0]
+        return description
+
+    def getDocRef(self,item,type):
+        query = "SELECT reference,document_types.description FROM documents LEFT OUTER JOIN items ON items.id = documents.item_id LEFT OUTER JOIN document_types ON document_types.id = documents.type WHERE document_types.name LIKE '"+ type +"' AND items.name LIKE '{:s}'".format(item)
+        result = self.sqlite_query_one(query)
+        if result != None:
+            description = result[0] + " " + result[1]
+        else:
+            description = ""
         return description
 
     def getDocInfo(self,item):
@@ -750,6 +776,14 @@ class Tool():
                 status = "None"
 
         return reference,revision,status
+    def getReviewList(self):
+        query = "SELECT id,description FROM review_types"
+        result = self.sqlite_query(query)
+        if result == None:
+            list = "None"
+        else:
+            list = result
+        return list
 
     def updateRevision(self,reference,revision):
         '''
@@ -1013,6 +1047,8 @@ class BuildDoc(Tool):
                 if self.author == "":
                     self.author = "Nobody"
                 ear_txt = self.get_ear(self.item)
+                # Update history in database
+                self.updateLastModificationLog()
                 # get list of modifications
                 table_listmodifs = self.getListModifs(self.item)
                 #convert tuple in array
@@ -1022,9 +1058,10 @@ class BuildDoc(Tool):
 
                 for issue,date,modification,author in table_listmodifs:
                     table_modifs.append([issue,date,modification,author])
-                table_modifs.append([self.revision,time.strftime("%d %b %Y", time.gmtime()),"Next",self.author])
 
-##                print table_listmodifs
+##                table_modifs.append([self.revision,time.strftime("%d %b %Y", time.gmtime()),"Next",self.author])
+
+##                print table_modifs
 ##                tableau = []
 ##                tableau.append(["Project","Data","Revision","Modified time","Status"])
 ##                table_listmodifs = [["TEST","DATE","TEXT","WRITER"]]
@@ -1084,6 +1121,26 @@ class BuildDoc(Tool):
                             'WRITER':{
                                 'type':'str',
                                 'text':self.author,
+                                'fmt':{}
+                                },
+                            'PSAC':{
+                                'type':'str',
+                                'text':self.getDocRef(self.item,"PSAC"),
+                                'fmt':{}
+                                },
+                            'SDP':{
+                                'type':'str',
+                                'text':self.getDocRef(self.item,"SDP"),
+                                'fmt':{}
+                                },
+                            'SCMP':{
+                                'type':'str',
+                                'text':self.getDocRef(self.item,"SCMP"),
+                                'fmt':{}
+                                },
+                            'SVP':{
+                                'type':'str',
+                                'text':self.getDocRef(self.item,"SVP"),
                                 'fmt':{}
                                 },
                             'TABLELISTMODIFS':{
@@ -1505,6 +1562,7 @@ class ThreadQuery(threading.Thread,Tool):
                 cur.execute("UPDATE last_query SET database=?,reference=?,revision=?,project=?,release=?,baseline=?,input_date=? WHERE id= ?",(self.database,self.reference,self.revision,project,release,baseline,now,id))
             else:
                 cur.execute("INSERT INTO last_query(database,reference,revision,project,item,release,baseline,input_date) VALUES(?,?,?,?,?,?,?,?)",(self.database,self.reference,self.revision,project,item,release,baseline,now))
+            # Keep only the 4 last input
             cur.execute("DELETE FROM last_query WHERE id NOT IN ( SELECT id FROM ( SELECT id FROM last_query ORDER BY input_date DESC LIMIT 4) x )")
             lid = cur.lastrowid
 ##            print "The last Id of the inserted row is %d" % lid
@@ -2021,13 +2079,39 @@ class Interface (Frame,Tool):
         # Build SQAP folder in the notebook
         self.build_sqap_folder(page_create_sqap,**kwargs)
 
-    def build_sqap_folder(self,page_create_sqap,**kwargs):
+        # Build checklist folder in the notebook
+        self.build_checklist_folder(page_create_checklist,**kwargs)
+
+    def build_checklist_folder(self,page,**kwargs):
+        # Create top frame, with scrollbar and listbox
+        Frame.__init__(self, page, width=768, height=576,relief =GROOVE, bg = background,**kwargs)
+        self.pack(fill=BOTH)
+        # Type of CID
+        row_index = 1
+        self.review_type_txt = Label(self, text='Review type:', fg=foreground,bg = background)
+        review_list = self.getReviewList()
+##        print review_list
+        self.var_review_type = IntVar()
+        for id,text in review_list:
+            b = Radiobutton(self, indicatoron=0,width = 20, text=text,variable=self.var_review_type, value=id)
+            b.pack(anchor=W)
+##        self.radiobutton_sci = Radiobutton(self, indicatoron=0,width = 6,text="SCI", variable=self.cid_var_type,value="SCI",fg=foreground,bg = background,command=self.cid_type)
+##        self.radiobutton_hci = Radiobutton(self, indicatoron=0,width = 6,text="HCI", variable=self.cid_var_type,value="HCI",fg=foreground,bg = background,command=self.cid_type)
+##        self.radiobutton_cid = Radiobutton(self, indicatoron=0,width = 6,text="CID", variable=self.cid_var_type,value="CID",fg=foreground,bg = background,command=self.cid_type)
+        self.var_review_type.set(1) # initialize
+
+##        self.review_type_txt.grid(row =row_index,sticky='E')
+##        self.radiobutton_sci.grid(row =row_index, column =1, padx=10,sticky='W')
+##        self.radiobutton_hci.grid(row =row_index, column =1, padx=58,sticky='W')
+##        self.radiobutton_cid.grid(row =row_index, column =1, padx=31,sticky='E')
+
+    def build_sqap_folder(self,page,**kwargs):
         global entry_size
         global project_item
 
         self.item = project_item
         # Create top frame, with scrollbar and listbox
-        Frame.__init__(self, page_create_sqap, width=768, height=576,relief =GROOVE, bg = background,**kwargs)
+        Frame.__init__(self, page, width=768, height=576,relief =GROOVE, bg = background,**kwargs)
         self.pack(fill=BOTH)
 
         row_index = 1
@@ -2078,11 +2162,11 @@ class Interface (Frame,Tool):
 
         # Modifications log
 
-        modification_log_text = self.getModificationLog(reference)
-        modif_log_frame = Frame(page_create_sqap, bg = '#80c0c0')
+        modification_log_text = self.getLastModificationLog(reference)
+        modif_log_frame = Frame(page, bg = '#80c0c0')
         modif_log_frame.pack()
         scrollbar = Scrollbar(modif_log_frame)
-        page_create_sqap.bind('<MouseWheel>', self.scrollEvent)
+        page.bind('<MouseWheel>', self.scrollEvent)
         scrollbar.pack(side=RIGHT, fill=Y)
         self.modif_log_label = Label(modif_log_frame, text='Modifications log:',fg=foreground,bg = background)
         self.modif_log_label.pack(fill=X);
@@ -2090,7 +2174,7 @@ class Interface (Frame,Tool):
         self.modif_log.pack()
         scrollbar.config(command=self.modif_log.yview)
         self.modif_log.insert(END, modification_log_text)
-        output_frame = Frame(page_create_sqap, bg = '#80c0c0')
+        output_frame = Frame(page, bg = '#80c0c0')
         output_frame.pack()
         self.output_label_pg2 = Label(output_frame, text='Output:',fg=foreground,bg = background)
         self.output_label_pg2.pack(fill=X);
