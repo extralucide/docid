@@ -14,7 +14,6 @@ from distutils.core import setup
 from glob import glob
 import sys
 sys.path.append("python-docx")
-sys.path.append("tkintertable")
 import docx
 #import _elementpath as DONTUSE
 import py2exe
@@ -57,16 +56,16 @@ def main():
                     "docid.db3"]
     #setup(name="test",scripts=["test.py"],)
     setup(
-        name="docid",
-        version="2.5.3",
-        description="Application to generate CID and CCB minutes report.",
+        name="docid_cli",
+        version="1.0",
+        description="Application to generate HCMR.",
         author="Olivier Appere",
         license="License GPL v3.0",
         data_files=data_files,
         options = {"py2exe": {"includes": "docx","packages": "lxml", } },
        # options = {"py2exe": {"compressed": 1, "optimize": 0, "bundle_files": 1, } },
         zipfile = None,
-        windows=[{
+        console=[{
             "script": "docid.py",
                 "icon_resources":[{0, "qams.ico"}]
         }]
