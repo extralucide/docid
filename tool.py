@@ -1222,11 +1222,13 @@ class Tool():
         else:
             return False
     def removeNonAscii(self,s): return "".join(filter(lambda x: ord(x)<128, s))
+
     def replaceBeacon(self,text):
         char = {r'\x02':r'<',r'\x03':r'>'}
         for before, after in char.iteritems():
             text = re.sub(before,after,text)
         return text
+
     def _parseCRParent(self,text_html):
         # instantiate the parser and fed it some HTML
         parser = MyHTMLParserPlain()

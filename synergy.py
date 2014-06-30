@@ -87,7 +87,7 @@ class Synergy(Tool):
         ccm_query = 'ccm ' + query + '\n'
         print ccm_query
         parent_cr = self._ccmCmd(query)
-        if parent_cr != "":
+        if parent_cr not in ("",None):
             self.synergy_log("parent CR:" + parent_cr,False)
             result = parent_cr
         else:

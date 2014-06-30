@@ -1,5 +1,5 @@
 #!/usr/bin/env python 2.7.3
-## -*- coding: latin-1 -*-
+# # -*- coding: latin-1 -*-
 # -*- coding: utf-8 -*-
 #-------------------------------------------------------------------------------
 # Name:        module1
@@ -16,6 +16,7 @@
 #           review_checklists_dispatch
 #           review_checklists
 #           category_checklist
+import logging
 
 from tool import Tool
 from synergy import Synergy
@@ -23,43 +24,45 @@ from api_mysql import MySQL
 import time
 # For ToolPatchReview
 import sys
-##sys.path.append("python-docx")
-##import docx
+sys.path.append("python-docx")
+import docx
+import copy
 import re
 import zipfile
 from lxml import etree
 # patch docx
 nsprefixes = {
     'mo': 'http://schemas.microsoft.com/office/mac/office/2008/main',
-    'o':  'urn:schemas-microsoft-com:office:office',
+    'o': 'urn:schemas-microsoft-com:office:office',
     've': 'http://schemas.openxmlformats.org/markup-compatibility/2006',
     # Text Content
-    'w':   'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+    'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
     'w10': 'urn:schemas-microsoft-com:office:word',
     'wne': 'http://schemas.microsoft.com/office/word/2006/wordml',
     # Drawing
-    'a':   'http://schemas.openxmlformats.org/drawingml/2006/main',
-    'm':   'http://schemas.openxmlformats.org/officeDocument/2006/math',
-    'mv':  'urn:schemas-microsoft-com:mac:vml',
+    'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+    'm': 'http://schemas.openxmlformats.org/officeDocument/2006/math',
+    'mv': 'urn:schemas-microsoft-com:mac:vml',
     'pic': 'http://schemas.openxmlformats.org/drawingml/2006/picture',
-    'v':   'urn:schemas-microsoft-com:vml',
-    'wp':  'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',
+    'v': 'urn:schemas-microsoft-com:vml',
+    'wp': 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',
     # Properties (core and extended)
-    'cp':  'http://schemas.openxmlformats.org/package/2006/metadata/core-properties',
-    'dc':  'http://purl.org/dc/elements/1.1/',
-    'ep':  'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties',
+    'cp': 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties',
+    'dc': 'http://purl.org/dc/elements/1.1/',
+    'ep': 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties',
     'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
     # Content Types
-    'ct':  'http://schemas.openxmlformats.org/package/2006/content-types',
+    'ct': 'http://schemas.openxmlformats.org/package/2006/content-types',
     # Package Relationships
-    'r':   'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
-    'pr':  'http://schemas.openxmlformats.org/package/2006/relationships',
+    'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+    'pr': 'http://schemas.openxmlformats.org/package/2006/relationships',
     # Dublin Core document properties
     'dcmitype': 'http://purl.org/dc/dcmitype/',
-    'dcterms':  'http://purl.org/dc/terms/'}
+    'dcterms': 'http://purl.org/dc/terms/'}
 
-def advReplace(document,search,replace,bs=3):
-    '''Replace all occurences of string with a different string, return updated document
+
+def advReplace(document, search, replace, bs=3):
+    """Replace all occurences of string with a different string, return updated document
 
     This is a modified version of python-docx.replace() that takes into
     account blocks of <bs> elements at a time. The replace element can also
@@ -95,7 +98,7 @@ def advReplace(document,search,replace,bs=3):
 
     @return instance The document with replacement applied
 
-    '''
+    """
     # Enables debug output
     DEBUG = False
 
@@ -109,7 +112,7 @@ def advReplace(document,search,replace,bs=3):
     searchels = []
 
     for element in newdocument.iter():
-        if element.tag == '{%s}t' % nsprefixes['w']: # t (text) elements
+        if element.tag == '{%s}t' % nsprefixes['w']:  # t (text) elements
             if element.text:
                 # Add this element to searchels
                 searchels.append(element)
@@ -123,15 +126,15 @@ def advReplace(document,search,replace,bs=3):
                 # s = search start
                 # e = element IDs to merge
                 found = False
-                for l in range(1,len(searchels)+1):
+                for l in range(1, len(searchels) + 1):
                     if found:
                         break
                     #print "slen:", l
                     for s in range(len(searchels)):
                         if found:
                             break
-                        if s+l <= len(searchels):
-                            e = range(s,s+l)
+                        if s + l <= len(searchels):
+                            e = range(s, s + l)
                             #print "elems:", e
                             txtsearch = ''
                             for k in e:
@@ -148,7 +151,7 @@ def advReplace(document,search,replace,bs=3):
                                     print "Search regexp:", searchre.pattern
                                     print "Requested replacement:", replace
                                     print "Matched text:", txtsearch
-                                    print "Matched text (splitted):", map(lambda i:i.text,searchels)
+                                    print "Matched text (splitted):", map(lambda i: i.text, searchels)
                                     print "Matched at position:", match.start()
                                     print "matched in elements:", e
                                     if isinstance(replace, etree._Element):
@@ -156,7 +159,7 @@ def advReplace(document,search,replace,bs=3):
                                     elif type(replace) == list or type(replace) == tuple:
                                         print "Will replace with LIST OF ELEMENTS"
                                     else:
-                                        print "Will replace with:", re.sub(search,replace,txtsearch)
+                                        print "Will replace with:", re.sub(search, replace, txtsearch)
 
                                 curlen = 0
                                 replaced = False
@@ -168,16 +171,16 @@ def advReplace(document,search,replace,bs=3):
                                         if isinstance(replace, etree._Element):
                                             # If I'm replacing with XML, clear the text in the
                                             # tag and append the element
-                                            searchels[i].text = re.sub(search,'',txtsearch)
+                                            searchels[i].text = re.sub(search, '', txtsearch)
                                             searchels[i].append(replace)
                                         elif type(replace) == list or type(replace) == tuple:
                                             # I'm replacing with a list of etree elements
-                                            searchels[i].text = re.sub(search,'',txtsearch)
+                                            searchels[i].text = re.sub(search, '', txtsearch)
                                             for r in replace:
                                                 searchels[i].append(r)
                                         else:
                                             # Replacing with pure text
-                                            searchels[i].text = re.sub(search,replace,txtsearch)
+                                            searchels[i].text = re.sub(search, replace, txtsearch)
                                         replaced = True
                                         if DEBUG:
                                             print "Replacing in element #:", i
@@ -186,11 +189,12 @@ def advReplace(document,search,replace,bs=3):
                                         searchels[i].text = ''
     return newdocument
 
+
 class ToolPatchReview(Tool):
     def __init__(self):
         Tool.__init__(self)
 
-    def replaceTag(self,doc, tag, replace, fmt = {}):
+    def replaceTag(self, doc, tag, replace, fmt=None):
         """ Searches for {{tag}} and replaces it with replace.
     Replace is a list with two indexes: 0=type, 1=The replacement
     Supported values for type:
@@ -201,33 +205,34 @@ class ToolPatchReview(Tool):
     'img': <image> Renders an image
     PR_002 Add paragraph type with array as an input
     """
-##        try:
-##            import docx
-##        except ImportError:
-##            print "DoCID requires the python-docx library for Python. " \
-##                    "See https://github.com/mikemaccana/python-docx/"
-##                        #    raise ImportError, "DoCID requires the python-docx library for Python. " \
-##                        #         "See https://github.com/mikemaccana/python-docx/"
+        if not fmt: fmt = {}
+        ##        try:
+        ##            import docx
+        ##        except ImportError:
+        ##            print "DoCID requires the python-docx library for Python. " \
+        ##                    "See https://github.com/mikemaccana/python-docx/"
+        ##                        #    raise ImportError, "DoCID requires the python-docx library for Python. " \
+        ##                        #         "See https://github.com/mikemaccana/python-docx/"
         if replace[0] == 'str':
             try:
                 repl = unicode(replace[1], errors='ignore')
             except TypeError as exception:
                 print "Execution failed:", exception
                 repl = replace[1]
-##                print repl
+            ##                print repl
             except UnicodeDecodeError as exception:
                 print "Execution failed:", exception
-##                print replace[1]
+            ##                print replace[1]
         elif replace[0] == 'par':
             # Will make a paragraph
             repl = self._par(replace[1])
         elif replace[0] == 'tab':
             # Will make a table
-            repl = self._table(replace[1],fmt)
+            repl = self._table(replace[1], fmt)
         elif replace[0] == 'img':
             relationships = docx.relationshiplist()
-            relationshiplist, repl = self.picture_add(relationships, replace[1],'This is a test description')
-            return advReplace(doc, '\{\{'+re.escape(tag)+'\}\}', repl),relationshiplist
+            relationshiplist, repl = self.picture_add(relationships, replace[1], 'This is a test description')
+            return advReplace(doc, '\{\{' + re.escape(tag) + '\}\}', repl), relationshiplist
         elif replace[0] == 'mix':
             num_begin = ord("a")
             num_end = ord("z")
@@ -235,41 +240,45 @@ class ToolPatchReview(Tool):
             prefix = ""
             repl = []
             dico = replace[1]
-            for key,value in dico.items():
+            for key, value in dico.items():
                 if key[0] == "checklist":
-                    par = []
-                    par.append((prefix + chr(num) + ") " + dico['domain'] + " " + key[1],'rb'))
+                    par = [(prefix + chr(num) + ") " + dico['domain'] + " " + key[1], 'rb')]
                     elt = self._par(par)
                     num += 1
                     if num > num_end:
                         prefix += "a"
                         num = num_begin
                     repl.append(elt)
-                    elt = self._table(value,fmt)
+                    elt = self._table(value, fmt)
                     repl.append(elt)
-                    par = []
-                    par.append(("Conclusion of CR review:",''))
+                    par = [("Conclusion of CR review:", '')]
                     elt = self._par(par)
                     repl.append(elt)
-                    par = []
-                    par.append(("CR Transition to state:",''))
+                    par = [("CR Transition to state:", '')]
                     elt = self._par(par)
                     repl.append(elt)
         else:
             raise NotImplementedError, "Unsupported " + replace[0] + " tag type!"
         # Replace tag with 'lxml.etree._Element' objects
-        result = advReplace(doc, '\{\{'+re.escape(tag)+'\}\}', repl,6)
-##        result = docx.advReplace_new(doc, '\{\{'+re.escape(tag)+'\}\}', repl,6)
+        result = advReplace(doc, '\{\{' + re.escape(tag) + '\}\}', repl, 6)
+        ##        result = docx.advReplace_new(doc, '\{\{'+re.escape(tag)+'\}\}', repl,6)
         return result
 
+
 class Log():
-    def log(self,text="",display_gui=True):
-        '''
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def log(text="", display_gui=True):
+        """
         Log messages
-        '''
+        """
         print text
+
+
 class SynergyPatchReview(ToolPatchReview):
-    def __init__(self,session_started):
+    def __init__(self, session_started):
         self.session_started = session_started
         self.verbose = "yes"
         # Set logging
@@ -285,89 +294,147 @@ class SynergyPatchReview(ToolPatchReview):
         self.loginfo.debug("NO")
         ToolPatchReview.__init__(self)
 
-class Review(Synergy):
-    def __init__(self,
-                review_number=1,
-                detect_release="",
-                impl_release="",
-                tbl_cr_for_ccb=["","","","",""],
-                session_started=False,
-##                environment={"System":"Dassault F5X PDS","Item":"ESSNESS","Component":"ENM"},
-                **kwargs
-                ):
 
+class Review(Synergy):
+    def __init__(self, review_number=1, detect_release="", impl_release="", tbl_cr_for_ccb=None, session_started=False,
+                 **kwargs):
+
+        self.tbl_inspection_sheets = []
+        self.dico_doc = {}
+        self.object_integrate = False
+        self.object_released = False
+        self.ccb_type = "SCR"  #self.ihm.ccb_var_type.get()
+        self.docx_filename = False
+        if not tbl_cr_for_ccb: tbl_cr_for_ccb = ["", "", "", "", ""]
         self.detect_release = detect_release
         self.impl_release = impl_release
         self.tbl_cr = tbl_cr_for_ccb
-##        self.system = environment["System"]
-##        self.item = environment["Item"]
-##        self.component = environment["Component"]
+        ##        self.system = environment["System"]
+        ##        self.item = environment["Item"]
+        ##        self.component = environment["Component"]
         self.review_number = review_number
         for key in kwargs:
             self.__dict__[key] = kwargs[key]
-##        ToolPatchReview.__init__(self)
-        Synergy.__init__(self,session_started)
+        ##        ToolPatchReview.__init__(self)
+        Synergy.__init__(self, session_started)
         self.ihm = Log()
 
-    def getChecks(review_id=3,category_id=1):
-        '''
+    def getChecks(review_id=3, category_id=1):
+        """
             from SQLite tables review_checklists_dispatch and review_checklists and review_types
-        '''
+        """
         query = "SELECT review_checklists_dispatch.rank,review_checklists.name,review_checklists_dispatch.sub_category FROM review_checklists \
                     LEFT OUTER JOIN review_checklists_dispatch ON review_checklists_dispatch.check_id = review_checklists.id \
                     LEFT OUTER JOIN review_types ON review_checklists_dispatch.review_id = review_types.id \
-                    WHERE review_types.id LIKE '{:d}' AND review_checklists_dispatch.category_id LIKE '{:d}' ".format(review_id,category_id)
+                    WHERE review_types.id LIKE '{:d}' AND review_checklists_dispatch.category_id LIKE '{:d}' ".format(
+            review_id, category_id)
         result = Tool.sqlite_query(query)
-##        if result == None:
-##            description = "None"
-##        else:
-##            description = result[0]
-        print "RESULT",result
+        ##        if result == None:
+        ##            description = "None"
+        ##        else:
+        ##            description = result[0]
+        print "RESULT", result
         return result
+    @staticmethod
+    def getObjective(review_id=3):
+        """
+            from SQLite tables review_checklists_dispatch and review_checklists and review_types
+        """
+        query = "SELECT objective FROM review_types \
+                    WHERE review_types.id LIKE '{:d}' ".format(review_id)
+        result = Tool.sqlite_query_one(query)
+        if result is None:
+            txt = "None"
+        else:
+            txt = result[0]
+        return txt
+    @staticmethod
+    def getTransition(review_id=3):
+        """
+            from SQLite tables review_checklists_dispatch and review_checklists and review_types
+        """
+        query = "SELECT transition FROM review_types \
+                    WHERE review_types.id LIKE '{:d}' ".format(review_id)
+        result = Tool.sqlite_query_one(query)
+        if result is None:
+            txt = "None"
+        else:
+            txt = result[0]
+        return txt
 
-    def getReviewList(id=""):
-        '''
+    def getReviewList(review_type_id=""):
+        """
         static method to get list of reviews (PR,SRR,etc.)
-        '''
-        if id == "":
+        """
+        if review_type_id == "":
             query = "SELECT id,description FROM review_types"
             result = Tool.sqlite_query(query)
-            if result == None:
-                list = "None"
+            if result is None:
+                reviews_list = "None"
             else:
-                list = result
-            return list
+                reviews_list = result
+            return reviews_list
         else:
-            query = "SELECT description FROM review_types WHERE id LIKE '{:d}'".format(id)
+            query = "SELECT description FROM review_types WHERE id LIKE '{:d}'".format(review_type_id)
             result = Tool.sqlite_query_one(query)
-            if result == None:
+            if result is None:
                 description = "None"
             else:
                 description = result[0]
             return description
 
-    def _getIinspectionSheetList(self,is_doc):
-        if is_doc == []:
-            is_doc.append(["","None"])
+    @staticmethod
+    def _getIinspectionSheetList(is_doc):
+        if not is_doc:
+            is_doc.append(["", "None"])
             return is_doc
         else:
             is_doc_filtered = sorted(set(is_doc))
         is_doc_tbl = []
         for item in is_doc_filtered:
-            is_doc_tbl.append(["",item])
+            is_doc_tbl.append(["", item])
         return is_doc_tbl
 
+    def replaceDocTag(self,text,dico):
+        """
+
+        :param text:
+        :param dico:
+        :return:
+        """
+        for tag, doc in dico.iteritems():
+            print "Tag",tag,doc
+            text = re.sub('\{\{'+re.escape(tag)+'\}\}',doc,text)
+        return text
+
+    def createChecksTable(self,review_number,type_check_id,tbl_check,dico,nb_item=1):
+        """
+        :return:
+        """
+        result = Review.getChecks(review_number, type_check_id)
+
+        for rank, description, category in result:
+            nb_item_str = "{:d}".format(nb_item)
+            # Replace tag by documents name found
+            description = self.replaceDocTag(description,dico)
+            tbl_check.append([nb_item_str, category, description, "OK/NOK/NA", "", ""])
+            nb_item += 1
+        if len(tbl_check) == 1:
+            tbl_check.append(["--", "--", "--", "--", "--", "--"])
+        print "tbl_check",tbl_check
+        return nb_item
+
     def createReviewReport(self):
-        '''
+        """
         Create review report using docx module
-        '''
+        """
         reference = self.reference
         issue = self.issue
         target_release = self.impl_release
-##        release = self.release
-##        baseline =  self.baseline
+        ##        release = self.release
+        ##        baseline =  self.baseline
         review_number = self.review_number
-    ##        baseline_deliv = self.ihm.baseline_deliv_entry.get()
+        ##        baseline_deliv = self.ihm.baseline_deliv_entry.get()
 
         sci_doc = "None"
         seci_doc = "None"
@@ -375,125 +442,136 @@ class Review(Synergy):
         sci_is = "None"
         seci_is = "None"
         sas_is = "None"
-##        tbl_copies.append(["",""])
+        ##        tbl_copies.append(["",""])
         # List CR for review
         # A modifier pour avoir le tableau correct
-        self.ccb_type = "SCR"#self.ihm.ccb_var_type.get()
-##        self.detect_release = self.ihm.previous_release
-##        self.impl_release = self.ihm.impl_release
-##        self.cr_type = self.ihm.cr_type
-##        tbl_cr = self.getPR_CCB("",True)
-        tableau_pr = []
-    ##        if self.ccb_type == "SCR":
-        tableau_pr.append(["CR ID","Synopsis","Severity","Status","Comment/Impact/Risk"])
-    ##            tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity"])
-    ##        else:
-    ##            tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity","Dectected on","Implemented for"])
-    ##        tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity"])
+        ##        self.detect_release = self.ihm.previous_release
+        ##        self.impl_release = self.ihm.impl_release
+        ##        self.cr_type = self.ihm.cr_type
+        ##        tbl_cr = self.getPR_CCB("",True)
+        tableau_pr = [["CR ID", "Synopsis", "Severity", "Status", "Comment/Impact/Risk"]]
+        ##        if self.ccb_type == "SCR":
+        ##            tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity"])
+        ##        else:
+        ##            tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity","Dectected on","Implemented for"])
+        ##        tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity"])
         tableau_pr.extend(self.tbl_cr)
 
         if self.component != "":
             ci_identification = self.getComponentID(self.component)
         else:
-            ci_identification = self.get_ci_sys_item_identification(self.system,self.item)
+            ci_identification = self.get_ci_sys_item_identification(self.system, self.item)
         date_meeting = time.strftime("%d %b %Y", time.localtime())
-##        review_number = self.ihm.var_review_type.get()
-##        print "var_review_type",review_number
-        colw_pr = [500,     # CR ID
-                    2500,   # Synopsis
-                    500,    # Severity
-                    500,    # Status
-                    1000]   # Comment
+        ##        review_number = self.ihm.var_review_type.get()
+        ##        print "var_review_type",review_number
+        colw_pr = [500,  # CR ID
+                   2500,  # Synopsis
+                   500,  # Severity
+                   500,  # Status
+                   1000]  # Comment
 
-        colw_baseline = [500,     # Ref ID
-                        1000,   # Name
-                        500,    # Reference
-                        500,    # Version
-                        2500]   # Description
+        colw_baseline = [500,  # Ref ID
+                         1000,  # Name
+                         500,  # Reference
+                         500,  # Version
+                         2500]  # Description
 
-        colw_inputs_check = [500,     # Ref ID
-                            500,   # Name
-                            2000,    # Reference
-                            500,    # Version
-                            1000,
-                            500]   # Description
+        colw_checks = [500,  # Ref ID
+                             500,  # Name
+                             2000,  # Reference
+                             500,  # Version
+                             1000,
+                             500]  # Description
 
-        colw_action = [250,     # ID
-                    500,    # Origin
-                    2000,    # Action
-                    500,    # Impact
-                    250,   # Severity
-                    250,    # Assignee
-                    500,    # Closure
-                    250,    # Status
-                    1000] # 5000 = 100%
-        fmt_pr =  {
-                    'heading': True,
-                    'colw': colw_pr, # 5000 = 100%
-                    'cwunit': 'pct','tblw': 5000,'twunit': 'pct','borders': {'all': {'color': 'auto','space': 0,'sz': 6,'val': 'single',}}
-                    }
-        fmt_baseline =  {
-                    'heading': True,
-                    'colw': colw_baseline, # 5000 = 100%
-                    'cwunit': 'pct','tblw': 5000,'twunit': 'pct','borders': {'all': {'color': 'auto','space': 0,'sz': 6,'val': 'single',}}
-                    }
+        colw_scope = [1000,  #
+                     1000,  #
+                     1000,  #
+                     1000,  #
+                     1000]  #
 
-        fmt_inputs_check=  {
-                    'heading': True,
-                    'colw': colw_inputs_check, # 5000 = 100%
-                    'cwunit': 'pct','tblw': 5000,'twunit': 'pct','borders': {'all': {'color': 'auto','space': 0,'sz': 6,'val': 'single',}}
-                    }
-        fmt_action =  {
-                    'heading': True,
-                    'colw': colw_action, # 5000 = 100%
-                    'cwunit': 'pct','tblw': 5000,'twunit': 'pct','borders': {'all': {'color': 'auto','space': 0,'sz': 6,'val': 'single',}}
-                    }
-        fmt_two =  {
-                    'heading': False,
-                    'colw': [2000,3000], # 5000 = 100%
-                    'cwunit': 'pct','tblw': 5000,'twunit': 'pct'
-                    }
-        fmt_one =  {
-                    'heading': False,
-                    'colw': [500,4500], # 5000 = 100%
-                    'cwunit': 'pct','tblw': 5000,'twunit': 'pct'
-                    }
+        colw_action = [250,  # ID
+                       500,  # Origin
+                       2000,  # Action
+                       500,  # Impact
+                       250,  # Severity
+                       250,  # Assignee
+                       500,  # Closure
+                       250,  # Status
+                       1000]  # 5000 = 100%
+        fmt_pr = {
+            'heading': True,
+            'colw': colw_pr,  # 5000 = 100%
+            'cwunit': 'pct', 'tblw': 5000, 'twunit': 'pct',
+            'borders': {'all': {'color': 'auto', 'space': 0, 'sz': 6, 'val': 'single', }}
+        }
+        fmt_baseline = {
+            'heading': True,
+            'colw': colw_baseline,  # 5000 = 100%
+            'cwunit': 'pct', 'tblw': 5000, 'twunit': 'pct',
+            'borders': {'all': {'color': 'auto', 'space': 0, 'sz': 6, 'val': 'single', }}
+        }
+
+        fmt_checks = {
+            'heading': True,
+            'colw': colw_checks,  # 5000 = 100%
+            'cwunit': 'pct', 'tblw': 5000, 'twunit': 'pct',
+            'borders': {'all': {'color': 'auto', 'space': 0, 'sz': 6, 'val': 'single', }}
+        }
+        fmt_scope = {
+            'heading': True,
+            'colw': colw_scope,  # 5000 = 100%
+            'cwunit': 'pct', 'tblw': 5000, 'twunit': 'pct',
+            'borders': {'all': {'color': 'auto', 'space': 0, 'sz': 6, 'val': 'single', }}
+        }
+        fmt_action = {
+            'heading': True,
+            'colw': colw_action,  # 5000 = 100%
+            'cwunit': 'pct', 'tblw': 5000, 'twunit': 'pct',
+            'borders': {'all': {'color': 'auto', 'space': 0, 'sz': 6, 'val': 'single', }}
+        }
+        fmt_two = {
+            'heading': False,
+            'colw': [2000, 3000],  # 5000 = 100%
+            'cwunit': 'pct', 'tblw': 5000, 'twunit': 'pct'
+        }
+        fmt_one = {
+            'heading': False,
+            'colw': [500, 4500],  # 5000 = 100%
+            'cwunit': 'pct', 'tblw': 5000, 'twunit': 'pct'
+        }
         self._clearDicofound()
-        self.object_released = False
-        self.object_integrate = False
         self.tbl_inspection_sheets = []
         part_number = self.part_number
         checksum = self.checksum
         subject = self.subject
         # Documents dictionary set
-        dico_plan_doc = {"PSAC":"Plan for Software Aspect of Certification",
-                    "SDP":"Software Development Plan",
-                    "SVP":"Software Verification Plan",
-                    "SCMP":"Software Configuration Management Plan",
-                    "SQAP":"Software Quality Assurance Plan",
-                    "SRTS":"Software Requirement Test Standard",
-                    "SDTS":"Software Design Test Standard",
-                    "SCS":"Software Coding Standard"}
-        dico_sas = {"SAS":"Software Accomplishment Summary"}
-        dico_sci = {"SCI":"Software Configuration Index"}
-        dico_seci = {"SECI":"Software Environment Configuration Index"}
-        dico_spec = {"SWRD":"Software Requirements Data"}
-        dico_upper = {"SPI":"SPI Interface Document",
-                        "ICD":"Interface Control Document",
-                        "HSID":"Hardware Software Interface Document",
-                        "SSCS":"Board Specification Document"}
+        dico_plan_doc = {"PSAC": "Plan for Software Aspect of Certification",
+                         "SDP": "Software Development Plan",
+                         "SVP": "Software Verification Plan",
+                         "SCMP": "Software Configuration Management Plan",
+                         "SQAP": "Software Quality Assurance Plan",
+                         "SRTS": "Software Requirement Test Standard",
+                         "SDTS": "Software Design Test Standard",
+                         "SCS": "Software Coding Standard"}
+        dico_sas = {"SAS": "Software Accomplishment Summary"}
+        dico_sci = {"SCI": "Software Configuration Index"}
+        dico_seci = {"SECI": "Software Environment Configuration Index"}
+        dico_spec = {"SWRD": "Software Requirements Data"}
+        dico_upper = {"SPI": "SPI Interface Document",
+                      "ICD": "Interface Control Document",
+                      "HSID": "Hardware Software Interface Document",
+                      "SSCS": "Board Specification Document"}
         # Inspection sheets dictionary set
-        dico_is = {"IS_PSAC":"PSAC Inspection Sheet",
-                    "IS_SDP":"SDP Inspection Sheet",
-                    "IS_SVP":"SVP Inspection Sheet",
-                    "IS_SCMP":"SVP Inspection Sheet",
-                    "IS_SQAP":"SQAP Inspection Sheet",
-                    "IS_SCI":"SCI Inspection Sheet",
-                    "IS_SAS":"SAS Inspection Sheet",
-                    "IS_SECI":"SECI Inspection Sheet",
-                    "IS_SWRD":"SwRD Inspection Sheet"}
+        dico_is = {"IS_PSAC": "PSAC Inspection Sheet",
+                   "IS_SDP": "SDP Inspection Sheet",
+                   "IS_SVP": "SVP Inspection Sheet",
+                   "IS_SCMP": "SVP Inspection Sheet",
+                   "IS_SQAP": "SQAP Inspection Sheet",
+                   "IS_SCI": "SCI Inspection Sheet",
+                   "IS_SAS": "SAS Inspection Sheet",
+                   "IS_SECI": "SECI Inspection Sheet",
+                   "IS_SWRD": "SwRD Inspection Sheet"}
         # Voir si on peu pas faire mieux
-        self.dico_doc={}
         self.dico_doc.update(dico_plan_doc)
         self.dico_doc.update(dico_sas)
         self.dico_doc.update(dico_sci)
@@ -520,8 +598,6 @@ class Review(Synergy):
 
         # Specification
         swrd_doc = []
-        # Design
-        swdd_doc = []
 
         # Delivery documents
         sci_doc = "No " + dico_sci["SCI"]
@@ -529,7 +605,7 @@ class Review(Synergy):
         sas_doc = "No " + dico_sas["SAS"]
 
         # Checksum
-        dico_log = {"checksum":"checksum"}
+        dico_log = {"checksum": "checksum"}
         make_log = "No " + dico_log["checksum"]
 
 
@@ -554,7 +630,6 @@ class Review(Synergy):
         swrd_is = []
         swdd_is = []
         sys_doc = []
-        self.tbl_inspection_sheets = []
 
         mysql = MySQL()
         # Liste d'actions vierge
@@ -562,62 +637,66 @@ class Review(Synergy):
         # Accès base MySQL QAMS pour les actions
         tbl_previous_actions_whdr = []
         tbl_current_actions_whdr = []
-        header = ["Action item ID","Origin","Action","Impact","Severity","Assignee","Closure due date","Status","Closing proof"]
+        header = ["Action item ID", "Origin", "Action", "Impact", "Severity", "Assignee", "Closure due date", "Status",
+                  "Closing proof"]
         tbl_previous_actions_whdr.append(header)
         tbl_current_actions_whdr.append(header)
 
         tbl_previous_actions = mysql.exportPreviousActionsList(self.review_qams_id)
-        if tbl_previous_actions == []:
-            tbl_previous_actions_whdr.append(["--","--","--","--","--","--","--","--","--"])
+        if not tbl_previous_actions:
+            tbl_previous_actions_whdr.append(["--", "--", "--", "--", "--", "--", "--", "--", "--"])
         else:
             tbl_previous_actions_whdr.extend(tbl_previous_actions)
 
         tbl_actions = mysql.exportActionsList(self.review_qams_id)
-        print "tbl_actions",tbl_actions
-        if tbl_actions == []:
-            tbl_current_actions_whdr.append(["--","--","--","--","--","--","--","--","--"])
+        print "tbl_actions", tbl_actions
+        if not tbl_actions:
+            tbl_current_actions_whdr.append(["--", "--", "--", "--", "--", "--", "--", "--", "--"])
         else:
             tbl_current_actions_whdr.extend(tbl_actions)
 
-        # Accès base MySQL QAMS pour les personnes qui assistent à la réunion
-        # List of attendees
-##        tbl_attendees = []
+            # Accès base MySQL QAMS pour les personnes qui assistent à la réunion
+            # List of attendees
+        ##        tbl_attendees = []
         tbl_attendees = mysql.exportAttendeesList(self.review_qams_id)
-##        tbl_attendees.append(["Olivier Appere","SQA manager"])
-##        tbl_attendees.append(["",""])
+        ##        tbl_attendees.append(["Olivier Appere","SQA manager"])
+        ##        tbl_attendees.append(["",""])
         # List of missing
-        tbl_missing = mysql.exportAttendeesList(self.review_qams_id,True)
-##        tbl_missing.append(["David Bailleul","Board manager"])
-##        tbl_missing.append(["",""])
+        tbl_missing = mysql.exportAttendeesList(self.review_qams_id, True)
+        ##        tbl_missing.append(["David Bailleul","Board manager"])
+        ##        tbl_missing.append(["",""])
         # List of copies
-        tbl_copies = []
-        tbl_copies.append(["Marc Maufret","QA team leader"])
-
+        tbl_copies = [["Marc Maufret", "QA team leader"]]
+        objective = Review.getObjective(review_number)
+        transition = Review.getTransition(review_number)
         list_tags_basics = {
-                    'Name':{'type':'str','text':"O. Appere",'fmt':{}},
-                    'DateMe':{'type':'str','text':date_meeting,'fmt':{}},
-                    'Date':{'type':'str','text':date_meeting,'fmt':{}},
-                    'Subject':{'type':'str','text':subject,'fmt':{}},
-                    'Service':{'type':'str','text':'Quality Department','fmt':{}},
-                    'Place':{'type':'str','text':'Montreuil','fmt':{}},
-                    'Ref':{'type':'str','text':reference,'fmt':{}},
-                    'Issue':{'type':'str','text':issue,'fmt':{}},
-                    'Tel':{'type':'str','text':'','fmt':{}},
-                    'Fax':{'type':'str','text':'','fmt':{}},
-                    'Email':{'type':'str','text':'olivier.appere@zodiacaerospace.com','fmt':{}},
-                    'TGT_REL':{'type':'str','text':target_release,'fmt':{}},
-                    'CSCI':{'type':'str','text':ci_identification,'fmt':{}},
-                    'CONFLEVEL':{'type':'str','text':'1','fmt':{}},
-                    'SW_LEVEL':{'type':'str','text':'B','fmt':{}},
-                    'PART_NUMBER':{'type':'str','text':part_number,'fmt':{}},
-                    'CHECKSUM':{'type':'str','text':checksum,'fmt':{}},
-                    'TBL_CR':{'type':'tab','text':tableau_pr,'fmt':fmt_pr},
-                    'ATTENDEES':{'type':'tab','text':tbl_attendees,'fmt':fmt_two},
-                    'MISSING':{'type':'tab','text':tbl_missing,'fmt':fmt_two},
-                    'COPIES':{'type':'tab','text':tbl_copies,'fmt':fmt_two},
-                    'PREVIOUS_ACTIONS':{'type':'tab','text':tbl_previous_actions_whdr,'fmt':fmt_action},
-                    'CURRENT_ACTIONS':{'type':'tab','text':tbl_current_actions_whdr,'fmt':fmt_action}
-                    }
+            'Name': {'type': 'str', 'text': "O. Appere", 'fmt': {}},
+            'DateMe': {'type': 'str', 'text': date_meeting, 'fmt': {}},
+            'Date': {'type': 'str', 'text': date_meeting, 'fmt': {}},
+            'Subject': {'type': 'str', 'text': subject, 'fmt': {}},
+            'SUBJECT': {'type': 'str', 'text': subject, 'fmt': {}},
+            'Service': {'type': 'str', 'text': 'Quality Department', 'fmt': {}},
+            'Place': {'type': 'str', 'text': 'Montreuil', 'fmt': {}},
+            'Ref': {'type': 'str', 'text': reference, 'fmt': {}},
+            'Issue': {'type': 'str', 'text': issue, 'fmt': {}},
+            'Tel': {'type': 'str', 'text': '', 'fmt': {}},
+            'Fax': {'type': 'str', 'text': '', 'fmt': {}},
+            'Email': {'type': 'str', 'text': 'olivier.appere@zodiacaerospace.com', 'fmt': {}},
+            'TGT_REL': {'type': 'str', 'text': target_release, 'fmt': {}},
+            'CSCI': {'type': 'str', 'text': ci_identification, 'fmt': {}},
+            'CONFLEVEL': {'type': 'str', 'text': '1', 'fmt': {}},
+            'SW_LEVEL': {'type': 'str', 'text': 'B', 'fmt': {}},
+            'PART_NUMBER': {'type': 'str', 'text': part_number, 'fmt': {}},
+            'CHECKSUM': {'type': 'str', 'text': checksum, 'fmt': {}},
+            'TBL_CR': {'type': 'tab', 'text': tableau_pr, 'fmt': fmt_pr},
+            'ATTENDEES': {'type': 'tab', 'text': tbl_attendees, 'fmt': fmt_two},
+            'MISSING': {'type': 'tab', 'text': tbl_missing, 'fmt': fmt_two},
+            'COPIES': {'type': 'tab', 'text': tbl_copies, 'fmt': fmt_two},
+            'OBJECTIVE': {'type': 'str', 'text': objective, 'fmt': {}},
+            'TRANSITION': {'type': 'str', 'text': transition, 'fmt': {}},
+            'PREVIOUS_ACTIONS': {'type': 'tab', 'text': tbl_previous_actions_whdr, 'fmt': fmt_action},
+            'CURRENT_ACTIONS': {'type': 'tab', 'text': tbl_current_actions_whdr, 'fmt': fmt_action}
+        }
 
         baseline_doc = ""
         release_doc = ""
@@ -631,7 +710,7 @@ class Review(Synergy):
         tbl_inspection_doc = []
         tbl_peer_review_doc = []
         tbl_transition_doc = []
-        header = ["Ref","Name","Reference","Version","Description"]
+        header = ["Ref", "Name", "Reference", "Version", "Description"]
         tbl_upper_doc.append(header)
         tbl_output_doc.append(header)
         tbl_inspection_doc.append(header)
@@ -640,13 +719,13 @@ class Review(Synergy):
         #
         # selection of reviews/audits
         #
-        if review_number == 9: # SCR
+        if review_number == 9:  # SCR
             review_string = "SCR"
             # Documents and inspections
             # For SAS and SCI
             # Project set in GUI
-            for release,baseline,project in self.project_list:
-                output = self.getArticles(("pdf","doc","xls","ascii"),release,baseline,project,False)
+            for release, baseline, project in self.project_list:
+                output = self.getArticles(("pdf", "doc", "xls", "ascii"), release, baseline, project, False)
                 if baseline not in baseline_store:
                     baseline_store.append(baseline)
 
@@ -657,108 +736,105 @@ class Review(Synergy):
                     project_store.append(project)
 
                 for line in output:
-                    line = re.sub(r"<void>",r"",line)
-                    self.ihm.log("Found doc: " + line,False)
-                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)',line)
+                    line = re.sub(r"<void>", r"", line)
+                    self.ihm.log("Found doc: " + line, False)
+                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)', line)
                     if m:
                         # Look for IS first
-                        result = self._getDoc(m,dico_is)
+                        result = self._getDoc(m, dico_is)
                         if result:
-                            index_is +=1
-                            doc  = self._getDicoFound("IS_SAS","xls")
+                            index_is += 1
+                            doc = self._getDicoFound("IS_SAS", "xls")
                             if doc:
-                                sas_is  = doc
-                            doc  = self._getDicoFound("IS_SCI","xls")
+                                sas_is = doc
+                            doc = self._getDicoFound("IS_SCI", "xls")
                             if doc:
-                                sci_is  = doc
-                            doc  = self._getDicoFound("IS_SECI","xls")
+                                sci_is = doc
+                            doc = self._getDicoFound("IS_SECI", "xls")
                             if doc:
-                                seci_is  = doc
+                                seci_is = doc
                         # Look for Software Accomplishment Summary
-                        result = self._getDoc(m,dico_sas)
+                        result = self._getDoc(m, dico_sas)
                         if result:
-                            index_sas +=1
-                            sas_doc  = self._getDicoFound("SAS","doc")
+                            index_sas += 1
+                            sas_doc = self._getDicoFound("SAS", "doc")
                         # Look for Software Environement Configuration Index
-                        result = self._getDoc(m,dico_sci)
+                        result = self._getDoc(m, dico_sci)
                         if result:
-                            index_sci +=1
-                            sci_doc  = self._getDicoFound("SCI","doc")
+                            index_sci += 1
+                            sci_doc = self._getDicoFound("SCI", "doc")
                         # Look for Software Environement Configuration Index
-                        result = self._getDoc(m,dico_seci)
+                        result = self._getDoc(m, dico_seci)
                         if result:
-                            index_seci +=1
-                            doc  = self._getDicoFound("SECI","doc")
+                            index_seci += 1
+                            doc = self._getDicoFound("SECI", "doc")
                             if doc:
-                                seci_doc  = doc
+                                seci_doc = doc
                         # Look for compilation log
-                        result = self._getDoc(m,dico_log)
+                        result = self._getDoc(m, dico_log)
                         if result:
-                            index_log +=1
-                            doc  = self._getDicoFound("checksum","ascii")
+                            index_log += 1
+                            doc = self._getDicoFound("checksum", "ascii")
                             if doc:
                                 make_log = doc
-                        result = self._getDoc(m,dico_plan_doc)
+                        result = self._getDoc(m, dico_plan_doc)
                         if result:
                             index_plans += 1
-                            doc  = self._getDicoFound("PSAC","doc")
+                            doc = self._getDicoFound("PSAC", "doc")
                             if doc:
                                 psac_doc.append(doc)
-                            doc  = self._getDicoFound("SDP","doc")
+                            doc = self._getDicoFound("SDP", "doc")
                             if doc:
-                                sdp_doc  = doc
-                            doc  = self._getDicoFound("SVP","doc")
+                                sdp_doc = doc
+                            doc = self._getDicoFound("SVP", "doc")
                             if doc:
-                                svp_doc  = doc
-                            doc  = self._getDicoFound("SCMP","doc")
+                                svp_doc = doc
+                            doc = self._getDicoFound("SCMP", "doc")
                             if doc:
-                                scmp_doc  = doc
-                            doc  = self._getDicoFound("SQAP","doc")
+                                scmp_doc = doc
+                            doc = self._getDicoFound("SQAP", "doc")
                             if doc:
-                                sqap_doc  = doc
-                            doc  = self._getDicoFound("SRTS","pdf")
+                                sqap_doc = doc
+                            doc = self._getDicoFound("SRTS", "pdf")
                             if doc:
-                                srts_doc  = doc
-                            doc  = self._getDicoFound("SDTS","pdf")
+                                srts_doc = doc
+                            doc = self._getDicoFound("SDTS", "pdf")
                             if doc:
-                                sdts_doc  = doc
-                            doc  = self._getDicoFound("SCS","pdf")
+                                sdts_doc = doc
+                            doc = self._getDicoFound("SCS", "pdf")
                             if doc:
-                                scs_doc  = doc
-            self.synergy_log("Amount of SCI found: " + str(index_sci),False)
-            self.synergy_log("Amount of SAS found: " + str(index_sas),False)
-            self.synergy_log("Amount of SECI found: " + str(index_seci),False)
-            self.synergy_log("Amount of plans found: " + str(index_plans),False)
-            self.synergy_log("Amount of checksum log found: " + str(index_log),False)
+                                scs_doc = doc
+            self.synergy_log("Amount of SCI found: " + str(index_sci), False)
+            self.synergy_log("Amount of SAS found: " + str(index_sas), False)
+            self.synergy_log("Amount of SECI found: " + str(index_seci), False)
+            self.synergy_log("Amount of plans found: " + str(index_plans), False)
+            self.synergy_log("Amount of checksum log found: " + str(index_log), False)
             psac_doc_tbl = self._getIinspectionSheetList(psac_doc)
 
             list_tags = {
-                        'MAKE_LOG':{'type':'str','text':make_log,'fmt':{}},
-                        'SCI_DOC':{'type':'str','text':sci_doc,'fmt':{}},
-                        'SECI_DOC':{'type':'str','text':seci_doc,'fmt':{}},
-                        'SAS_DOC':{'type':'str','text':sas_doc,'fmt':{}},
-                        'SCI_IS':{'type':'str','text':sci_is,'fmt':{}},
-                        'SECI_IS':{'type':'str','text':seci_is,'fmt':{}},
-                        'SAS_IS':{'type':'str','text':sas_is,'fmt':{}},
-                        'PSAC_DOC':{'type':'tab','text':psac_doc_tbl,'fmt':fmt_one},
-                        'SDP_DOC':{'type':'str','text':sdp_doc,'fmt':{}},
-                        'SVP_DOC':{'type':'str','text':svp_doc,'fmt':{}},
-                        'SCMP_DOC':{'type':'str','text':scmp_doc,'fmt':{}},
-                        'SQAP_DOC':{'type':'str','text':sqap_doc,'fmt':{}},
-                        'SRTS_DOC':{'type':'str','text':srts_doc,'fmt':{}},
-                        'SDTS_DOC':{'type':'str','text':sdts_doc,'fmt':{}},
-                        'SCS_DOC':{'type':'str','text':scs_doc,'fmt':{}},
-                        'SQAP_DOC':{'type':'str','text':sqap_doc,'fmt':{}}
-                        }
+                'MAKE_LOG': {'type': 'str', 'text': make_log, 'fmt': {}},
+                'SCI_DOC': {'type': 'str', 'text': sci_doc, 'fmt': {}},
+                'SECI_DOC': {'type': 'str', 'text': seci_doc, 'fmt': {}},
+                'SAS_DOC': {'type': 'str', 'text': sas_doc, 'fmt': {}},
+                'SCI_IS': {'type': 'str', 'text': sci_is, 'fmt': {}},
+                'SECI_IS': {'type': 'str', 'text': seci_is, 'fmt': {}},
+                'SAS_IS': {'type': 'str', 'text': sas_is, 'fmt': {}},
+                'PSAC_DOC': {'type': 'tab', 'text': psac_doc_tbl, 'fmt': fmt_one},
+                'SDP_DOC': {'type': 'str', 'text': sdp_doc, 'fmt': {}},
+                'SVP_DOC': {'type': 'str', 'text': svp_doc, 'fmt': {}},
+                'SCMP_DOC': {'type': 'str', 'text': scmp_doc, 'fmt': {}},
+                'SRTS_DOC': {'type': 'str', 'text': srts_doc, 'fmt': {}},
+                'SDTS_DOC': {'type': 'str', 'text': sdts_doc, 'fmt': {}},
+                'SCS_DOC': {'type': 'str', 'text': scs_doc, 'fmt': {}}}
 
-        elif review_number == 1: # PR:
+        elif review_number == 1:  # PR:
             review_string = "PR"
             # Documents and inspections
             # For PSAC, SDP, SCMP, SVP and SQAP
 
             # Project set in GUI
-            for release,baseline,project in self.project_list:
-                output = self.getArticles(("pdf","doc","xls","ascii"),release,baseline,project,False)
+            for release, baseline, project in self.project_list:
+                output = self.getArticles(("pdf", "doc", "xls", "ascii"), release, baseline, project, False)
                 if baseline not in baseline_store:
                     baseline_store.append(baseline)
 
@@ -769,55 +845,55 @@ class Review(Synergy):
                     project_store.append(project)
 
                 for line in output:
-                    line = re.sub(r"<void>",r"",line)
-                    self.ihm.log("Found doc: " + line,False)
-                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)',line)
+                    line = re.sub(r"<void>", r"", line)
+                    self.ihm.log("Found doc: " + line, False)
+                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)', line)
                     if m:
                         # Look for plans documents
-                        result = self._getDoc(m,dico_plan_doc)
+                        result = self._getDoc(m, dico_plan_doc)
                         if result:
-                            index_doc +=1
-                            doc  = self._getDicoFound("PSAC","doc")
+                            index_doc += 1
+                            doc = self._getDicoFound("PSAC", "doc")
                             if doc:
                                 psac_doc.append(doc)
-                            doc  = self._getDicoFound("SDP","doc")
+                            doc = self._getDicoFound("SDP", "doc")
                             if doc:
-                                sdp_doc  = doc
-                            doc  = self._getDicoFound("SVP","doc")
+                                sdp_doc = doc
+                            doc = self._getDicoFound("SVP", "doc")
                             if doc:
-                                svp_doc  = doc
-                            doc  = self._getDicoFound("SCMP","doc")
+                                svp_doc = doc
+                            doc = self._getDicoFound("SCMP", "doc")
                             if doc:
-                                scmp_doc  = doc
-                            doc  = self._getDicoFound("SQAP","doc")
+                                scmp_doc = doc
+                            doc = self._getDicoFound("SQAP", "doc")
                             if doc:
-                                sqap_doc  = doc
-                            doc  = self._getDicoFound("SRTS","pdf")
+                                sqap_doc = doc
+                            doc = self._getDicoFound("SRTS", "pdf")
                             if doc:
-                                srts_doc  = doc
-                            doc  = self._getDicoFound("SDTS","pdf")
+                                srts_doc = doc
+                            doc = self._getDicoFound("SDTS", "pdf")
                             if doc:
-                                sdts_doc  = doc
-                            doc  = self._getDicoFound("SCS","pdf")
+                                sdts_doc = doc
+                            doc = self._getDicoFound("SCS", "pdf")
                             if doc:
-                                scs_doc  = doc
+                                scs_doc = doc
                         # Look for inspection sheet
-                        result = self._getDoc(m,dico_is)
+                        result = self._getDoc(m, dico_is)
                         if result:
-                            index_is +=1
-                            doc  = self._getDicoFound("IS_PSAC","xls")
+                            index_is += 1
+                            doc = self._getDicoFound("IS_PSAC", "xls")
                             if doc:
                                 psac_is.append(doc)
-                            doc  = self._getDicoFound("IS_SDP","xls")
+                            doc = self._getDicoFound("IS_SDP", "xls")
                             if doc:
                                 sdp_is.append(doc)
-                            doc  = self._getDicoFound("IS_SVP","xls")
+                            doc = self._getDicoFound("IS_SVP", "xls")
                             if doc:
                                 svp_is.append(doc)
-                            doc  = self._getDicoFound("IS_SCMP","xls")
+                            doc = self._getDicoFound("IS_SCMP", "xls")
                             if doc:
                                 scmp_is.append(doc)
-                            doc  = self._getDicoFound("IS_SQAP","xls")
+                            doc = self._getDicoFound("IS_SQAP", "xls")
                             if doc:
                                 sqap_is.append(doc)
 
@@ -829,26 +905,26 @@ class Review(Synergy):
             sqap_is_tbl = self._getIinspectionSheetList(sqap_is)
 
             list_tags = {
-                        'PSAC_DOC':{'type':'tab','text':psac_doc_tbl,'fmt':fmt_one},
-                        'SDP_DOC':{'type':'str','text':sdp_doc,'fmt':{}},
-                        'SVP_DOC':{'type':'str','text':svp_doc,'fmt':{}},
-                        'SCMP_DOC':{'type':'str','text':scmp_doc,'fmt':{}},
-                        'SQAP_DOC':{'type':'str','text':sqap_doc,'fmt':{}},
-                        'SRTS_DOC':{'type':'str','text':srts_doc,'fmt':{}},
-                        'SDTS_DOC':{'type':'str','text':sdts_doc,'fmt':{}},
-                        'SCS_DOC':{'type':'str','text':scs_doc,'fmt':{}},
-                        'PSAC_IS':{'type':'tab','text':psac_is_tbl,'fmt':fmt_one},
-                        'SDP_IS':{'type':'tab','text':sdp_is_tbl,'fmt':fmt_one},
-                        'SVP_IS':{'type':'tab','text':svp_is_tbl,'fmt':fmt_one},
-                        'SCMP_IS':{'type':'tab','text':scmp_is_tbl,'fmt':fmt_one},
-                        'SQAP_IS':{'type':'tab','text':sqap_is_tbl,'fmt':fmt_one},
-                        }
+                'PSAC_DOC': {'type': 'tab', 'text': psac_doc_tbl, 'fmt': fmt_one},
+                'SDP_DOC': {'type': 'str', 'text': sdp_doc, 'fmt': {}},
+                'SVP_DOC': {'type': 'str', 'text': svp_doc, 'fmt': {}},
+                'SCMP_DOC': {'type': 'str', 'text': scmp_doc, 'fmt': {}},
+                'SQAP_DOC': {'type': 'str', 'text': sqap_doc, 'fmt': {}},
+                'SRTS_DOC': {'type': 'str', 'text': srts_doc, 'fmt': {}},
+                'SDTS_DOC': {'type': 'str', 'text': sdts_doc, 'fmt': {}},
+                'SCS_DOC': {'type': 'str', 'text': scs_doc, 'fmt': {}},
+                'PSAC_IS': {'type': 'tab', 'text': psac_is_tbl, 'fmt': fmt_one},
+                'SDP_IS': {'type': 'tab', 'text': sdp_is_tbl, 'fmt': fmt_one},
+                'SVP_IS': {'type': 'tab', 'text': svp_is_tbl, 'fmt': fmt_one},
+                'SCMP_IS': {'type': 'tab', 'text': scmp_is_tbl, 'fmt': fmt_one},
+                'SQAP_IS': {'type': 'tab', 'text': sqap_is_tbl, 'fmt': fmt_one},
+            }
 
-        elif review_number == 2: # SRR:
+        elif review_number == 2:  # SRR:
             review_string = "SRR"
             # Project set in GUI
-            for release,baseline,project in self.project_list:
-                output = self.getArticles(("pdf","doc","xls","ascii"),release,baseline,project,False)
+            for release, baseline, project in self.project_list:
+                output = self.getArticles(("pdf", "doc", "xls", "ascii"), release, baseline, project, False)
 
                 if baseline not in baseline_store:
                     baseline_store.append(baseline)
@@ -860,82 +936,66 @@ class Review(Synergy):
                     project_store.append(project)
 
                 for line in output:
-                    line = re.sub(r"<void>",r"",line)
-                    self.ihm.log("Found doc: " + line,False)
-                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)',line)
+                    line = re.sub(r"<void>", r"", line)
+                    self.ihm.log("Found doc: " + line, False)
+                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)', line)
                     if m:
                         # Look for documents
-                        if self._getSpecificDoc(m,"SWRD",("doc")):
-                            index_doc +=1
+                        if self._getSpecificDoc(m, "SWRD", ("doc")):
+                            index_doc += 1
                             swrd_doc = self.getDocName(m)
-                        elif self._getSpecificDoc(m,"SHLDR",("xls")):
-                            index_doc +=1
+                        elif self._getSpecificDoc(m, "SHLDR", ("xls")):
+                            index_doc += 1
                             shldr_doc = self.getDocName(m)
-                        elif self._getSpecificDoc(m,"SRTS",("pdf")):
-                            index_doc +=1
+                        elif self._getSpecificDoc(m, "SRTS", ("pdf")):
+                            index_doc += 1
                             srts_doc = self.getDocName(m)
                         # Look for peer reviews or inspection sheets
-                        elif self._getSpecificDoc(m,"IS_SWRD",("xls")) or self._getSpecificDoc(m,"IS_SwRD",("xls")):
-                            index_is +=1
-                            name =  self.getDocName(m)
+                        elif self._getSpecificDoc(m, "IS_SWRD", ("xls")) or self._getSpecificDoc(m, "IS_SwRD", ("xls")):
+                            index_is += 1
+                            name = self.getDocName(m)
                             swrd_is.append(name)
                         # Upper documents
-                        elif self._getSpecificDoc(m,"SSCS",("doc","pdf")):
-                            index_doc +=1
-                            name  = self.getDocName(m)
+                        elif self._getSpecificDoc(m, "SSCS", ("doc", "pdf")):
+                            index_doc += 1
+                            name = self.getDocName(m)
                             sys_doc.append(name)
-                        elif self._getSpecificDoc(m,"SPI",("doc","xls")):
-                            index_doc +=1
-                            name  = self.getDocName(m)
+                        elif self._getSpecificDoc(m, "SPI", ("doc", "xls")):
+                            index_doc += 1
+                            name = self.getDocName(m)
                             sys_doc.append(name)
 
             swrd_is_tbl = self._getIinspectionSheetList(swrd_is)
             sys_doc_tbl = self._getIinspectionSheetList(sys_doc)
 
-
             list_tags = {
-                        'SRTS_DOC':{'type':'str','text':srts_doc,'fmt':{}},
-                        'SWRD_DOC':{'type':'str','text':swrd_doc,'fmt':{}},
-                        'SHLDR_DOC':{'type':'str','text':shldr_doc,'fmt':{}},
-                        'SYS_DOC':{'type':'tab','text':sys_doc_tbl,'fmt':fmt_one},
-                        'SWRD_IS':{'type':'tab','text':swrd_is_tbl,'fmt':fmt_one}
-                        }
-        elif review_number == 3: # SDR:
+                'SRTS_DOC': {'type': 'str', 'text': srts_doc, 'fmt': {}},
+                'SWRD_DOC': {'type': 'str', 'text': swrd_doc, 'fmt': {}},
+                'SHLDR_DOC': {'type': 'str', 'text': shldr_doc, 'fmt': {}},
+                'SYS_DOC': {'type': 'tab', 'text': sys_doc_tbl, 'fmt': fmt_one},
+                'SWRD_IS': {'type': 'tab', 'text': swrd_is_tbl, 'fmt': fmt_one}
+            }
+        elif review_number == 3:  # SDR:
             review_string = "SDR"
-            # Project set in GUI
-            result = Review.getChecks(review_number,1)
-            # Create table
-            tbl_inputs_check = []
-            header = ["Nb. Item","Category","Item","Compliance status","Non compliance description / Justification","Actions (if compliance status is NOK)"]
-            tbl_inputs_check.append(header)
-            nb_item = 1
-            for rank,description,category in result:
-                nb_item_str = "{:d}".format(nb_item)
-                tbl_inputs_check.append([nb_item_str,category,description,"OK/NOK/NA","",""])
-                nb_item += 1
-            print "INPUT ITEM CHECK",tbl_inputs_check
-            list_tags = {
-                        'SDTS_DOC':{'type':'str','text':sdts_doc,'fmt':{}},
-                        'SDP_DOC':{'type':'str','text':sdp_doc,'fmt':{}},
-                        'SVP_DOC':{'type':'str','text':svp_doc,'fmt':{}},
-                        'SCMP_DOC':{'type':'str','text':scmp_doc,'fmt':{}},
-                        'SWRD_DOC':{'type':'str','text':swrd_doc,'fmt':{}},
-                        'SWDD_DOC':{'type':'str','text':swdd_doc,'fmt':{}},
-                        'SWDD_IS':{'type':'str','text':swdd_is,'fmt':fmt_one},
-                        'INPUTS_CHECK':{'type':'tab','text':tbl_inputs_check,'fmt':fmt_inputs_check},
-                        'TBL_IN':{'type':'tab','text':tbl_upper_doc,'fmt':fmt_baseline},
-                        'TBL_OUT':{'type':'tab','text':tbl_output_doc,'fmt':fmt_baseline},
-                        'TBL_TRANSITION':{'type':'tab','text':tbl_transition_doc,'fmt':fmt_baseline},
-                        'TBL_INSPECTION':{'type':'tab','text':tbl_inspection_doc,'fmt':fmt_baseline}
-                        }
-        elif review_number == 20: # SwRD audit:
-            review_string = "AUD_SWRD"
+            # Standards
+            srts_doc = ""
+            sdts_doc = ""
+
+            # Specifications
             swrd_doc = ""
-            swrd_is = ""
+            shldr_doc = ""
+            # Design
+            swdd_doc = ""
+            slldr_doc = ""
+            hsid_doc = ""
+            datasheets = ""
+
+            # Inspections
+            swdd_is = ""
 
             # Project set in GUI
-            for release,baseline,project in self.project_list:
-                output = self.getArticles(("pdf","doc","xls","ascii"),release,baseline,project,False)
+            for release, baseline, project in self.project_list:
+                output = self.getArticles(("pdf", "doc", "xls", "ascii"), release, baseline, project, False)
                 if baseline not in baseline_store:
                     baseline_store.append(baseline)
                 if release not in release_store:
@@ -943,122 +1003,308 @@ class Review(Synergy):
                 if project not in project_store:
                     project_store.append(project)
                 for line in output:
-                    line = re.sub(r"<void>",r"",line)
-                    self.ihm.log("Found doc: " + line,False)
-                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)',line)
+                    line = re.sub(r"<void>", r"", line)
+                    self.ihm.log("Found doc: " + line, False)
+                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)', line)
                     if m:
                         # Look for peer reviews or inspection sheets
-                        if self._getSpecificDoc(m,"IS_SWRD",("xls")) or self._getSpecificDoc(m,"IS_SwRD",("xls")):
-                            index_is +=1
-                            swrd_is =  self.getDocName(m)
-                            link_id = self._createTblDocuments(m,tbl_inspection_doc,link_id)
-                        elif self._getSpecificDoc(m,"PRR_",("xls")):
-                            index_prr +=1
-                            link_id = self._createTblDocuments(m,tbl_peer_review_doc,link_id)
+                        if self._getSpecificDoc(m, "IS_SWDD", ("xls")) or \
+                                self._getSpecificDoc(m, "IS_SwDD", ("xls")):
+                            index_is += 1
+                            swdd_is = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_inspection_doc, link_id)
+                        elif self._getSpecificDoc(m, "IS_SWRD", ("xls")) or \
+                                self._getSpecificDoc(m, "IS_SwRD", ("xls")):
+                            index_is += 1
+                            swrd_is = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_inspection_doc, link_id)
+                        elif self._getSpecificDoc(m, "PRR_", ("xls")):
+                            index_prr += 1
+                            link_id = self._createTblDocuments(m, tbl_peer_review_doc, link_id)
                         # Look for output documents
-                        elif self._getSpecificDoc(m,"SWRD",("doc")):
-                            index_doc +=1
+                        elif self._getSpecificDoc(m, "SWRD", ("doc")) or self._getSpecificDoc(m, "SwRD", ("doc")):
+                            index_doc += 1
                             swrd_doc = self.getDocName(m)
-                            link_id = self._createTblDocuments(m,tbl_output_doc,link_id)
-                        elif self._getSpecificDoc(m,"SHLDR",("xls")):
-                            index_doc +=1
+                            link_id = self._createTblDocuments(m, tbl_output_doc, link_id)
+                        elif self._getSpecificDoc(m, "SWDD", ("doc")) or self._getSpecificDoc(m, "SwDD", ("doc")):
+                            index_doc += 1
+                            swdd_doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_output_doc, link_id)
+                        elif self._getSpecificDoc(m, "SHLDR", ("xls")):
+                            index_doc += 1
                             shldr_doc = self.getDocName(m)
-                            link_id = self._createTblDocuments(m,tbl_output_doc,link_id)
-                        # Look for inputput documents
-                        elif self._getSpecificDoc(m,"SRTS",("pdf")):
-                            index_doc +=1
+                            link_id = self._createTblDocuments(m, tbl_output_doc, link_id)
+                        elif self._getSpecificDoc(m, "SLLDR", ("xls")):
+                            index_doc += 1
+                            slldr_doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_output_doc, link_id)
+                        # Look for input documents
+                        elif self._getSpecificDoc(m, "SRTS", ("pdf")):
+                            index_doc += 1
                             srts_doc = self.getDocName(m)
-                            link_id = self._createTblDocuments(m,tbl_upper_doc,link_id)
-                        elif self._getSpecificDoc(m,"SDP",("doc")):
-                            index_doc +=1
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        elif self._getSpecificDoc(m, "SDTS", ("pdf")):
+                            index_doc += 1
+                            sdts_doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        elif self._getSpecificDoc(m, "SDP", ("doc")):
+                            index_doc += 1
                             sdp_doc = self.getDocName(m)
-                            link_id = self._createTblDocuments(m,tbl_upper_doc,link_id)
-                        elif self._getSpecificDoc(m,"SCMP",("doc")):
-                            index_doc +=1
-                            link_id = self._createTblDocuments(m,tbl_upper_doc,link_id)
-                        elif self._getSpecificDoc(m,"SVP",("doc")):
-                            index_doc +=1
-                            link_id = self._createTblDocuments(m,tbl_upper_doc,link_id)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        elif self._getSpecificDoc(m, "SCMP", ("doc")):
+                            index_doc += 1
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        elif self._getSpecificDoc(m, "SVP", ("doc")):
+                            index_doc += 1
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
                         # Upper documents
-                        elif self._getSpecificDoc(m,"SSCS",("doc","pdf")):
-                            index_doc +=1
-                            doc  = self.getDocName(m)
-                            link_id = self._createTblDocuments(m,tbl_upper_doc,link_id)
-                        elif self._getSpecificDoc(m,"SPI",("doc","xls")):
-                            index_doc +=1
-                            doc  = self.getDocName(m)
-                            link_id = self._createTblDocuments(m,tbl_upper_doc,link_id)
+                        elif self._getSpecificDoc(m, "SSCS", ("doc", "pdf")):
+                            index_doc += 1
+                            doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        elif self._getSpecificDoc(m, "SPI", ("doc", "xls")):
+                            index_doc += 1
+                            doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
                         # CCB minutes
-                        elif self._getSpecificDoc(m,"CCB_Minutes",("doc")):
-                            index_doc +=1
-                            doc  = self.getDocName(m)
-                            link_id = self._createTblDocuments(m,tbl_upper_doc,link_id)
+                        elif self._getSpecificDoc(m, "CCB_Minutes", ("doc")):
+                            index_doc += 1
+                            doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
                         # transition documents
-                        elif self._getSpecificDoc(m,"HSID",("doc","pdf")):
-                            index_doc +=1
-                            link_id = self._createTblDocuments(m,tbl_transition_doc,link_id)
+                        elif self._getSpecificDoc(m, "HSID", ("doc", "pdf")):
+                            index_doc += 1
+                            hsid_doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_transition_doc, link_id)
 
             if len(tbl_upper_doc) == 1:
-                tbl_upper_doc.append(["--","--","--","--","--"])
+                tbl_upper_doc.append(["--", "--", "--", "--", "--"])
             if len(tbl_output_doc) == 1:
-                tbl_output_doc.append(["--","--","--","--","--"])
+                tbl_output_doc.append(["--", "--", "--", "--", "--"])
             if len(tbl_peer_review_doc) == 1:
-                tbl_inspection_doc.append(["--","--","--","--","--"])
+                tbl_inspection_doc.append(["--", "--", "--", "--", "--"])
             if len(tbl_inspection_doc) == 1:
-                tbl_inspection_doc.append(["--","--","--","--","--"])
+                tbl_inspection_doc.append(["--", "--", "--", "--", "--"])
+            # Project set in GUI
+            header = ["Nb. Item",
+                      "Category",
+                      "Item",
+                      "Compliance status",
+                      "Non compliance description / Justification",
+                      "Actions (if compliance status is NOK)"]
+            nb_item = 1
+            tbl_check = [header]
+            tbl_inputs_check = copy.copy(tbl_check)
+            tbl_dev_check = copy.copy(tbl_check)
+            tbl_verif_check = copy.copy(tbl_check)
+            tbl_transition_check = copy.copy(tbl_check)
+
+            tbl_sqa_check = copy.copy(tbl_check)
+
+            tbl_cr_check = copy.copy(tbl_check)
+            header[2] = "SQA activity records"
+            nb_item= self.createChecksTable(review_number,5,tbl_cr_check,{},nb_item)
+            header[2] = "Change Request"
+            nb_item= self.createChecksTable(review_number,6,tbl_sqa_check,{},nb_item)
+            header[2] = "Item"
+            dico_inputs = {"SRTS_DOC":srts_doc,
+                           "SDTS_DOC":sdts_doc,
+                           "HSID_DOC":hsid_doc,
+                           "DATASHEETS":datasheets,
+                           "SWRD_DOC":swrd_doc}
+            nb_item= self.createChecksTable(review_number,1,tbl_inputs_check,dico_inputs,nb_item)
+            dico_produced = {"SWDD_DOC":swdd_doc,
+                           "SLLDR_DOC":slldr_doc}
+            nb_item = self.createChecksTable(review_number,2,tbl_dev_check,dico_produced,nb_item)
+            dico_verif = {"SWDD_IS":swdd_is}
+            nb_item = self.createChecksTable(review_number,3,tbl_verif_check,dico_verif,nb_item)
+            nb_item = self.createChecksTable(review_number,4,tbl_transition_check,{},nb_item)
+            #result = Review.getChecks(review_number, 1)
+            # Create table
+            #tbl_inputs_check = []
+            #header = ["Nb. Item", "Category", "Item", "Compliance status", "Non compliance description / Justification",
+            #          "Actions (if compliance status is NOK)"]
+            #tbl_inputs_check.append(header)
+            #nb_item = 1
+            # small_dico = {"SRTS_DOC":srts_doc,
+            #               "SDTS_DOC":sdts_doc,
+            #               "HSID_DOC":hsid_doc,
+            #               "SWDD_DOC":swrd_doc,
+            #               "DATASHEETS":datasheets,
+            #               "SWRD_DOC":swrd_doc}
+            # for rank, description, category in result:
+            #     nb_item_str = "{:d}".format(nb_item)
+            #     # Replace tag by documents name found
+            #     description = self.replaceDocTag(description,small_dico)
+            #     tbl_inputs_check.append([nb_item_str, category, description, "OK/NOK/NA", "", ""])
+            #     nb_item += 1
             list_tags = {
-                        'SRTS_DOC':{'type':'str','text':srts_doc,'fmt':{}},
-                        'SDP_DOC':{'type':'str','text':sdp_doc,'fmt':{}},
-                        'SVP_DOC':{'type':'str','text':svp_doc,'fmt':{}},
-                        'SCMP_DOC':{'type':'str','text':scmp_doc,'fmt':{}},
-                        'SWRD_DOC':{'type':'str','text':swrd_doc,'fmt':{}},
-                        'SWRD_IS':{'type':'str','text':swrd_is,'fmt':fmt_one},
-                        'TBL_IN':{'type':'tab','text':tbl_upper_doc,'fmt':fmt_baseline},
-                        'TBL_OUT':{'type':'tab','text':tbl_output_doc,'fmt':fmt_baseline},
-                        'TBL_TRANSITION':{'type':'tab','text':tbl_transition_doc,'fmt':fmt_baseline},
-                        'TBL_INSPECTION':{'type':'tab','text':tbl_inspection_doc,'fmt':fmt_baseline}
-                        }
-            print "LIST_TAGS",list_tags
+                'SDTS_DOC': {'type': 'str', 'text': sdts_doc, 'fmt': {}},
+                'SDP_DOC': {'type': 'str', 'text': sdp_doc, 'fmt': {}},
+                'SVP_DOC': {'type': 'str', 'text': svp_doc, 'fmt': {}},
+                'SCMP_DOC': {'type': 'str', 'text': scmp_doc, 'fmt': {}},
+                'SWRD_DOC': {'type': 'str', 'text': swrd_doc, 'fmt': {}},
+                'SWDD_DOC': {'type': 'str', 'text': swdd_doc, 'fmt': {}},
+                'SWDD_IS': {'type': 'str', 'text': swdd_is, 'fmt': fmt_one},
+                'CR_CHECK': {'type': 'tab', 'text': tbl_cr_check, 'fmt': fmt_checks},
+                'SQA_CHECK': {'type': 'tab', 'text': tbl_sqa_check, 'fmt': fmt_checks},
+                'INPUTS_CHECK': {'type': 'tab', 'text': tbl_inputs_check, 'fmt': fmt_checks},
+                'DEV_CHECK': {'type': 'tab', 'text': tbl_dev_check, 'fmt': fmt_checks},
+                'VERIF_CHECK': {'type': 'tab', 'text': tbl_verif_check, 'fmt': fmt_checks},
+                'TRANSITION_CHECK': {'type': 'tab', 'text': tbl_transition_check, 'fmt': fmt_checks},
+                'TBL_IN': {'type': 'tab', 'text': tbl_upper_doc, 'fmt': fmt_baseline},
+                'TBL_OUT': {'type': 'tab', 'text': tbl_output_doc, 'fmt': fmt_baseline},
+                'TBL_TRANSITION': {'type': 'tab', 'text': tbl_transition_doc, 'fmt': fmt_baseline},
+                'TBL_INSPECTION': {'type': 'tab', 'text': tbl_inspection_doc, 'fmt': fmt_baseline}
+            }
+        elif review_number == 20:  # SwRD audit:
+            review_string = "AUD_SWRD"
+            swrd_doc = ""
+            swrd_is = ""
+
+            # Project set in GUI
+            for release, baseline, project in self.project_list:
+                output = self.getArticles(("pdf", "doc", "xls", "ascii"), release, baseline, project, False)
+                if baseline not in baseline_store:
+                    baseline_store.append(baseline)
+                if release not in release_store:
+                    release_store.append(release)
+                if project not in project_store:
+                    project_store.append(project)
+                for line in output:
+                    line = re.sub(r"<void>", r"", line)
+                    self.ihm.log("Found doc: " + line, False)
+                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)', line)
+                    if m:
+                        # Look for peer reviews or inspection sheets
+                        if self._getSpecificDoc(m, "IS_SWRD", ("xls")) or \
+                                self._getSpecificDoc(m, "IS_SwRD", ("xls")):
+                            index_is += 1
+                            swdd_is = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_inspection_doc, link_id)
+                        elif self._getSpecificDoc(m, "IS_SHLDR", ("xls")):
+                            index_is += 1
+                            shldr_is = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_inspection_doc, link_id)
+                        elif self._getSpecificDoc(m, "PRR_", ("xls")):
+                            index_prr += 1
+                            link_id = self._createTblDocuments(m, tbl_peer_review_doc, link_id)
+                        # Look for output documents
+                        elif self._getSpecificDoc(m, "SWRD", ("doc")):
+                            index_doc += 1
+                            swrd_doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_output_doc, link_id)
+                        elif self._getSpecificDoc(m, "SHLDR", ("xls")):
+                            index_doc += 1
+                            shldr_doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_output_doc, link_id)
+                        # Look for input documents
+                        elif self._getSpecificDoc(m, "SRTS", ("pdf")):
+                            index_doc += 1
+                            srts_doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        elif self._getSpecificDoc(m, "SDP", ("doc")):
+                            index_doc += 1
+                            sdp_doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        elif self._getSpecificDoc(m, "SCMP", ("doc")):
+                            index_doc += 1
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        elif self._getSpecificDoc(m, "SVP", ("doc")):
+                            index_doc += 1
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        # Upper documents
+                        elif self._getSpecificDoc(m, "SSCS", ("doc", "pdf")):
+                            index_doc += 1
+                            doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        elif self._getSpecificDoc(m, "SPI", ("doc", "xls")):
+                            index_doc += 1
+                            doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        # CCB minutes
+                        elif self._getSpecificDoc(m, "CCB_Minutes", ("doc")):
+                            index_doc += 1
+                            doc = self.getDocName(m)
+                            link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
+                        # transition documents
+                        elif self._getSpecificDoc(m, "HSID", ("doc", "pdf")):
+                            index_doc += 1
+                            link_id = self._createTblDocuments(m, tbl_transition_doc, link_id)
+
+            if len(tbl_upper_doc) == 1:
+                tbl_upper_doc.append(["--", "--", "--", "--", "--"])
+            if len(tbl_output_doc) == 1:
+                tbl_output_doc.append(["--", "--", "--", "--", "--"])
+            if len(tbl_peer_review_doc) == 1:
+                tbl_inspection_doc.append(["--", "--", "--", "--", "--"])
+            if len(tbl_inspection_doc) == 1:
+                tbl_inspection_doc.append(["--", "--", "--", "--", "--"])
+            list_tags = {
+                'SRTS_DOC': {'type': 'str', 'text': srts_doc, 'fmt': {}},
+                'SDP_DOC': {'type': 'str', 'text': sdp_doc, 'fmt': {}},
+                'SVP_DOC': {'type': 'str', 'text': svp_doc, 'fmt': {}},
+                'SCMP_DOC': {'type': 'str', 'text': scmp_doc, 'fmt': {}},
+                'SWRD_DOC': {'type': 'str', 'text': swrd_doc, 'fmt': {}},
+                'SWRD_IS': {'type': 'str', 'text': swrd_is, 'fmt': fmt_one},
+                'TBL_IN': {'type': 'tab', 'text': tbl_upper_doc, 'fmt': fmt_baseline},
+                'TBL_OUT': {'type': 'tab', 'text': tbl_output_doc, 'fmt': fmt_baseline},
+                'TBL_TRANSITION': {'type': 'tab', 'text': tbl_transition_doc, 'fmt': fmt_baseline},
+                'TBL_INSPECTION': {'type': 'tab', 'text': tbl_inspection_doc, 'fmt': fmt_baseline}
+            }
+            print "LIST_TAGS", list_tags
 
         else:
             self.synergy_log("Review report export not implemented yet")
-        self.synergy_log("Amount of inspection sheets found: " + str(index_is),False)
-        self.synergy_log("Amount of documents found: " + str(index_doc),False)
-    ##            tkMessageBox.showinfo("Review report export not implemented yet")
+        self.synergy_log("Amount of inspection sheets found: " + str(index_is), False)
+        self.synergy_log("Amount of documents found: " + str(index_doc), False)
+        ##            tkMessageBox.showinfo("Review report export not implemented yet")
         baseline_doc = ", ".join(map(str, baseline_store))
         release_doc = ", ".join(map(str, release_store))
         project_doc = ", ".join(map(str, project_store))
+        hdr_scope = ["CSCI identification",
+                     "Standard/Synergy Release",
+                     "Baseline/Synergy Baseline",
+                     "Conformity Level",
+                     "Software Level"]
+        tbl_scope = [hdr_scope]
+        conformity_level = "1"
+        sw_level = "B"
+        tbl_scope.append([ci_identification, baseline_doc, release_doc, conformity_level, sw_level])
         list_tags_scope = {
-                    'REL':{'type':'str','text':release_doc,'fmt':{}},
-                    'BAS':{'type':'str','text':baseline_doc,'fmt':{}},
-                    'PROJ':{'type':'str','text':project_doc,'fmt':{}}}
+            'SCOPE': {'type': 'tab', 'text': tbl_scope, 'fmt': fmt_scope},
+            'REL': {'type': 'str', 'text': release_doc, 'fmt': {}},
+            'BAS': {'type': 'str', 'text': baseline_doc, 'fmt': {}},
+            'PROJ': {'type': 'str', 'text': project_doc, 'fmt': {}}}
         list_tags.update(list_tags_basics)
         list_tags.update(list_tags_scope)
         template_type = review_string
         template_name = self._getTemplate(template_type)
         docx_filename = self.system + "_" + self.item + "_" + template_type + "_Report_" + self.reference + "_%f" % time.time() + ".docx"
-        if review_number in (1,2,3,9,20): # Patch temporaire
-            self.docx_filename,exception = self._createDico2Word(list_tags,template_name,docx_filename)
+        if review_number in (1, 2, 3, 9, 20):  # Patch temporaire
+            self.docx_filename, exception = self._createDico2Word(list_tags, template_name, docx_filename)
         else:
-            self.docx_filename = False
-            exception = "Review report export not implemented yet"
-        return self.docx_filename,exception
+            pass
+        exception = "Review report export not implemented yet"
+        return self.docx_filename, exception
+
     # Static methods
     getReviewList = staticmethod(getReviewList)
     getChecks = staticmethod(getChecks)
 
-    def getDocName(self,m):
+    @staticmethod
+    def getDocName(m):
         document = m.group(2)
         version = m.group(3)
-        doc_name = re.sub(r"(.*)\.(.*)",r"\1",document)
+        doc_name = re.sub(r"(.*)\.(.*)", r"\1", document)
         name = doc_name + " issue " + version
         return name
 
-    def _getSpecificDoc(self,m,key,filter_type_doc=('doc','pdf','xls','ascii')):
-        '''
+    def _getSpecificDoc(self, m, key, filter_type_doc=('doc', 'pdf', 'xls', 'ascii')):
+        """
             - the name of the document match the name in dictionary
             - the type of the document is doc or pdf or xls or ascii
-        '''
+        """
         result = False
         description = ""
         release_item = m.group(1)
@@ -1070,56 +1316,57 @@ class Review(Synergy):
         project = m.group(7)
         instance = m.group(8)
         if type_doc in filter_type_doc:
-            doc_name = re.sub(r"(.*)\.(.*)",r"\1",document)
+            doc_name = re.sub(r"(.*)\.(.*)", r"\1", document)
             if key in doc_name:
-                description,reference = self._getDescriptionDoc(document)
-                self.dico_found[key,type_doc] = doc_name + " issue " + version
-                print "DICO_FOUND",self.dico_found
+                description, reference = self._getDescriptionDoc(document)
+                self.dico_found[key, type_doc] = doc_name + " issue " + version
+                print "DICO_FOUND", self.dico_found
                 result = True
         return result
 
-    def _createTblDocuments(self,m,tbl,link_id):
+    def _createTblDocuments(self, m, tbl, link_id):
         release = m.group(1)
         document = m.group(2)
         version = m.group(3)
         task = m.group(4)
         cr = m.group(5)
-        type = m.group(6)
+        type_doc = m.group(6)
         project = m.group(7)
         instance = m.group(8)
         # discard SCI
-        doc_name = re.sub(r"(.*)\.(.*)",r"\1",document)
-        description,reference = self._getDescriptionDoc(document)
-##        # Discard peer reviews
-##        if description not in ("Inspection Sheet","Peer Review Register"):
+        doc_name = re.sub(r"(.*)\.(.*)", r"\1", document)
+        description, reference = self._getDescriptionDoc(document)
+        ##        # Discard peer reviews
+        ##        if description not in ("Inspection Sheet","Peer Review Register"):
         # Check if document already exists
         find = False
-        for lref,ldoc_name,lreference,lversion,ldescription in tbl:
+        for lref, ldoc_name, lreference, lversion, ldescription in tbl:
             if ldoc_name == doc_name and lreference == reference and lversion == version:
                 find = True
                 break
         if not find:
             link_id += 1
             ref = "[R{:d}]".format(link_id)
-            tbl.append([ref,doc_name,reference,version,description])
+            tbl.append([ref, doc_name, reference, version, description])
         return link_id
 
+
 def main():
-##    target_release = self.ihm.previous_release
-##    release = self.ihm.release
-##    baseline =  self.ihm.baseline
-##    self.ccb_type = "SCR"#self.ihm.ccb_var_type.get()
-##    self.detect_release = self.ihm.previous_release
-##    self.impl_release = self.ihm.impl_release
-##    self.cr_type = self.ihm.cr_type
+    ##    target_release = self.ihm.previous_release
+    ##    release = self.ihm.release
+    ##    baseline =  self.ihm.baseline
+    ##    self.ccb_type = "SCR"#self.ihm.ccb_var_type.get()
+    ##    self.detect_release = self.ihm.previous_release
+    ##    self.impl_release = self.ihm.impl_release
+    ##    self.cr_type = self.ihm.cr_type
     # self.list_cr_for_ccb = self._getListCRForCCB
     # tbl_cr = self.getPR_CCB("",True)
-##    tableau_pr = []
-##    tableau_pr.append(["","","","",""])
-##    environmenet = {"System":system,"Item":item,"Component":component}
-##    review_number = self.ihm.var_review_type.get()
-##    part_number = self.ihm.part_number_entry.get()
-##    checksum = self.ihm.checksum_entry.get()
+    ##    tableau_pr = []
+    ##    tableau_pr.append(["","","","",""])
+    ##    environmenet = {"System":system,"Item":item,"Component":component}
+    ##    review_number = self.ihm.var_review_type.get()
+    ##    part_number = self.ihm.part_number_entry.get()
+    ##    checksum = self.ihm.checksum_entry.get()
     review_number = 3
     subject = Review.getReviewList(review_number)
     checksum = "0XCAFE"
@@ -1130,29 +1377,31 @@ def main():
     result = Review.getChecks(review_number)
     # Create table
     tbl_inputs_check = []
-    header = ["Nb.	Item","Category","Item","Compliance status","Non compliance description / Justification","Actions"]
+    header = ["Nb.	Item", "Category", "Item", "Compliance status", "Non compliance description / Justification",
+              "Actions"]
     tbl_inputs_check.append(header)
     nb_item = 1
-    for rank,description,category in result:
-        tbl_inputs_check.append([nb_item,category,description,"OK/NOK/NA","",""])
+    for rank, description, category in result:
+        tbl_inputs_check.append([nb_item, category, description, "OK/NOK/NA", "", ""])
         nb_item += 1
-    print "INPUT ITEM CHECK",tbl_inputs_check
+    print "INPUT ITEM CHECK", tbl_inputs_check
 
-    project_list = []
-    project_list.append([release,baseline,""])
+    project_list = [[release, baseline, ""]]
+
+
     review = Review(review_number,
-                    detect_release="",
-                    impl_release="",
-                    tbl_cr_for_ccb=[["45","Allo Houston, we have a problem","Major","In Review","No comments."]],
-                    session_started = False,
-                    project_list=project_list,
-                    system="Dassault F5X PDS",
-                    item="ESSNESS",
-                    component="ENM",
-                    part_number="ECE24A3310201",checksum="0xCAFE",subject=subject,
-                    reference="ET1234-S",
-                    issue="1.0",
-                    review_qams_id="350")
+                detect_release="",
+                impl_release="",
+                tbl_cr_for_ccb=[["45", "Allo Houston, we have a problem", "Major", "In Review", "No comments."]],
+                session_started=False,
+                project_list=project_list,
+                system="Dassault F5X PDS",
+                item="ESSNESS",
+                component="ENM",
+                part_number="ECE24A3310201", checksum="0xCAFE", subject=subject,
+                reference="ET1234-S",
+                issue="1.0",
+                review_qams_id="350")
     review.createReviewReport()
 
 if __name__ == '__main__':
