@@ -1,0 +1,27 @@
+Development
+-----------
+
+Software written in  Python and compatible with Python version 2.7.3.2.
+Modules below are also used:
+
+* For Graphical User Interface (GUI)
+ - TK Graphical User Interface
+ - PMW version v1.3.3a
+ - tkintertable v1.03
+* For database
+ - Database SQLite v3.x
+* For Word/Excel import/export
+ - lxml v3.10
+ - `python-docx`_ v0.2.0
+ - openpyxl v3.2.1
+
+etc. TODO
+
+Checklists model
+================
+
+.. toctree::
+
+    checklists_model
+
+.. _python-docx: https://python-docx.readthedocs.org/en/latest/

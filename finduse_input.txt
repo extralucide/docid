@@ -1,0 +1,13 @@
+2014-07-04 14:15:26,805 ccm finduse -query "release='SW_ENM/03' and (cvtype='ascii' or cvtype='csrc' or cvtype='incl') and recursive_is_member_of(cvtype='project' and name='SW_ENM' and version='3.6' , 'none')"
+2014-07-04 14:16:49,644 CtrlScheduler_Main.c-3.0 released jubbard1 csrc SW_ENM/03 7 3616
+	Projects:
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-3.0
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-3.1
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-3.5
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-3.6
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-3.8
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-Boris
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-bottola1
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-doerpem1
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-int
+		CODE_SW_ENM\SRC\CTRL\CtrlScheduler\CtrlScheduler_Main.c-3.0@CODE_SW_ENM-jubbard1

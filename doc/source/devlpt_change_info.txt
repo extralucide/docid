@@ -1,0 +1,19 @@
+Developer part
+==============
+
+..
+
+	CID Generation calling tree
+	ThreadQuery->_generateCID
+	BuildDoc->createCID
+	CCB->getPR
+
+	CCB minutes Generation calling tree
+	ThreadQuery->_generateCCB
+	CCB->createCCB
+     CCB->getPR_CCB
+      CCB->fillPRTable
+     CCB->createChecklist
+
+	CR listbox
+	ThreadQuery->_getCR

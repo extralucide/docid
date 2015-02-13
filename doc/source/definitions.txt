@@ -1,0 +1,27 @@
+Definitions
++++++++++++
+
+Definition extracted du guide "Rational Synergy Build Manager's Guide, Release 7.1"
+_Release:_
+>"A release enables you to mark projects, tasks, and folders for particular releases. It also helps you to
+>keep track of which object versions were developed for each release."
+>"When you create a new release, you can create it based on an existing release, and
+>the new release inherits properties of that release automatically."
+
+_Baseline:_
+>"A baseline is an object (of type baseline) in the Synergy database which is related to various objects including
+>tasks, project hierarchies etc which together represent a milestone in your development cycle."
+>"A baseline is a set of projects and tasks used to represent your data at a specific
+>point in time. A baseline has many uses. When you perform an update, Rational
+>Synergy uses a baseline as a starting point to look for new changes."
+
+Pitfall
+-------
+
+>"A baseline-project is a specific project object-version (of type project) which is in a static state.
+>A working state project object may use a baseline-project as a start point for an update/reconfigure operation."
+
+_Project:_
+>"The database contains projects. A project is a user-defined group of related files, directories, and other projects.
+>A project normally represents a logical grouping of software, such as a library or an executable, and
+>it contains the directory structure of the files. Projects have version, like any other object."

@@ -13,8 +13,6 @@
 from distutils.core import setup
 from glob import glob
 import sys
-sys.path.append("python-docx")
-import docx
 #import _elementpath as DONTUSE
 import py2exe
 import os
@@ -43,37 +41,36 @@ if not os.path.exists(newpath): os.makedirs(newpath)
 def main():
     data_files = [("Microsoft.VC90.CRT", glob(r'Microsoft.VC90.CRT\*.*')),
                     ("img", glob(r'img\*.*')),
-                    ("template", glob(r'template\*.*')),
-                    ("result", glob(r'result\*.*')),
-                    "qams.ico",
-                    "docid.ini",
-					"standards.csv",
-                    "descr_docs.csv",
-					"glossary.csv",					
-                    "func_chg.txt",
-                    "oper_chg.txt",
-                    "setup.py",
-                    "README.txt",
-					"explain.txt",
-					"explain_sci.txt",
-					"explain_hcmr_pld.txt",
-					"pld_checklist.db3",
-					"sw_checklist.db3",					
-                    "docid.db3"]
+                    ("doc", glob(r'doc\*.*')),
+					("css", glob(r'css\*.*')),
+                    ("js", glob(r'js\*.*')),
+					("template", glob(r'template\*.*')),
+                    "ico_sys_internet.ico",
+                    "setup_easyig.py",
+                    "ig.db3"]
     #setup(name="test",scripts=["test.py"],)
     setup(
-        name="docid_cli",
-        version="1.0",
-        description="Application to generate HCMR.",
+        name="easyIG",
+        version="0.3.0",
+        description="Application to get IG.",
         author="Olivier Appere",
         license="License GPL v3.0",
         data_files=data_files,
-        options = {"py2exe": {"includes": "docx","packages": "lxml", } },
+        options = {"py2exe": {
+            "includes": [
+                'django.template.loaders.filesystem',
+                'django.template.loaders.app_directories',
+                'django.template.defaulttags',
+                'django.template.defaultfilters',
+                'django.template.loader_tags',
+                'django.template.loader'
+            ],
+            "packages": ["lxml"]} },
        # options = {"py2exe": {"compressed": 1, "optimize": 0, "bundle_files": 1, } },
         zipfile = None,
-        console=[{
-            "script": "docid.py",
-                "icon_resources":[{0, "qams.ico"}]
+        windows=[{
+            "script": "get_ig_jquery.py",
+                "icon_resources":[{0, "ico_sys_internet.ico"}]
         }]
     )
 if __name__ == '__main__':

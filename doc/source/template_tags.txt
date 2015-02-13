@@ -1,0 +1,33 @@
+Template tags
++++++++++++++
+
+The document template must be in openxml format and can contains these tags:
+
+=======================  ========================================================================================
+{{SUBJECT}}              Title in the header of the document
+{{TABLELISTMODIFS}}      Modifications log stored in SQLite database
+{{CI_ID}}                Identification of component (A295, etc.)
+{{REFERENCE}}            Reference of document
+{{ISSUE}}                Version of document
+{{TITLE}}                Title on the first page
+{{COMPONENT}}            Component abbreviation (Software, FPGA etc.)
+{{ITEM}}                 Item abbreviation of the equipment (LRU)
+{{ITEM_DESCRIPTION}}     Description of the equipment
+{{PROJECT}}              Name of the project
+{{RELEASE}}              Release Synergy
+{{BASELINE}}             Baseline Synergy
+{{WRITER}}               Author of the document
+{{DATE}}                 Date of the generation of the document
+{{TABLEBUILD}}           List of objects included in BUILD folder with shsrc,executable,ascii or executable type
+{{TABLEEOC}}			 List of Executable Object File with hex extension
+{{TABLEOUPUTS}}			 List of files in BIN folder with cof,hex,map or txt extension
+{{TABLEITEMS}}           List of documents Excel and Word
+{{TABLESOURCE}}          List of sources file (type c,asm,h,vhd etc.)
+{{TABLEPRS}}             List of CRs expected to be implemented into the release
+{{TABLECLOSEPRS}}        List of CR implemented into the release with status **Closed** or **Fixed**
+{{TABLEOPR}}             List of CR open
+{{TABLECCB}}             List of CCB minutes report for release mentioned by "Implemented for" Change field
+{{TABLESAS}}             Software/Hardware Accomplishment Summary
+{{TABLESECI}}            Software Environment Configuration Index
+{{TABLECID}}             SCI,HCI etc ...
+=======================  ========================================================================================

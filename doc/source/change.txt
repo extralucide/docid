@@ -1,0 +1,383 @@
+Create CCB report
+*****************
+
+Introduction
+============
+
+.. |sheet| image:: ../../img/file_doc.gif
+	:align: top
+
+|sheet| This folder purpose is to generate a Change Control Board [#f1]_ (CCB) report in openXML format (.docx) based on a template and also to generate a list of CR in Excel file format.
+
+.. image:: docid_create_ccb.png
+	:width: 800px
+
+Generate CCB report
+===================
+
+.. blockdiag::
+
+	blockdiag {
+	  orientation = landscape;
+	  CID -> ECMR -> HCMR
+	  ECMR -> SCI_ENM;
+	  ECMR -> SCI_BITE;
+	  group System{
+		 label = "System domain";
+		 color = "#EEE";
+		 shape = line;
+		 style = dashed;
+		 CID;
+	  group LRU{
+		 label = "LRU domain";
+		 color = "#DDD";
+		 shape = line;
+		 style = dashed;
+		 ECMR;
+	  group Board{
+		 orientation = landscape;
+		 label = "Board domain";
+		 color = "#CCC";
+		 shape = line;
+		 style = dashed;
+		 HCMR;SCI_BITE;SCI_ENM;
+		 group Software{
+		 orientation = portrait;
+		 label = "Software";
+		 color = "#BBB";
+		 shape = line;
+		 style = dashed;
+		 SCI_BITE;SCI_ENM;
+		 }
+	  }
+	  }
+	  }
+	  CID [label="CID PDS",shape = note];
+	  ECMR [label="ECMR 717CE",shape = note];
+	  HCMR [label="HCMR 715CE, 716CE",shape = note];
+	  SCI_ENM [label="SCI ENM A338",shape = note];
+	  SCI_BITE [label="SCI BITE A326",shape = note];
+	}
+
+CR List
+-------
+
+First of all CRs selected by user is listed in section **CR List**
+
+Change Requests query
+^^^^^^^^^^^^^^^^^^^^^
+
+The Change Requests (CR) to deal with are chosen among a list of CRs resulting from a **Change** database query according to attributes like:
+
+- detected on (ex: SW_ENM/03)
+- implemented for (ex: SW_ENM/04)
+- CR type (ex: SW_ENM)
+
+These parameters are displayed in **Parameters** sheet:
+
+.. image:: docid_parameters_synergy.png
+
+.. _ccb_options:
+
+Options
+^^^^^^^
+
+The CCB generation options are defined in **Generation** section of **docid.ini** configuration file:
+
+.. code-block:: ini
+
+	[Generation]
+	; CR sort: possible values:status,id or severity
+	ccb_cr_sort = id
+	ccb_cr_parent = yes
+
+- **ccb_cr_sort** parameter enables to sort CRs by ID, status or severity
+- **ccb_cr_parent** parameter enables to add a column **Parent CR** to display parent CR(s) linked to each CR.
+
+Example with SACR domain with CR sorted by severity (Blocking first) and with CR parent:
+
+.. image:: ccb_sacr_list_example.png
+	:width: 800px
+	
+Table is created to list CRs with the following columns:
+
+- Domain: EXCR, SyCR, ECR, SACR, HCR, SCR, BCR or PLDCR
+- CR Type: ex SW_ENM
+- ID: Unique identification of the CR in Change dabase
+- Status: In_analysis, In_review, etc.
+- Synopsis
+- Severity: Blocking, Major, Minor, etc.
+- Detected on: ex SW_ENM/03 **(disabled for software)**
+- Implemented for: ex SW_ENM/04 **(disabled for software)**
+- Parent CR: ID | Domain | Type | Synopsis | status **(disabled for software)**
+
+CR to be treated in CCB report can be selected from the **Charge Requests found** listbox.
+
+.. image:: docid_ccb_cr_found.png
+
+Checkbox options
+""""""""""""""""
+
+There is 3 checkboxes:
+
+- Log on: Read CR log and extract transitions timeline
+- Export CR for review report
+- With parent CR: Query parent CR. deactivated by **ccb_cr_parent** parameter :ref:`ccb_options`.
+
+Transition timeline
+"""""""""""""""""""
+
+Example:
+
+.. image:: change_sacr_237_log.png
+
+Treatment by  doCID:
+
+ .. code-block:: py
+
+	Transitions timeline for SACR 237  :
+	-----------------------------------
+
+	   Status set to In_Analysis          on Monday 17 Feb 2014        at 09:38:12        with no comment.
+	   Status set to In_Review            on Friday 28 Feb 2014        at 18:11:41        with no comment.
+	   Status set to Under_Modification   on Thursday 06 Mar 2014      at 18:57:03        with comment: <comments not supplied>
+	   Status set to Under_Verification   on Friday 07 Mar 2014        at 11:56:21        with no comment.
+	   Status set to Fixed                on Tuesday 11 Mar 2014       at 09:37:40        with no comment.
+
+Checklists
+----------
+
+Then checklists are displayed for each CR for software according to the SQLite table *cr_checklist* below:
+
+.. image:: cr_checklist_table.png
+
+and dictionaries below:
+
+.. code-block:: py
+
+    dico_status_flow = {"In Review":("Under_Modification",),
+                        "Complementary Analysis":("Under_Modification",),
+                        "Postponed":("In_Analysis",),
+                        "Fixed":("Under_Verification","Cancelled","Closed")
+                        }
+						
+    dico_transition_flow = {"In Review":("Reviewed",),
+                        "Complementary Analysis":("Reviewed",),
+                        "Postponed":("Incomplete analysis",),
+                        "Fixed":("Incomplete verification","Cancel","Close")
+                        }
+								
+For PLD or board the following checklist is applied, according to the SQLite table *cr_pld_checklist* below:
+
+.. image:: cr_pld_checklist_table.png
+
+Tables are created according to key CR transition (Reviewed/Postpone/Close).
+
+Example of checklist rendered for a SACR with status **Fixed**:
+
+.. image:: cr_pld_checklist_rendered.png
+
+Tags
+----
+
+Tags are included in CCB report template and are rendered by doCID.
+The document template must be in openxml (docx) format and can contains these tags:
+
+=======================  ==============================================================================
+{{SUBJECT}}              Title in the header of the document.
+{{TABLELISTMODIFS}}      Modifications log stored in SQLite database
+{{CI_ID}}                Identification of component (A295, etc.)
+{{REFERENCE}}            Reference of document
+{{ISSUE}}                Version of document
+{{TITLE}}                Title on the first page
+{{COMPONENT}}            Component abbreviation (Software, FPGA etc.)
+{{ITEM}}                 Item abbreviation of the equipment (LRU)
+{{ITEM_DESCRIPTION}}     Description of the equipment
+{{PROJECT}}              Name of the project
+{{RELEASE}}              Release Synergy
+{{BASELINE}}             Baseline Synergy
+{{WRITER}}               Author of the document
+{{MAIL}}                 Mail of the author of the document
+{{TEL}}                  Telephone of the author of the document
+{{SERVICE}}              The service where the author of the document belongs
+{{COPIES}}               Report is sent to persons in that list
+{{MISSING}}              Report is sent to persons in that list who was supposed to attend this meeting
+{{TABLECHECKLIST}}       Checklist associated to each CR according to the CR status
+{{DATE}}                 Date of generation of the document
+{{PREVIOUS_ACTIONS}}     List of actions
+{{TABLELOGS}}            List of log of CRs
+{{TABLEANNEX}}           Annex where should be located CR description
+{{TABLEPRS}}             List of CRs implemented in the release
+=======================  ==============================================================================
+
+{{WRITER}}, {{MAIL}}, {{TEL}} and {{SERVICE}} are populated according to the SQLite table *writers* below:
+
+.. image:: sqlite_docid_tbl_writers.png
+
+with user's login as input.
+
+{{TABLECHECKLIST}} is populated according to the SQLite table *cr_checklist* below:
+
+.. image:: sqlite_docid_tbl_cr_checklist.png
+
+Template
+--------
+
+The CCB report template is defined in **docid.ini** configuration file as follow:
+
+.. code-block:: ini
+
+   [Template]
+   ; CCB templates
+   CCB=CCB_Minutes_SW_ENM_template.docx
+   CCB_PLD=CCB_Minutes_HW_PLD_template.docx	
+
+Action items
+------------
+
+
+
+Section **CCB action status** contains list of actions which are managed by doCID.
+Access to these action items are performed through this frame below in **Create CCB** sheet:
+Tag {{PREVIOUS_ACTIONS}} is replaced by this list
+
+.. image:: docid_click_action.png
+
+- To add and action item click on **Add action item** button.
+- To list action items click on **List action item** button.
+
+Section **CCB action** contains list of current actions which are not managed by doCID
+
+Add action item
+^^^^^^^^^^^^^^^
+
+.. image:: docid_add_action.png
+
+
+
+CCB report examples
+============
+
+ENM software CCB report
+-----------------------
+
+The generated document:
+
+.. image:: _static/OfficeWord.png
+   :alt: ENM software CCB report example
+   :target: _static/Dassault_F5X_PDS_ESSNESS_SCR_CCB_Minutes__1420549272.441000.docx
+
+TIE PLD CCB report
+------------------
+
+The generated document:
+
+.. image:: _static/OfficeWord.png
+   :alt: TIE PLD CCB report example
+   :target: _static/Dassault_F5X_PDS_TIE_PLDCR_CCB_Minutes__1420550117.791000.docx
+
+Output example
+==============
+
+.. image:: ccb_report_example.png
+   :width: 600px
+   :alt: CCB report example
+
+.. _change_requests_query:
+
+
+List CR
+=======
+
+The button **List CR** launches a CR query like query defined in :ref:`change_requests_query`.
+Checkbox **With parent CR** enables *parent CR* query for each CR.
+First a query to get parent CR ID:
+
+.. code-block:: Erlang
+
+    ccm query -t problem "has_child_CR(cvtype='problem' and problem_number='884')" -u -f "%problem_number"
+
+Columns are the following:
+
+======================= ===============================================================================================================
+id	                    CR ID
+Type	                **Evolution** or **Defect**
+Synopsis	            Quick description of the CR
+Level	                Domain (SCR etc.)
+Status                  Fixed, Closed etc.
+Detect                  Detected on (ex: SW_ENM/03)
+Implemented             Implemented for (ex: SW_ENM/04)
+Implementation baseline Implemented in baseline (ex: SW_ENM_05_00)
+Modified time
+Impact analysis         List of entities to modify according to previous analysis/correction definition (documentation, code, tests...)
+Parent CR               CR ID
+Parent CR status        Fixed, Closed etc.
+Parent CR synopsis      Quick description of the CR
+======================= ===============================================================================================================
+
+Checkbox **Log on** enables *log* query for each CR.
+
+Change Request workflow
+=======================
+
+.. blockdiag::
+
+	blockdiag {
+	    orientation=portrait
+	    in_analysis -> in_review -> under_modification -> under_verification -> fixed -> closed;
+	    fixed -> cancelled
+	    fixed -> under_verification
+	    fixed -> complementary_analysis
+	    in_review -> rejected
+	    in_review -> postponed
+	    under_verification -> under_modification
+	    under_modification -> complementary_analysis
+	    in_analysis [label="In Analysis",shape = flowchart.input];
+	    in_review [label="In Review",shape = diamond];
+	    complementary_analysis [label="Complementary Analysis",shape = diamond];
+	    postponed [label="Posptoned",shape = cloud];
+	    under_modification [label="Under Modification",shape = diamond];
+	    under_verification [label="Under Verification",shape = diamond];
+	    fixed [label="Fixed",shape = diamond];
+	    closed [label="Closed",shape = flowchart.terminator];
+	    rejected [label="Rejected",shape = flowchart.terminator];
+	    cancelled [label="Cancelled",shape = flowchart.terminator];
+        group Terminal{
+             orientation = landscape;
+             color = "#CCC";
+             shape = line;
+             style = dotted;
+             closed;cancelled;rejected;
+        }
+        group CCB{
+             orientation = landscape;
+             color = "#CCC";
+             shape = line;
+             style = dotted;
+             in_review;complementary_analysis;
+        }
+        //group Nominal{
+        //     color = "#CCC";
+        //     shape = line;
+        //     in_analysis;in_review;under_modification;under_verification;fixed;closed;
+        //}
+    }
+
+.. image:: ../../img/cr_workflow.jpg
+   :width: 600px
+   :alt: Change workflow
+   :target: http://spar-syner1.in.com:8600/change
+
+..
+    Old CR workflow
+    Old: Entered -----> In review -> Assigned ---------------------------------> Resolved -> Concluded
+                              |
+                              ---------> Postponed
+    New CR workflow
+    New: In analysis -> In review -> Under modification -> Under verification -> Fixed    -> Closed
+                              |
+                              ---------> Postponed
+
+.. rubric:: Footnotes
+
+.. [#f1] A **Change Control Board** is a committee that makes decisions regarding whether or not proposed changes to a project should be implemented. In short any changes to the Baseline Requirements agreed with the client, should be taken up by project team on approval from this committee.

@@ -1,0 +1,360 @@
+Create Configuration Index Document
+***********************************
+
+Introduction
+============
+
+.. |folder| image:: ../../img/kfm.gif
+	:align: top
+
+|folder| This sheet enables user to generate configuration index documents in openXML format 
+like SCI [#sci]_, HCMR and ECMR documents based on **IBM Rational Synergy** and **Change** database and Word template.
+
+.. image:: doCID.gif
+
+Template of document containing tags is defined in **docid.ini** configuration file.
+
+.. code-block:: ini
+
+	[Template]
+	SCI=SCI_F5X_ENM_template.docx
+	
+Guideline
+=========
+
+Three type of CID can be generated with specific logic:
+
+- SCI
+- HCMR PLD
+- HCMR BOARD and ECMR
+
+Release, Baseline and Project selection
+---------------------------------------
+
+Stack panel
+^^^^^^^^^^^
+
+First of all this module detects if the listbox "Releases/Baselines/Projects stack" in **Parameters** sheet is empty or not.
+
+.. image:: docid_parameters_stack.png
+
+If this listbox is not empty then only *releases*,*baselines* et *projects* listed in this listbox are taken into account 
+and data from "Synergy built-in keywords" part in **Parameters** sheet is discarded.
+
+.. _synergy_built_in_keywords:
+
+Synergy built-in keywords panel
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If this listbox is empty then data from "Synergy built-in keywords" part in **Parameters** sheet is used instead.
+
+.. image:: docid_parameters_synergy_keywords.png
+
+Sub-projects are searched by recursive sequence.
+
+Synergy folders filtering
+-------------------------
+
+Synergy folder objects are filtered according to folders defined in **docid.ini** configuration file:
+
+- **input_data**: Baseline for component development
+- **peer_reviews**: peer reviews report or inspection sheets
+- **sources**: source code files (.c,.h,.asm,.vhd etc.)
+- **verification**: Test procedures documents
+- **exclude**: Any object included into folders matching folders defined in this list is discarded
+
+.. code-block:: ini
+
+        [Generation]
+        ; Input data are searched only in those directories and sub-directories
+        input_data = INTPUT_DATA,INPUT_DATA,Input_Data,Input Data
+        ; Peer review records are searched only in those directories and sub-directories
+        peer_reviews=REVIEWS,Reviews
+        ; Source files are searched only in those directories and sub-directories
+        sources = VHDL,SRC
+        ; Verification files are searched only in those directories and sub-directories
+        verification=VTPR,HWVPR,ATP
+        ; Discard all files contained in directories defined below
+        exclude = ENMTools,Reqtify
+
+        [Objects]
+        ; Authorized extension for source files
+        sw_src=csrc,asmsrc,incl,macro_c,library
+
+Input data
+^^^^^^^^^^
+
+Input data are extracted from folder name matching folders listed in configuration file:
+
+.. code-block:: ini
+
+        [Generation]
+        ; Input data are searched only in those directories and sub-directories
+        input_data = INTPUT_DATA,INPUT_DATA,Input_Data,Input Data
+		
+The tag **{{TABLEINPUTDATA}}** is replaced by a table formatting the result of this extraction.
+Header of the generated table is according to the list below for PLD and board:
+
+ .. code-block:: py
+ 
+	header_input = ["Release:Project","Document","Issue","Description","Tasks"]
+	
+And for software:
+
+ .. code-block:: py
+ 
+	header_input = ["Title","Reference","Synergy Name","Version","Type","Instance","Release"]
+	
+Peer reviews
+^^^^^^^^^^^^
+
+Peer reviews come from folder name matching REVIEW and filename beginning with "IS\_", "FDL\_" or "PRR\_"
+Tag **{{TABLEPEERREVIEWS}}** is replaced by this list.
+Header of the generated table is according to the list below for PLD and board:
+
+ .. code-block:: py
+ 
+	header_prr = ["Release:Project","Document","Issue","Description","Tasks"]
+	
+For software:
+
+ .. code-block:: py
+ 
+	header_prr = ["Name","Version","Release"]
+	
+Source code
+^^^^^^^^^^^
+
+Source code is extracted only from folder name matching folders listed in configuration file:
+
+.. code-block:: ini
+
+        [Generation]
+        ; Source files are searched only in those directories and sub-directories
+        sources = VHDL,SRC
+
+
+Moreover only extension matching regular expression "(.*)\.(c|h|asm|vhd)" are taken into account
+and baseline matching regular expression "^CODE_(.*)" ou "(.*)VHDL(.*)"
+Tag **{{TABLESOURCE}}** is replaced by this list.
+Header of the generated table is according to the list below for PLD and board:
+
+ .. code-block:: py
+ 
+	header_soft_sources = ["Release:Project","Data","Issue","Tasks","Change Request"]
+	
+For software:
+
+ .. code-block:: py
+ 
+	header_soft_sources = ["File Name","Version","Type","Instance","Release","CR"]
+	
+Build data
+^^^^^^^^^^
+
+Build data comes from name matching BUILD.
+Tag **{{TABLEBUILD}}** is replaced by this list.
+Header of the generated table is according to the list below for PLD and board:
+
+ .. code-block:: py
+ 
+	header_soft_sources = ["Release:Project","Data","Issue","Tasks","Change Request"]
+	
+For software:
+
+ .. code-block:: py
+ 
+	header_soft_sources = ["File Name","Version","Type","Instance","Release","CR"]
+	
+Delivered files
+^^^^^^^^^^^^^^^
+
+Only objects matching regular expression **"(.*)\.(hex)"** are taken into account.
+Tag **{{TABLEEOC}}** is replaced by this list.	
+Header of the generated table is according to the list below for software:
+
+ .. code-block:: py
+ 
+	header_delivery = ["File Name","Version","Type","Instance","Release"]
+	
+Outputs data
+^^^^^^^^^^^^
+
+Only objects matching regular expression **"(.*)\.(cof|hex|map|txt)"** are taken into account.
+Tag **{{TABLEOUTPUTS}}** is replaced by this list.
+Header of the generated table is according to the list below for software:
+
+ .. code-block:: py
+ 
+	header_delivery = ["File Name","Version","Type","Instance","Release"]
+	
+.. note::
+
+	Source code files, programming script files, EOC file and outputs are searched only if baseline or project name match regular expression '^CODE_(.*)' or '(.*)VHDL(.*)'
+	
+Test data
+^^^^^^^^^
+
+Test documents are extracted from folders name matching folders listed in configuration file:
+
+.. code-block:: ini
+
+        [Generation]
+        ; Verification files are searched only in those directories and sub-directories
+        verification=VTPR,HWVPR,ATP
+		
+Tag {{TABLEVERIF}} is replaced by this list.
+Header of the generated table is according to the list below for PLD and board:
+
+ .. code-block:: py
+ 
+	header = ["Release:Project","Document","Issue","Description","Tasks"]
+	
+For software:
+
+ .. code-block:: py
+ 
+	header = ["Title","Reference","Synergy Name","Version","Type","Instance","Release","CR"]
+	
+Plan documents
+^^^^^^^^^^^^^^
+
+All files which name include these keywords populate the list which replace **{{TABLEPLAN}}** tag.
+
+.. code-block:: py
+
+	dico = {"SCMP_SW_PLAN":"Software Configuration Management Plan",
+	"SDP_SW_PLAN":"Software Development Plan",
+	"smp":"Software Development Plan",
+	"SQAP_SW_PLAN":"Software Quality Assurance Plan",
+	"sqap":"Software Quality Assurance Plan",
+	"SVP_SW_PLAN":"Software Verification Plan",
+	"PSAC_SW_PLAN":"Plan for Software Aspect of Certification",
+	"psac":"Plan for Software Aspect of Certification",
+	"PHAC":"Plan for Hardware Aspect of Certification",
+	"PLD_HMP":"PLD Hardware Management Plan"}
+	
+Header of the generated table is according to the list below for PLD and board:
+
+ .. code-block:: py
+ 
+	header = ["Release:Project","Document","Issue","Description","Tasks"]
+	
+For software:
+
+ .. code-block:: py
+ 
+	header = ["Title","Reference","Synergy Name","Version","Type","Instance","Release","CR"]
+	
+Life cycle data
+^^^^^^^^^^^^^^^
+	
+All files which do not match these previous criteria populate a list which replace **{{TABLEITEMS}}** tag.
+Header of the generated table is according to the list below for PLD and board:
+
+ .. code-block:: py
+ 
+	header = ["Release:Project","Document","Issue","Description","Tasks"]
+	
+For software:
+
+ .. code-block:: py
+ 
+	header = ["Title","Reference","Synergy Name","Version","Type","Instance","Release","CR"]
+	
+.. note::
+
+	To get all CR applied to intermediate versions of a document, CID must be generated with only field **Release** selected in :ref:`synergy_built_in_keywords`.
+	Otherwise only one version of document is caught and previous applied CR are missed.
+
+	Example:
+
+	2 SSCS documents are found
+
+	- SSCS_ESSNESS_ET2788_S.doc version 4D2 with CR 562 applied and
+	- SSCS_ESSNESS_ET2788_S.doc version 4 with CR 235 and 589 applied
+
+	Only the latest version is kept with all CRs concatenated
+
+	- SSCS_ESSNESS_ET2788_S.doc version 4 with CR 562, 235 and 589 applied
+
+	in any case, if 2 versions of a document is found, i's the latest version which is kept 
+	
+Low Level Requirements
+""""""""""""""""""""""
+
+For Low Level Requirements documents,  extraction is performed from folder matching regular expression **"S[w|W]DD"** and included in life cycle data with additional information
+
+CCB Minutes
+"""""""""""
+
+For CCB minutes report, reports taken into account are those which are included into the release defined by 
+**Implemented for release** field in **Parameters** sheet.
+
+Change Requests
+---------------
+
+Finally tag **{{TABLECLOSEPRS}}** and **{{TABLEOPR}}** are populate with result of the following query taking into account fields
+**Detected on release** and **Implemented for release** (ex: SW_ENM/05,SW_PLAN/02) and **CR type** (ex: SW_ENM):
+
+These fields are filled manually except for CR type which is populated automatically when user select a component:
+
+.. image:: cr_type_arrow.png
+
+Then CR are selected as follow:
+
+- Implemented: Change Requests status is  "Closed" or "Fixed"
+- Open:  All other CR (Including "Rejected" status and "Cancelled" status)
+
+Functional changes (Data imported from "func_chg_filename" file configured in **docid.ini**):
+Operational limitations (Data imported from "oper_chg_filename" file configured in **docid.ini**):
+
+
+
+Example SCI template
+====================
+
+.. image:: sci_section_2.png
+
+.. image:: sci_section_2_4.png
+
+.. image:: sci_section_2_8.png
+
+Available tags
+==============
+.. toctree::
+
+    template_tags
+
+CID examples
+============
+
+ECMR ESSNESS board
+------------------
+
+With this configuration:
+
+.. image:: examples/ecmr_conf.png
+
+The generated document:
+
+.. image:: _static/OfficeWord.png
+   :alt: ECMR example
+   :target: _static/Dassault_F5X_PDS_ESSNESS_CID_ET1234-E_1420539721.docx
+   
+SCI ENM software
+----------------
+
+With this configuration:
+
+.. image:: examples/sci_conf.png
+
+The generated document:
+
+.. image:: _static/OfficeWord.png
+   :alt: SCI example
+   :target: _static/Dassault_F5X_PDS_ESSNESS_ENM_SCI__1420542156.docx
+   
+.. rubric:: Footnotes
+
+.. [#sci] The **Software Configuration Index** identifies the configuration of the software product.

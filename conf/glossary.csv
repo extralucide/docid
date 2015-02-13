@@ -1,0 +1,72 @@
+#
+# Fichier de configuration doCID contenant la description g�n�rique des documents
+#
+# Specifications
+SSCS,Board Specification Document
+SWRD,Software Requirements Document
+SwRD,Software Requirements Document
+Software Specification,Software Requirements Document
+HWRD,Hardware Requirements Document
+SHLDR,Software High-Level Derived Requirement document
+PLDRD,PLD Requirements Document
+HwRD,Hardware Requirements Document
+SDTS,Supplier Detailled Technical Specification
+# Conception
+SWDD,Software Design Document
+Software Design,Software Design Document
+SwDD,Software Design Document
+PLDDD,PLD Design Document
+HwDD,Hardware Design Document
+SCOD,Source Code Output Document
+PLDVPR,PLD Verification Procedures and Results
+PLDVTR,PLD Verification Tests and Results
+PRR,Peer Review Register
+IS_,Inspection Sheet
+CRI_,EASA Certification Review Item
+IP_SW,FAA Issue Paper
+# Interface
+ICD,Interface Control Document
+HSID,Hardware Software Interface Document
+HPID,Hardware PLD Interface Document
+SPI,SPI Interface Document
+# Plans
+PSAC,Plan for Software Aspect of Certification
+SDP,Software Development Plan
+SVP,Software Verification Plan
+SCMP,Software Configuration Management Plan
+SQAP,Software Quality Assurance Plan
+PHAC,Plan for Hardware Aspects of Certification
+HMP,Hardware Management Plan
+HPAP,Hardware Process Assurance Plan
+# Standards
+SRTS_SW,Software Requirement Test Standard
+SDTS_SW,Software Design Test Standard
+SCS_SW,Software Coding Standard
+# Delivery
+SAS,Software Accomplishment Summary
+SCI,Software Configuration Index
+SECI,Software Environment Configuration Index
+# Inspection sheets dictionary set
+IS_PSAC,PSAC Inspection Sheet
+IS_SDP,SDP Inspection Sheet
+IS_SVP,SVP Inspection Sheet
+IS_SCMP,SVP Inspection Sheet
+IS_SQAP,SQAP Inspection Sheet
+IS_SCI,SCI Inspection Sheet
+IS_SAS,SAS Inspection Sheet
+IS_SECI,SECI Inspection Sheet
+IS_SWRD,SwRD Inspection Sheet
+# CCB minutes
+CCB_Minutes,CCB minutes
+# Verification
+ATS,Acceptance Test Specification
+ATP,Acceptance Test Procedure
+ATR,Acceptance Test Results
+HWVPR, Hardware Verification Procedures and Results
+# Customer
+DGT, Dassault Aviation document
+# Safety
+DAL, Development Assurance Level
+# Zodiac Aero Electric
+SAQ, Template
+ZAQ, Template

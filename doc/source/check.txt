@@ -1,0 +1,201 @@
+Check Inspection Sheet
+**********************
+
+Introduction
+============
+
+.. |loupe| image:: ../../img/kghostview.gif
+	:align: top
+	
+|loupe| This module check the coherency between SwRD or SwDD and Inspection Sheet file and **Change** and **Synergy** database.
+
+- For SwRD and SwDD enter the folder.
+- For Inspection Sheet, enter the filename of the Inspection Sheet.
+- For Change query attribute *"Implemented for"* is assigned with the release extracted from the **CONTEXT** folder worksheet in Inspection Sheet.
+- For Synergy query, baseline is extracted from the **CONTEXT** folder worksheet in Inspection Sheet.
+
+This module also enables user to export an Inspection Sheet based on a SwRD with th following parameters:
+
+- Change query attribute *"Implemented for"* which gives list of CRs to write on **CONTEXT** sheet.
+- etc.
+
+.. blockdiag::
+
+	blockdiag {
+	  class inspection [shape = roundedbox, icon = "source/_static/Excel2007.png"];
+	  class spec_word [icon = "source/_static/OfficeWord.png"];
+	  class spec_excel [icon = "source/_static/Excel2007.png"];
+	  class review [shape = note, icon = "source/_static/accept.gif"];	
+	   SSCS -> SWRD -> SWDD;
+			   SWRD -> IS_SWRD
+			   HSID -> SWDD;
+			   SWDD -> IS_SWDD
+	   ICD_SPI_PROT -> SWRD;
+	   ICD_SPI_DATA -> SWRD;
+	   
+	   group {
+			label = "Upper requirements"
+			color = "#AAA";
+			shape = line;
+			style = dashed;	   
+			SSCS;ICD_SPI_PROT;ICD_SPI_DATA
+	   }
+	   group {
+			color = "#AAA";
+			shape = line;
+			style = dashed;	   
+			SWRD;IS_SWRD
+	   }
+	   group {
+			color = "#AAA";
+			shape = line;
+			style = dashed;	   
+			SWDD;IS_SWDD   
+	   }
+	   ICD_SPI_PROT [label="ICD SPI Protocol", class="spec_word"]
+	   ICD_SPI_DATA [label="ICD SPI Data", class="spec_excel"]
+	   IS_SWRD [label="Peer SwRD review", class="inspection"]
+	   IS_SWDD [label="Peer SwDD review", class="inspection"]
+	   SWRD [label="SwRD", class="spec_word"]
+	   SWDD [label="SwDD", class="spec_word"]
+	   SSCS [label="SSCS", class="spec_word"]
+	}
+	
+.. note::
+
+   Checker is working only with openXML document (docx).
+
+What is an inspection ?
+=======================
+
+"One of the primary objectives of **peer reviews** is to identify and remove defects in software work products as early in the software life cycle as possible.
+An **inspection** is a very formal method of **peer review** where a team of peers, including the author,
+performs detailed preparation and then meets to examine a work product.
+The work product is typically inspected when the author thinks it is complete and ready for transition to the next phase or activity.
+The focus of an inspection is only on defect identification.
+Individual preparation using checklists and assigned roles is emphasized.
+Metrics are collected and used to determine entry criteria in the inspection meeting as well as for input into product/process improvement efforts." [Westfall]_
+
+Engineering peer review workflow
+================================
+
+.. actdiag::
+	:desctable:
+	
+	actdiag {
+	  planning -> review -> rework -> verification -> rework
+
+	  lane author {
+		 label = "Author";
+		 planning [label = "Planning",description="Verify materials meet entry criteria. Schedule the meetings."];
+		 rework [label = "Fix",description="Fix defect alone.If no defects are found, the review is complete."];
+	  }
+	  lane reviewers {
+		 label = "Reviewer";
+		 review [label = "Inspect materials",description="Defects logged"];
+		 verification [label = "Verify",description = "Reviewer verifies defects fixed"]
+	  }
+	  lane moderator {
+		 label = "Moderator";
+		 moderator [label = "Control",description="Acts  as  arbiter  of  disputes"];
+	  }
+	}
+
+Information parsed from SwRD
+============================
+
+- List of modifications of the release identified in **CONTEXT** worksheet
+- Get documents in "Input_Data" folder in Synergy project according to baseline identified in **CONTEXT** worksheet
+   (excluding "Data sheet" and "CCB_Minutes")
+- List the requirements modified for the release identified in **CONTEXT** worksheet
+
+What are the rules checked ?
+============================
+
+CONTEXT
+-------
+
+- Compare list of CR between **CONTEXT** worksheet and Change database for the release identified in CONTEXT worksheet
+
+DOC REVIEW
+----------
+
+- Compute status in REVIEW and **DOC REVIEW** worksheet with this condition:
+   Status is OK if the document issue in REVIEW and DOC REVIEW worksheet matches the document issue in CONTEXT worksheet
+   and no remarks are logged and at at least a reviewer is identified
+- Verify that SRS rules in DOC REVIEW worksheet matches SRS rules in SRTS standard
+
+REQ ANALYSIS
+------------
+
+- Check that list of requirements in REQ REVIEW and REQ ANALYSIS worksheet matches the list of requirements in SwRD/SwDD
+   (including check of issues)
+- Check that list of upper requirements in UPPER REQ ANALYSIS worksheet matches the list of upper requirements in SwRD/SwDD
+   (including check of issues)
+- Check the list of upper requirements in SwRD/SwDD matches the list of upper requirements in upper documents.
+- Compute status in REQ REVIEW worksheet with this condition:
+   Status is OK if the requirement issue matches the requirement issue reviewed in REQ REVIEW worksheet 
+   and no remarks are logged and at at least a reviewer is identified for all SRS REQ rules.
+
+UPPER REQ ANALYSIS
+------------------
+
+- Compute status in REQ ANALYSIS and UPPER REQ ANALYSIS worksheet with this condition:
+   Status is OK if the requirement issue matches the requirement issue reviewed in REQ ANALYSIS worksheet 
+   and no remarks are logged and at at least a reviewer is identified
+
+REMARK
+------
+
+- Check that numbering of remarks is an unbroken sequence
+- Compute status of remarks with this condition:
+   Remark is OK if the status is CORRECTED or REJECTED and verified issue is strictly greater than the origin issue
+   and a CR exits and is a number (since the CR process start)
+
+List of errors and warnings
+---------------------------
+
+====== ======= ========== ====================================================================================================================================
+ID     Type    Rule        Description
+====== ======= ========== ====================================================================================================================================
+IS_18  Error              Deleted requirement found in Inspection Sheet but not in specification document. (SVP 4.2.5.2.2 "SwRD requirement (except DELETED)")
+IS_17  Error              Requirement found in Inspection Sheet but not in specification document.
+S_2    Error              Derived requirement with traceability.
+S_5    Warning SRS_REQ_37 Warning, missing end delimiter.
+S_1    Warning            Unexpected semi-colon found in attribute.
+S_1    Warning            Double brackets in attribute.
+S_6    Warning            Missing comma in attribute.
+S_3    Warning            This requirement is tagged DELETED in order to prevent ID reuse.
+S_4    Error   SRS_REQ_38 Attribute of this requirement is missing.
+IS_5   Error              Remark identified here: rule {:s} does not exists in REMARK folder.
+IS_6   Error              Found {:d} SRS_REQ rules instead of {:d} expected.
+IS_8   Error              For requirement, issue in 'Review issue' column is different from issue in 'Req. Issue' column.
+IS_19  Error              For requirement, issue in 'Review issue' column is different from issue in upper specification document.
+IS_20  Error              Requirement in UPPER REQ ANALYSIS sheet is not included in list of upper requirement reference in document specification.
+IS_9   Error              For requirement, issue in specification document is different from issue in Inspection Sheet.
+IS_10  Error              For requirement, issue in 'Review issue' column is different from issue in 'Req. Issue' column.
+IS_11  Error              Remark ID is not consistent with what is expected.
+IS_12  Error              Invalid verification issue for remark.
+IS_13  Error              No CR has been submitted whereas the CR process has already been started.
+IS_15  Error              Remark is KO because CR cell is not valid (4.2.3 of SVP).
+IS_16  Warning            Remark OPEN.
+IS_1   Warning            Status is NOT VERIFIED (verified issue < requirement/document issue).
+IS_2   Error              Verified version does not exist (verified issue > requirement/document issue).
+IS_3   Warning            Status is NOK (A remark exists).
+IS_21  Warning            Rule status is NOT VERIFIED because verified issue is strictly lesser than requirement issue or or no reviewer is identified.
+IS_22  Error              Rule status is NOT VERIFIED because verified issue is strictly greater than requirement issue.
+IS_4   Warning            Rule status is NOK because a remarks exists.
+S_7    Error              Requirement in upper specification document is not included in list of upper requirement reference in document specification.
+S_8    Error   SRS_REQ_40
+S_10   Error   SRS_31
+S_11   Error   SRS_32
+IS_23  Error              Status TO BE DISCUSSED not allowed according to Figure 3 - Remark status workflow of SVP
+====== ======= ========== ====================================================================================================================================
+
+.. note::
+    SRS_REQ_39 is not "verifiable" as it consists in verifying that free text is used in the HLR body
+
+How is it working ?
+-------------------
+
+.. [Westfall] Rise-Based Peer Reviews Linda Westfall The Westfall Team 24, September 2008

@@ -1,0 +1,40 @@
+Development
++++++++++++
+
+..
+	createCID
+	   findSubProjects
+		  _getAllDocuments
+			 getArticles
+				_createTblInspectionSheets
+				_createTblPlans (Populate tbl_plans => {{TABLEPLAN}}
+				_createTblCcb
+				_createTblStds
+				_createTblSas
+				_createTblSeci
+				Tool._createTblDocuments (Populate tableau_items => {{TABLEITEMS}})
+				   Tool._getDescriptionDoc (get description and reference from "glossary" otherwise get default list
+											and get reference with Tool._getReference)
+		  getSpecificData
+				getItemsInFolder
+		  getItemsInFolder
+		  _getAllSources
+			 Synergy.getArticles (Synergy query)
+			 _createTblPrograming
+			 # For PLD/FGPA programming
+			 _createTblSynthesis
+			 _createTblConstraint
+			 _createTblSources
+		  _getAllProg
+			 Synergy.getArticles (Synergy query)
+			 _createTblSoftwareProgramming (Populate tableau_prog => {{TABLEBUILD}})
+				_getSwProg (REGEXP "(.*)\.(bat|sh|log|gld|txt|exe)" or "(m|Makefile)")
+			 _createTblSoftwareOutputs (Populate tbl_sw_outputs => {{TABLEOUPUTS}})
+				_getSwOutputs (REGEXP: "(.*)\.(cof|hex|map|txt)")
+			 _createTblSoftwareEOC (Populate tbl_sw_eoc => {{TABLEEOC}})
+				readEOC
+				_getSwEOC (REGEXP: "(.*)\.(hex)")
+		  getSpecificData
+		  getSpecificBuild (Files in BUILD folder)
+			 Synergy.getItemsInFolder
+				Synergy.getFolderName

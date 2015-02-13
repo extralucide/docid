@@ -1,0 +1,149 @@
+.. doCID documentation master file, created by
+   sphinx-quickstart on Fri Oct 31 09:22:21 2014.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
+doCID, Synergy Front End User and IS Checker
+********************************************
+
+:Author: Olivier Appere
+:Generated: |today|
+:Version: |release|
+
+Introduction
+************
+
+.. image:: ../../img/doCID.gif
+
+**doCID** allows project manager to:
+
+- Generate configuration index documents in openXML format like
+    SCI,HCMR PLD, HCMR board and ECMR documents based on *IBM Rational Synergy* and *Change* database
+
+- Generate CCB minutes report based on Change database in openXML format
+	Change Requests (CR) to deal with are chosen among a list of CRs resulting from a query according to attributes like:
+		* detected on (ex: SW_ENM/03)
+		* implemented for (ex: SW_ENM/04)
+		* CR type (ex: SW_ENM)
+		
+	Table is created to list CRs with the following columns:
+	
+        * Domain: EXCR|SyCR|ECR|SACR|HCR|SCR|BCR|PLDCR
+        * CR Type: ex SW_ENM
+        * ID
+        * Status: In_analysis, In_review, etc.
+        * Synopsis
+        * Severity: Blocking, Major, Minor, etc.
+        * Detected on: ex SW_ENM/03
+        * Implemented for: ex SW_ENM/04
+        * Parent CR: ID | Domain | Type | synopsis | status
+
+	Tables are created according to key CR transition (Reviewed/Postpone/Close)
+
+- Export CR list in Excel files with the following column:
+
+    * CR ID
+    * Type: ex: EXCR|SyCR|ECR|SACR|HCR|SCR|BCR|PLDCR
+    * Synopsis
+    * Level
+    * Status: 
+    * Detected on: ex SW_ENM/03
+    * Implemented in: ex SW_ENM/04
+    * Implementation in baseline: ex SW_ENM_04_02
+    * Modified time,
+    * Impact analysis
+    * Parent CR ID
+    * Parent CR status
+    * Parent CR synopsis
+	
+Block one::
+
+	Old: Entered -----> In review -> Assigned ---------------------------------> Resolved -> Concluded
+	New: In analysis -> In review -> Under modification -> Under verification -> Fixed    -> Closed
+
+- Generate Review report based on both **Synergy** and **Change** database in openXML format
+	Software Planning Review,
+	Specification Requirement Review,
+	etc.
+	Checklist is stored in a SQLite database
+
+- List tasks, objects in a specific baseline
+- Export history of objects and more specifically source files
+- Make a difference between 2 baselines
+
+doCID also includes a Synergy easy Command Line Interface
+
+User's manual
+*************
+Start
+=====
+
+.. image:: docid_login.png
+
+First of all you must log in with your **Synergy** *login* and *password* and then select at least a *system*.
+
+Parameter
+=========
+
+.. toctree::
+
+    parameters
+
+Create CID
+==========
+
+.. toctree::
+
+    cid
+	
+Create CCB
+==========
+
+.. toctree::
+
+    change
+	
+Create Review Report
+====================
+
+.. toctree::
+
+    review
+	
+Synergy specific commands
+=========================
+
+.. toctree::
+
+    synergy_specific
+	
+Synergy Easy Command Line Interface
+===================================
+
+.. toctree::
+
+    synergy_cli
+	
+Checker
+=======
+
+.. toctree::
+
+    check
+
+
+Download
+========
+
+.. toctree::
+
+    download
+	docid_release
+	change_log
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

@@ -1,0 +1,48 @@
+#
+# Fichier de configuration doCID contenant la description des documents list?s dans le CID
+#
+
+SSCS_ESSNESS_ET2788_S, SMS ESSNESS Supplier Specific Component Specification (SSCS),ET2788-S
+SMS_EPDS_ESSNESS_SPI_Annex_ET3547_S, SMS EPDS ESSNESS SPI Annex (ICD Data),ET3547-S
+SMS_EPDS_SPI_ICD_ET3532_S, SMS EPDS SPI ICD (ICD Protocol),ET3252-S
+SWRD_ENM_ET3135_S, Software Requirements Document,ET3135-S
+SHLDR_ENM_ET3196_S.xls,Software High-Level Derived Requirement document,ET3196-S
+PLDRD_TIE_ET2740_S, PLD Requirements Document,ET2740-S
+SMS_ESNESS_FUNC_HSID_ET2717_E, SMS ESSNESS FUNC HSID (HSID),ET2717-E
+51284H_MPLAB_Compiler, MPLAB® C COMPILER FOR PIC24 MCUs AND dsPIC® DSCs USER’S GUIDE,51284H
+51317G_Link_Asm, MPLAB® ASSEMBLER LINKER AND UTILITIES FOR PIC24 MCUs AND dsPIC® DSCs USER.S GUIDE,51317G
+70157F_Programmer_ref_guide,16-bit MCU and DSC Programmer's Reference Manual ,70157F
+70182C_DMA,Section 22. Direct Memory Access (DMA),70182C
+70183D_ADC,Section 16. Analog-to-Digital Converter (ADC),70183D
+70184C_Interrupt,Section 6. Interrupts,70184C
+70185C_ECAN,Section 21. ECAN,70185C
+70186E_Oscillator,Section 7. Oscillator,70186E
+70188E_UART,Section 17. UART,70188E
+70191E_FlashProg,Section 5. Flash Programming,70191E
+70192C_Reset,Section 8. Reset,70192C
+70193D_IOport,Section 10. I/O Ports,70193D
+70194F_DeviceConfiguration,Section 25. Device Configuration,70194F
+70195E_I2C,Section 19. Inter-Integrated Circuit,70195E
+70198D_InputCapture,Section 12. Input Capture,70198D
+70202C_DataMemory,Section 3. Data Memory ,70202C
+70203D_ProgramMemory,Section 4. Program Memory,70203D
+70204C_CPU,Section 2. CPU,70204C
+70205D_Timers,Section 11. Timers,70205D
+70206D_SPI,Section 18. Serial Peripheral Interface,70206D
+70209A_OutputCompare,Section 13. Output Compare,70209A
+70288C_DCI,Section 20. Data Converter Interface,70288C
+70593D_General,16-bit Digital Signal Controllers (up to 256 KB Flash and 30 KB SRAM) with Advanced Analog,70593D
+80483G_Errata,dsPIC33FJ256GPX06A/X08A/X10A Family Silicon Errata and Data Sheet Clarification,80483G
+MPLAB_C_Compiler_ReleaseNote,Release Notes for MPLAB® C Compiler for PIC24 MCUs and dsPIC DSCs,-
+A429_RX_hi3588,ARINC 429 Receiver with SPI Interface,DS3588G
+Counter_cd74hc4017,High-Speed CMOS Logic Decade Counter/Divider with 10 Decoded Outputs,SCHS200D
+Decoder_sn54hct138,3-Line to 8-Line Decoders/Demultiplexers,SCLS171E
+IOexpander_MCP23S17,16-Bit I/O Expander with Serial Interface,DS21952B
+TempSensor_LM75B,Digital temperature sensor and thermal watchdog,LM75B5
+VoltageDetector_tps3803, Voltage Detector,SLVS392A
+SMS_EPDS_DAL_GS3134, DAL assignment document,GS3134
+74HC_HCT151,8-input multiplexer,74HC_HCT151
+ADS 7953 BDBTG4,12/10/8-Bit 1 MSPS 16/12/8/4-Channel Single-Ended MicroPower Serial Interface ADCs,SLAS605A
+GS3682 Protection numerique,Protection numérique de cable à mémoire thermique,ECE/GS/3682
+Comparator_74HC_HCT85,Comparator,74HC_HCT85
+Shift_Register_74HC_HCT4094,Shift Register,74HC_HCT4094

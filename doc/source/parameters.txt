@@ -1,0 +1,62 @@
+Parameters folder
+*****************
+
+.. image:: docid_parameters.png
+	:width: 800px
+
+Introduction
+============
+
+This page contains all parameters used in all other folders:
+
+ - "Create CID": Generation of SCI, HCMR etc.
+ - "Create CCB": Generation of CCB reports and CR query
+ - "Create Review Report": Generation of review reports
+ - "Synergy specific command": synergy query on objects with baseline diff
+
+All entries like "Author" etc. may be used to populate the template if the appropriate tag is present in the template (ex: {{AUTHOR}})
+
+.. image:: docid_parameters_author.png
+
+The "Synergy built-in keywords"  part is used for **Synergy** queries.
+
+.. image:: docid_parameters_synergy.png
+
+Data is updated with Release [#release]_, Baseline [#baseline]_ and Project [#project]_ listbox below.
+
+.. image:: docid_parameters_relbasproj.png
+
+by clicking on "Add" button
+
+.. image:: docid_parameters_add.png
+
+triplet Release/baseline/project can be *pushed* in the stack below.
+
+.. image:: docid_parameters_stack.png
+
+The "Change Requests attributes" is used for **Change** queries.
+Entries are filled manually and are also used by the folder "Create CCB".
+One's need to click on "Set" button to populate entries in Create CCB".
+
+Finally one's can save and restore his configuration by selecting one item in the Configuration listbox and clicking on "Save" button
+
+.. rubric:: Footnotes
+
+.. [#release] Definition extracted from "Rational Synergy Build Manager's Guide, Release 7.1".
+    "A release enables you to mark projects, tasks, and folders for particular releases.
+    It also helps you to keep track of which object versions were developed for each release."
+    "When you create a new release, you can create it based on an existing release,
+    and the new release inherits properties of that release automatically."
+
+.. [#baseline] "A baseline is an object (of type baseline) in the Synergy database which is related to various objects including tasks,
+    project hierarchies etc. which together represent a milestone in your development cycle."
+    "A baseline is a set of projects and tasks used to represent your data at a specific point in time.
+    A baseline has many uses. When you perform an update, Rational Synergy uses a baseline as a starting point to look for new changes.
+
+.. [#project] "The database contains projects. A project is a user-defined group of related files, directories, and other projects.
+    A project normally represents a logical grouping of software, such as a library or an executable, and it contains the directory structure of the files.
+    Projects have version, like any other object."
+
+
+
+

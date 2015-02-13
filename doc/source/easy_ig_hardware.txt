@@ -1,0 +1,58 @@
+
+.. blockdiag::
+	
+	blockdiag {
+	   node_width = 160;
+	   span_width = 30;
+	   orientation = portrait;
+	   IG242001 <- IG021016 [label="System safety assessment feedback",folded]
+	   IG211001 -> IG242001 
+	   IG211002 -> IG242001
+	   IG200001 -> IG242001
+	   IG242000 -> IG242001
+	   IG220001 -> IG242001
+	   IG021013 -> IG242001
+	   IG242002 -> IG242000
+	   IG242000 -> IG021009 -> IG300001 -> IG021005 -> IG021006
+	   group{
+	   		shape = line;
+			color = "#BBB";
+			style = dotted;
+			IG242001;IG021016
+	   }
+	   group{
+			shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Peer Review"
+			IG200001
+	   }
+	   group{
+	   		shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Change Request"
+			IG211001;IG211002
+	   }	  
+	   group Agile{
+	   		shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Agile"
+			IG021005;IG021006   
+	   }
+
+	   IG242000 [label="IG 2.4.2.000 Processus de développement des cartes électroniques"]
+	   IG242001 [label="IG 2.4.2.001 Hardware Development Manual"]
+	   IG242002 [label="IG 2.4.2.002 Mentor Expedition User's Guide"]
+	   IG211001 [label="IG 2.1.1.001 CR Management"]
+	   IG211002 [label="IG 2.1.1.002 CR Guidelines"]
+	   IG200001 [label="IG 2.0.0.001 Peer Review Process"]
+	   IG021016 [label="IG 0.2.1.016 Derived Requirement Review"]
+	   IG021005 [label="IG 0.2.1.005 Modification de la définition des produits et des articles"]
+	   IG021006 [label="IG 0.2.1.006 Détermination de l'identification des documents de définition, des produits et des articles"]
+	   IG021013 [label="IG 0.2.1.013 Electronic Component Management Plan"]
+	   IG220001 [label="IG 2.2.0.001 Requirements Definition rules"]
+	   IG300001 [label="IG 3.0.0.001 Recette controle final"]
+	   IG021009 [label="IG 0.2.1.009 Dossier de définition"]
+	}

@@ -1,0 +1,34 @@
+Change
+------
+
+General
+^^^^^^^
+
+	- Major GUI modification
+	- Add Tool menu 
+	- Add EOC PN and HW/SW compatibility index reading from SRecord and Intel Hex file
+	- Add ENMU software component for MC21 in SQLite database
+	- Fill Part Number when selecting board or component
+	- Releases/Baselines/Projects Stack is no more displayed if empty
+	- All accesses from main command synergy thread to UI made by queueing
+ 
+CCB
+^^^
+
+	- Severity is now the true value when the CR is an evolution (it was due to software process which does not allow severity classification for evolution)
+	- Now several CR domains can be selected for CCB report generation
+	- TODO: Export actions items in Excel file.
+
+CID
+^^^
+
+	- Add Software Delivery Sheet generation
+	- Take into account .srec and .elf file.
+	- TODO: Consider BIN folder
+	- Read HW/SW compatibility index in EOC
+	- Correction display Release, Baseline and Project in SCI
+	- TODO: Add button to edit "functional limitations" and "operational limitations" field and open a dialogue box .
+
+Divers
+^^^^^^
+

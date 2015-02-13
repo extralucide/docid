@@ -1,0 +1,144 @@
+Les procédures logiciels ne sont plus applicables pour les nouveaux projets.
+Elles restent applicables pour les programmes A350, Legacy 450/550 etc.
+Les standards à appliquer pour les nouveaux programmes (F5X, G7000, MC21 etc.) sont
+
+.. blockdiag::
+	
+	blockdiag {
+	   node_width = 160;
+	   span_width = 30;
+	   orientation = portrait;
+	   IG211001 -> IG240000
+	   IG211002 -> IG240000
+	   IG200001 -> IG240000
+	   IG220001 -> IG240000 [folded];
+	   IG220002 -> IG240000
+	   IG220003 -> IG240000
+	   IG220001 -> IP220004
+	   IG021016 -> IG240000 [label="System safety assessment feedback",folded] 
+	   IG240000 -> ET3157
+	   IG240000 -> ET3158
+	   IG240000 -> ET3159	   
+	   IG240000 -> PSAC
+	   IG240000 -> SDP
+	   IG240000 -> SVP
+	   IG240000 -> SCMP
+	   IG240000 -> SQAP
+ 	   IG240000 -> IG300019
+	   
+	   group{
+			shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Peer Review"
+			IG200001
+	   }
+	   group{
+			orientation = portrait;
+			shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Requirements"
+			IG220001;IG220002;IG220003
+	   }
+	   group{
+			orientation = portrait;
+	   		shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Change Request"
+			IG211001;IG211002
+	   }	  
+	   group Agile{
+	   		shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Agile"
+			IG300019	   
+	   }
+	   group Standards{
+	        orientation = portrait;
+	   		shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Standards"
+			ET3157;ET3158;ET3159  
+	   }
+	   group Plans{
+			orientation = landscape;
+	   	   	shape = line;
+			color = "#BBB";
+			style = dotted;
+			PSAC;SDP;
+			group Integral{
+				orientation = portrait;
+				shape = line;
+				color = "#BBB";
+				style = dotted;
+				SQAP;SCMP;SVP
+			}
+	   }
+	   IG240000 [label="IG 2.4.3.000 Sw Development Manual"]
+	   IG211001 [label="IG 2.1.1.001 CR Management"]
+	   IG211002 [label="IG 2.1.1.002 CR Guidelines"]
+	   IG220001 [label="IG 2.2.0.001 Requirements and Specifications Definition Rules"]
+	   IG220002 [label="IG 2.2.0.002 Requirements and Specifications Definition Rules variant 1"]
+	   IG220003 [label="IG 2.2.0.003 Requirements and Specifications Definition Rules variant 2"]
+	   IG200001 [label="IG 2.0.0.001 Peer Review Process"]
+	   IG300019 [label="IG 3.0.0.019 Identification products"]
+	   IG021016 [label="IG 0.2.1.016 Derived Requirement Review"]
+	   ET3157 [label="ET3157 Software Coding standard"]
+	   ET3158 [label="ET3158 Software Design and Test standard"]	
+	   ET3159 [label="ET3159 Software Requirement and Test standard"]
+	   PSAC [label="ET3131 Plan for Software Aspect of Certification"]
+	   SDP [label="ET3132 Software Development Plan"]
+	   SVP [label="ET3133 Software Verification Plan"]
+	   SCMP [label="ET3134 Software Configuration Management Plan"]
+	   SQAP [label="PQ0.1.0.155 Software Quality Assurance Plan"]
+	}
+	
+Standards
+---------
+
++---------------------------+--------------------------------+-------------+--------------------------------------------------------------------+
+|Reference                  |Description                     |             |Ancienne reference                                                  |
++===========================+================================+=============+====================================================================+
+|`SCS_SW_STANDARD_ET3159`_  |SCS software standard issue 1.12|IG 3.0.0.014 |ECE Software Requirement Standard and Requirement Management Process|
++---------------------------+--------------------------------+-------------+--------------------------------------------------------------------+
+|`SDTS_SW_STANDARD_ET3158`_ |SDTS software standard issue 1.8|IG 3.0.0.025 |ECE Software Design Standard                                        |
++---------------------------+--------------------------------+-------------+--------------------------------------------------------------------+
+|`SRTS_SW_STANDARD_ET3157`_ |SRTS software standard issue 1.5|IG 3.0.0.021 |ECE C Coding Standard                                               |
++---------------------------+--------------------------------+-------------+--------------------------------------------------------------------+
+
+Il sont accessibles dans la base de données `Synergy`_ db_tools:
+
+Plans F5X
+---------
+
+============================== ==== ========================================= ===
+`PSAC_SW_PLAN_PDS_SDS_ET3131`_ PSAC Plan for Software Aspect of Certification 2.0
+`SDP_SW_PLAN_ET3132`_          SDP  Software Development Plan                 1.9
+`SVP_SW_PLAN_ET3133`_          SVP  Software Verification Plan                2.0
+`SCMP_SW_PLAN_ET3134`_         SCMP Software Configuration Management Plan    2.0
+`SQAP_SW_PLAN_PQ 0.1.0.155`_   SQAP Software Quality Assurance Plan           2.0
+============================== ==== ========================================= ===
+
+.. image:: ../../img/1125.strip.sunday.gif
+
+.. _SCS_SW_STANDARD_ET3159: doc/SCS_SW_STANDARD_ET3159-1.12.pdf
+
+.. _SDTS_SW_STANDARD_ET3158: doc/SDTS_SW_STANDARD_ET3158-1.8.pdf
+
+.. _SRTS_SW_STANDARD_ET3157: doc/SRTS_SW_STANDARD_ET3157-1.5.pdf
+
+.. _PSAC_SW_PLAN_PDS_SDS_ET3131: doc/PSAC_SW_PLAN_PDS_SDS_ET3131.pdf
+
+.. _SDP_SW_PLAN_ET3132: doc/SDP_SW_PLAN_ET3132-1.9.pdf
+
+.. _SVP_SW_PLAN_ET3133: doc/SVP_SW_PLAN_ET3133-2.0.pdf
+
+.. _SCMP_SW_PLAN_ET3134: doc/SCMP_SW_PLAN_ET3134-2.0.pdf
+
+.. _SQAP_SW_PLAN_PQ 0.1.0.155: doc/SQAP_SW_PLAN_PQ_0.1.0.155-2.0.pdf
+
+.. _Synergy: http://spar-syner1.in.com:8602

@@ -1,0 +1,14 @@
+Synergy commands examples
+=========================
+
+Examples::
+
+    task -u -qu -rel SW_PLAN/01 -f "%displayname %status %task_synopsis"
+    task -show objects 602
+    task -show info 21
+    task -show change_request 68
+    query "is_child_of('SwRD-1.4:dir:2', cvtype='project' and name='SW_ENM' and version='3.6')"
+    query -sby name -ch -n "SQAP_SW_PLAN_PQ 0.1.0.155.docx" -release SW_PLAN/01 -f "%name %version %task %task_synopsis %change_request %change_request_synopsis"
+    query -sby name -ch -n *.* -release A267/11  -f "%name %version %modify_time %status %task %change_request"
+    dir SW_PLAN_WDS\PSAC@SW_PLAN_WDS:doc
+    baseline -c SW_PLAN_SQA_01_01 -d "Create planning review baseline" -r SW_PLAN/01 -purpose "For planning review actions tracking" -p SW_PLAN_SQA-1.0

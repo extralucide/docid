@@ -1,0 +1,39 @@
+Checklist model
+---------------
+*review\_checklists\_dispatch*
+
+- sub_category: Standards / Project documents / Preliminary Safety Assessment etc.
+- check_id: id de la table **review_checklists**
+- category_id: id de la table **category_checklist**
+- id: auto-increment
+- rank: ordre d'apparatition dans le document produit
+- review_id: id de la table **review_types**
+
+*review\_checklists*
+
+- level: niveau de conformit&eacute; du logiciel
+- id: auto-increment
+- name: check
+
+*category\_checklist*
+
+- id: auto-increment
+- name:
+<table>
+    <tr><th>ID</th><th>Checks</th></tr>
+    <tr><td>1</td><td>Input Items</td></tr>
+    <tr><td>2</td><td>Development Activities</td></tr>
+    <tr><td>3</td><td>Verification Activities</td></tr>
+    <tr><td>4</td><td>Transition Criteria</td></tr>
+    <tr><td>5</td><td>Change Control Activity</td></tr>
+    <tr><td>6</td><td>Software Quality Assurance Activity</td></tr>	
+</table>
+	
+*review\_types*
+
+- id: auto-increment
+- name: PR / SRR / SDR / SCOR etc.
+- description: Software Plan Review / Software Requirement Review etc.
+- objective:
+- transition:
+- conlusion:

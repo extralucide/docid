@@ -1,0 +1,370 @@
+body {
+	width:1124px;
+	height: 800px;
+	margin: 0 auto;
+	padding: 0;	
+	font: 0.8em/21px arial,sans-serif;
+	background-color: #E4E4E4;
+}
+h1, h2 {
+	margin-top: 0.25em;
+	margin-right: 0pt;
+	margin-bottom: 0.25em;
+	margin-left: 0pt;
+	font-family: "Century Gothic","Trebuchet MS",Helvetica,Arial,Geneva,sans-serif;
+	font-style: normal;
+	font-variant: normal;
+	font-weight: normal;
+	font-size: 1.4em;
+	line-height: 1.0;
+	font-size-adjust: none;
+	font-stretch: normal;
+	-x-system-font: none;
+	letter-spacing: 1px;
+}
+a /* Contenu des listes */
+{
+        display : block; /* on change le type d'?l?ment, les liens deviennent des balises de type block */
+        padding : 0; /* aucune marge int?rieure */
+       /*  background-image: url('../images/menu_tile_twin.jpg');  */   
+        text-decoration : none; /* on supprime le style par d?faut des liens (la plupart du temps = soulign?) */
+        /* width : 128px; */ /* largeur */
+        position:relative;
+        /* border : 1px solid #fff */
+        z-index:9;
+}
+
+ul {
+	list-style : none;
+	margin:0;
+    padding:0;
+}
+p {
+    /* border:1px solid black; */
+    padding:0px;
+    margin:0px;
+}
+
+.list_saq{
+	color:black;
+	background-color:Beige;
+	margin-left:10px;
+}
+
+ul.hidden {
+	display: none;
+    *display: inline; /* Hack pour IE */
+}
+p.hidden {
+	display: none;
+    *display: inline; /* Hack pour IE */
+}
+ul.visible {
+    display: inline-block;
+    *zoom: 1;
+    *display: inline;
+}
+
+li ul li a:hover 
+{
+	background: #B2B2B2;
+	color: #777777;
+}
+div#main{
+	background-color:#FFFFFF;
+}
+/* Header Zodiac */
+div#bandeau {
+	height:60px;
+	background-color:#FFFFFF;
+	background-image: url('../img/header_ece_zodiac_1124.jpg');
+	background-repeat: no-repeat;
+}
+/* Title */
+div#bandeau2 {
+	float:left;
+	position:relative;
+	top:5px;
+	left:350px;
+}
+/* Footer Zodiac */
+div#piedpage {
+	/* width:1024px; */
+	height:68px;
+	background-color:#EEEEEE;
+	background: url("../img/mastering_the_elements_1124.jpg") no-repeat left top;
+	clear:both;
+	z-index:1;
+}
+.copyright{
+	display:block;
+	text-align:center;
+	padding: 20px 0 0 0;
+	color:#AAA
+}
+/* 
+ * For folder
+ */
+#page_tabs {
+	overflow: hidden;
+	height: 48px;
+	padding-left: 4px;
+}
+#page_tabs div {
+	color: #000000;
+	font-size: 1em;
+	background: #F9F9F9 url("../img/tabs.png") repeat-x left 0px;
+	text-align: center;
+	float: left;
+	cursor: pointer;
+	white-space: nowrap;
+	padding: 11px;
+	border-right: 1px solid #DBDBDB;
+	border-left: 1px solid #B5B5B5;
+	border-top: 1px solid #B5B5B5;
+	margin-top: 1px;
+	margin-right: 1px;
+	-moz-border-radius: 5px 5px 0px 0px;
+	-webkit-border-radius: 5px 5px 0px 0px;
+	border-radius: 5px 5px 0px 0px;
+}
+#page_tabs div img {
+	height: 14px;
+	margin-top: 2px;
+	margin-left: 5px;
+	margin-right: 5px;
+}
+#page_tabs div:hover, #page_tabs div.cssHover {
+	background-position: left -45px;
+}
+#page_tabs div.active {
+	background-position: left -95px;
+	border-right: 1px solid #666;
+	border-left: 1px solid #666;
+	border-bottom: none;
+	margin-right: 1px;
+	margin-left: 1px;
+	font-weight: bold;
+}
+#page_content {
+	background: transparent;
+	padding: 20px 10px;
+	border-right: 1px solid #CCCCCC;
+	border-bottom: 1px solid #CCCCCC;
+	border-left: 1px solid #CCCCCC;
+	border-top: 1px solid #F4F4F4;
+	-moz-border-radius: 5px 5px 5px 5px;
+	-webkit-border-radius: 5px 5px 5px 5px;
+	border-radius: 5px 5px 5px 5px;
+}
+div.nice_square {
+	background: transparent;
+	/*background-color: #555;*/
+	margin-left: 0px;
+	padding-top: 10px;
+	padding-left: 10px;
+	border-right: 1px solid #CCCCCC;
+	border-bottom: 1px solid #CCCCCC;
+	border-left: 1px solid #CCCCCC;
+	border-top: 1px solid #F4F4F4;
+	-moz-border-radius: 5px 5px 5px 5px;
+	-webkit-border-radius: 5px 5px 5px 5px;
+	border-radius: 5px 5px 5px 5px;
+	overflow:visible;
+	min-height:600px;
+	z-index:10;
+}
+
+.clearer {
+	clear: both;
+}
+div.warning{
+	margin: 2px 2px 5px 2px;
+	padding: 10px 10px 10px 35px;
+	border: 1px solid #FDEAD0;
+	color: #000;
+	width: auto;
+	height: auto;
+	background: #FEF4E7 url("../img/warning.gif") no-repeat 5px 5px;
+	/* height: 1%; *//*IE6*/
+}
+.group{
+    margin-left:10px;
+    width: 1024px;
+    /* border-bottom: 1px solid #999; */
+    /* border-left: 1px solid #999 */
+}
+.sub_group{
+    margin-left:10px
+}
+.articulation{
+    margin-left:10px
+}
+a.wide{
+    width:800px;
+}
+.obsolete_and_header {
+	color:Lime;
+	background-color:DarkOrange;
+}
+.obsolete {
+	color:white;
+	background-color:gray;
+}
+.top_ig {
+	color:green;
+	background-color:Turquoise;
+}
+.light {
+    padding:1px
+    margin-left:50px;
+	color:#888;
+	background-color:#d5dbe1;
+}
+.dark {
+    padding:1px
+    margin-left:50px
+	color:#CCC;
+	background-color:#d0d0e0;
+}
+.saq_light {
+    margin-left:0px;
+	color:#CCC;
+	background-color:#a5dbe1;
+}
+.saq_dark {
+    margin-left:0px
+	color:#CCC;
+	background-color:#a0d0e0;
+}
+/* From https://pypi.python.org/pypi/blockdiag/ */
+#menu
+{
+
+  padding:0;
+  margin-bottom: 5px;
+  width: 16em;
+  font-size:75%;
+}
+
+#menu ul
+{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+#menu li
+{
+  /* display:inline; */
+}
+
+#menu ul.level-one a.short
+{
+  display: block;
+  border: 1px solid #DADADA;
+  padding: 2px 2px 2px 4px;
+  margin: 0 0 4px 1.4em;
+  width: 20em !important;
+  width /**/: 13.4em;
+  font-family: Verdana, Geneva, "Bitstream Vera Sans", Helvetica, sans-serif;
+  color: #4B5A6A;
+  background-image: url("../img/nav-off-bg.png");
+  background-position: top right;
+  background-repeat: no-repeat;
+  background-color:#F5F5F5;
+  text-transform: uppercase
+
+}
+
+/*\*//*/
+#menu ul.level-one a
+{
+  width: 13.4em !important;
+}
+/**/
+
+#menu ul.level-one a:hover
+{
+  color:black;
+  text-decoration:underline;
+}
+
+#menu ul.level-one a.selected
+{
+  background-image: url(img/nav-on-bg.png);
+  background-color: #FFFFFF;
+  color:black;
+  border-left:3px solid #FFDB4C;
+}
+.down_arrow {
+  display: block;
+  margin:4px 0 0 0;
+  padding:16px 0 0 0;
+  width:16px;
+  border-style:none;
+  background: url("../img/down_arrow_2.png") no-repeat;
+}
+/* root element for accordion. decorated with rounded borders and gradient background image */
+.accordion {
+    background:#EEE;
+    width: 90%;
+    border:1px solid #333;
+    /* -background:#666; */
+}
+
+/* accordion header */
+.accordion h2 {
+    background:#ccc url("../img/tabs.png") repeat-x left 0px;
+    margin:0;
+    padding:5px 5px;
+    font-size:14px;
+    font-weight:normal;
+    border:1px solid #fff;
+    border-bottom:1px solid #ddd;
+    cursor:pointer;
+    color: #000;
+}
+.saq{
+    margin-left:20px;
+    width:95%;
+    background-color:#EEE;
+    border:0px solid #333;
+}
+.saq h2{
+    width:30px;
+    background:#ccc url("../img/dolphin_bg.gif") repeat-x left 0px;
+    margin:0;
+}
+
+.date_published{
+    float:right
+}
+.list_ig{
+    width:80%
+}
+
+
+/* currently active header */
+.accordion h2.current {
+    cursor:default;
+    background-color:#bbb;
+}
+
+/* accordion pane */
+.accordion .pane {
+    display:none;
+
+    padding:15px;
+    color:#fff;
+    font-size:12px;
+}
+
+/* a title inside pane */
+.accordion .pane h3 {
+    font-weight:normal;
+    margin:0 0 -5px 0;
+    font-size:16px;
+    color:#999;
+}

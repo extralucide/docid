@@ -1,0 +1,63 @@
+Nouvelle release easyIG 0.3.0
+=============================
+
+.. |sheet| image:: ../../img/news_alt2.png
+	:align: top
+
+..  |procimg| image:: ../../img/id_proc.png
+	:align: top
+
+|sheet| Voici la nouvelle version de l'application **easyIG** enfin compatible avec **Internet Explorer**
+qui permet de classifier les procédures `Zodiac Aero Electric`_ qui proviennent de la page `intranet`_
+conformément à l'annexe 1 *tableau de classification des procédures* de la procédure `IG 0.4.0.001`_ [R1]_ et à la procédure `IG 2.0.0.000`_ [R2]_.
+
+.. note::
+
+   N'oubliez pas d'activer le JavaScript.
+
+Une base de données additionnelle *SQLite* permet de classifier suivant les thèmes:
+
+- Logiciel,
+- FPGA,
+- Hardware,
+- Agile,
+- Bancs de test,
+- etc.
+
+L'onglet **New** affiche les procédures nouvellement publiées et sont triées par date par ordre décroissant.
+
+Disponible ici
+--------------
+
+.. image:: ../../img/Downloads_metal.png
+   :alt: easyIG v0.3.0 installer
+   :target: file://///Spar-nas2/commun%20qualite/02%20-%20Qualit%C3%A9%20d%C3%A9veloppement/Appere/easyIG/easyig_v0.3.0_installer.exe
+
+Capture d'écran
+---------------
+
+.. image:: ../../img/easyig.png
+    :width: 800px
+
+Technologie
+-----------
+
+Carbure au **JQuery**, **Django**, **SQLite** et **Python**.
+
+.. _intranet: http://intranet-ece.in.com/dq/documentation/procedures_zodiac_aero_electric
+
+.. _Zodiac Aero Electric: http://intranet.zodiac.lan/
+
+.. _IG 0.4.0.001: http://intranet-ece.in.com:8080/dq_docece_data/51.pdf
+
+.. _IG 2.0.0.000: http://intranet-ece.in.com:8080/dq_docece_data/610.pdf
+
+.. rubric:: Footnotes
+
+.. [R1] "Maîtrise des documents et procédures". Cette procédure défini entre autre comment est identifiée une procédure. |procimg|
+
+.. [R2] "Maîtrise du référentiel de l'ingénierie". Cette procédure défini le groupe 2 correspondant au référentiel de l'ingénierie.
+
+.. include:: dilbert.html
+   :literal:
+ 

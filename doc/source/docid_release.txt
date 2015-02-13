@@ -1,0 +1,66 @@
+Nouvelle release doCID 3.6.2
+============================
+
+.. |sheet| image:: img/news_alt2.png
+	:align: top
+
+..  |procimg| image:: img/id_proc.png
+	:align: top
+
+|sheet| Voici la nouvelle version de l'application **doCID**.
+
+
+Disponible ici
+--------------
+
+.. image:: img/Downloads_metal.png
+   :alt: doCID v3.6.1 installer
+   :target: http://pcpar566/qams/docid/download/doCID_v3_6_2_install.exe
+   
+Ou dans Synergy dans le projet 
+
+**db_sms_pds\\TOOLS_QA-dev_appere\\TOOLS_QA\\doCID**
+
+Installation
+------------
+
+S'installe dans le répertoire choisi par l'utilisateur en double-cliquant sur **doCID_v3_6_2_installer.exe**
+
+
+Démarrage
+---------
+
+Pour démarrer il faut entrer son identifiant et son mot de passe **Synergy**
+
+.. image:: img/login.png
+
+Il est possible de démarrer automatiquement sans avoir à rentrer son **identifiant** et son **mot de passe** 
+à chaque fois en modifiant le fichier de configuration **docid.ini** dans le répertoire **conf**
+
+.. code-block:: ini
+
+	[User]
+	login=appereo1
+	password=
+	author=O. Appere
+
+
+Documentation
+-------------
+
+La documentation est accessible ici:
+
+.. image:: img/access_doc.png
+
+Change log
+----------
+
+.. include:: change_log.txt
+
+
+Capture d'écran
+---------------
+
+.. image:: img/docid.png
+    :width: 800px
+	

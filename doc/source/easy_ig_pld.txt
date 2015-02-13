@@ -1,0 +1,46 @@
+Les procédure **IG 0.2.1.003: FPGA : Méthodologie de développement** n'est plus applicable pour les nouveaux projets.
+La procédure à appliquer dorénavant est **IG 2.4.3.000: Programmable Logic Device Hardware Development Manual** 
+
+.. blockdiag::
+	
+	blockdiag {
+	   node_width = 160;
+	   span_width = 30;
+	   orientation = portrait;
+	   IG211001 -> IG243000
+	   IG211002 -> IG243000
+	   IG200001 -> IG243000
+	   IG243000 <- IG300023
+	   IG243000 -> IG300019
+	   IG243000 <- IG021016 [label="System safety assessment feedback",folded]
+	   IG021006 -> IG300019
+	   group{
+			shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Peer Review"
+			IG200001
+	   }
+	   group{
+	   		shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Change Request"
+			IG211001;IG211002
+	   }	  
+	   group Agile{
+	   		shape = line;
+			color = "#BBB";
+			style = dotted;
+			label="Agile"
+			IG021006;IG300019	   
+	   }
+	   IG243000 [label="IG 2.4.3.000 PLD Hw Development Manual"]
+	   IG211001 [label="IG 2.1.1.001 CR Management"]
+	   IG211002 [label="IG 2.1.1.002 CR Guidelines"]
+	   IG200001 [label="IG 2.0.0.001 Peer Review Process"]
+	   IG300019 [label="IG 3.0.0.019 Identification products"]
+	   IG300023 [label="IG 3.0.0.023 VHDL Coding Standard"]
+	   IG021016 [label="IG 0.2.1.016 Derived Requirement Review"]
+	   IG021006 [label="IG 0.2.1.006 Détermination de l'identification des documents de définition, des produits et des articles "]
+	}
