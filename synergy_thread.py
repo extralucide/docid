@@ -21,7 +21,7 @@ from openpyxl.styles.borders import BORDER_THIN,BORDER_MEDIUM
 from check_llr import CheckLLR
 from check_is import CheckIS
 from export_derived import Derived
-from get_ig_jquery import easyIG,getQA
+from get_ig_jquery import easyIG,getQA,exportIS_HTML
 from datetime import datetime
 from conf import VERSION
 from convert_xml_html import HtmlConverter
@@ -116,6 +116,7 @@ class ThreadQuery(threading.Thread,Synergy):
         self.dico_cr_transition = {}
         self.easyig = easyIG()
         self.getqa = getQA()
+        self.export_is_html = exportIS_HTML()
 
     def stopSession(self):
         if self.session_started:
@@ -179,7 +180,6 @@ class ThreadQuery(threading.Thread,Synergy):
                                                                                           cr_domain))
                     self.build_doc_thread.start()
                 elif action == "EASY_IG":
-                    self.master_ihm.log("Launch easyIG.")
                     self.easy_ig_thread = threading.Thread(None,self._easyIG,None)
                     self.easy_ig_thread.start()
                 elif action == "GET_QA_ACTIONS":
@@ -557,14 +557,42 @@ class ThreadQuery(threading.Thread,Synergy):
                     dirname_req = self.queue.get(2)
                     filename_is = self.queue.get(3)
                     component = self.queue.get(4)
-                    self.send_cmd_thread = threading.Thread(None,self._checkISCmd,None,(dirname_upper,dirname_req,filename_is,component,True))
+                    skip_change_synergy_var = self.queue.get(5)
+                    self.send_cmd_thread = threading.Thread(None,self._checkISCmd,None,(dirname_upper,
+                                                                                        dirname_req,
+                                                                                        filename_is,
+                                                                                        component,
+                                                                                        True,
+                                                                                        skip_change_synergy_var
+                    ))
+                    self.send_cmd_thread.start()
+                elif action == "EXPORT_IS_SYNTHESIS":
+                    dirname_upper = self.queue.get(1)
+                    dirname_req = self.queue.get(2)
+                    filename_is = self.queue.get(3)
+                    component = self.queue.get(4)
+                    skip_change_synergy_var = self.queue.get(5)
+                    self.send_cmd_thread = threading.Thread(None,self._checkISCmd,None,(dirname_upper,
+                                                                                        dirname_req,
+                                                                                        filename_is,
+                                                                                        component,
+                                                                                        True,
+                                                                                        skip_change_synergy_var,
+                                                                                        True
+                    ))
                     self.send_cmd_thread.start()
                 elif action == "CHECK_IS_LLR":
                     dirname_upper = self.queue.get(1)
                     dirname_req = self.queue.get(2)
                     filename_is = self.queue.get(3)
                     component = ""
-                    self.send_cmd_thread = threading.Thread(None,self._checkISCmd,None,(dirname_upper,dirname_req,filename_is,component))
+                    skip_change_synergy_var = self.queue.get(5)
+                    self.send_cmd_thread = threading.Thread(None,self._checkISCmd,None,(dirname_upper,
+                                                                                        dirname_req,
+                                                                                        filename_is,
+                                                                                        component,
+                                                                                        False,
+                                                                                        skip_change_synergy_var))
                     self.send_cmd_thread.start()
                 elif action == "CHECK_IS_DOC":
                     filename_is = self.queue.get(1)
@@ -706,7 +734,9 @@ class ThreadQuery(threading.Thread,Synergy):
         self.easyig.start()
 
     def _getQA(self,qams_user_id,url_root,name=""):
-        filename = self.getqa.get(qams_user_id,url_root=url_root,name=name)
+        filename = self.getqa.get(qams_user_id,
+                                  url_root=url_root,
+                                  name=name)
         self.master_ihm.displayHyperlink("hlink_local_qams",filename,"Local web page created.")
         self.getqa.start()
 
@@ -1740,7 +1770,7 @@ class ThreadQuery(threading.Thread,Synergy):
         self.master_ihm.log("ccm " + query)
         stdout = self._ccmCmd(query)
         # Set scrollbar at the bottom
-        self.master_ihm.general_output_txt.see(END)
+        #self.master_ihm.general_output_txt.see(END)
 
     def _getSessionStatus(self):
         '''
@@ -1774,7 +1804,9 @@ class ThreadQuery(threading.Thread,Synergy):
                     dirname_req="",
                     filename_is="",
                     component="",
-                    hlr_selected=False):
+                    hlr_selected=False,
+                    skip_change_synergy_var=0,
+                    exportHTML=False):
         """
         This function checks Inspection Sheet document for specification
         :param dirname_upper:
@@ -1784,11 +1816,11 @@ class ThreadQuery(threading.Thread,Synergy):
         :return:
         """
 
-        skip_change_synergy_var = self.master_ihm.skip_change_synergy_var.get()
+        #skip_change_synergy_var = self.master_ihm.skip_change_synergy_var.get()
         #print "SKIP:",skip_change_synergy_var
-        check_is = CheckIS(dirname_req,
+        check_is = CheckIS(basename=dirname_req,
                            hlr_selected = hlr_selected,
-                           general_output_txt = self.master_ihm.general_output_txt,
+                           callback = self.master_ihm.log,
                            session_started=True)
         if hlr_selected:
             tbl_type=["SWRD","PLDRD"]
@@ -1805,15 +1837,32 @@ class ThreadQuery(threading.Thread,Synergy):
                                                                   component=component)
 
         # Export results of analysis in an Excel workbook
-        report_filename = check_is.export(doc_upper = doc_upper,
-                                          doc_inspected = doc_inspected,
-                                          filename_is = filename_is_short)
+        if dirname_req != "":
+            spec_available = True
+        else:
+            spec_available = False
+        if not exportHTML:
+            report_filename = check_is.export(doc_upper = doc_upper,
+                                              doc_inspected = doc_inspected,
+                                              filename_is = filename_is_short,
+                                              spec_available=spec_available)
+        else:
+            # export HTML
+            report_filename = self.export_is_html.exportHTML(doc_upper = doc_upper,
+                                                  doc_inspected = doc_inspected,
+                                                  filename_is = filename_is_short,
+                                                  spec_available=spec_available,
+                                                  list_reqs_is=check_is.dico_results,
+                                                  dico_errors=check_is.dico_errors,
+                                                  list_reqs_spec = check_is.tbl_list_llr)
+            self.master_ihm.displayHyperlink("hlink",report_filename,"Web page created.")
+            self.export_is_html.start()
         check_is.closeLog()
         if check_is.log_filename is not None:
             self.master_ihm.displayHyperlink("hlink1",check_is.log_filename)
 
         if report_filename is not None:
-            self.master_ihm.resultGenerateCID(filename,
+            self.master_ihm.resultGenerateCID(report_filename,
                                                 False,
                                                 text="INSPECTION CHECK")
         if 0==1:
@@ -1823,6 +1872,7 @@ class ThreadQuery(threading.Thread,Synergy):
                 self.master_ihm.success.config(fg='magenta',bg = 'green',text="INSPECTION CHECK SUCCEEDED")
             else:
                 self.master_ihm.success.config(fg='yellow',bg = 'red',text="INSPECTION CHECK FAILED")
+        return check_is
 
     def _checkISDocCmd(self,filename_is,verif_issue_cr_process_start):
         """
@@ -1831,10 +1881,9 @@ class ThreadQuery(threading.Thread,Synergy):
         :param verif_issue_cr_process_start:
         :return:
         """
-        self.master_ihm.success.config(fg='red',bg = 'yellow',text="INSPECTION CHECK IN PROGRESS ...")
         skip_change_synergy_var = self.master_ihm.skip_change_synergy_var.get()
         check_is = CheckIS("",
-                           general_output_txt = self.master_ihm.general_output_txt)
+                           callback = self.master_ihm.log)
         check_is.openLog("Generic")
         result = check_is.CheckISGeneric(filename_is,skip_change_synergy_var,verif_issue_cr_process_start)
         check_is.logErrors()
@@ -1864,7 +1913,7 @@ class ThreadQuery(threading.Thread,Synergy):
         dico_timestamp["begin_script"] = datetime.now()
         export_is = CheckIS(dirname_req,
                            hlr_selected = hlr_selected,
-                           general_output_txt = self.master_ihm.general_output_txt,
+                           callback = self.master_ihm.log,
                            session_started=True)
 
         if not hlr_selected:
@@ -1882,7 +1931,8 @@ class ThreadQuery(threading.Thread,Synergy):
         print "tbl_file_llr_wo_del",export_is.tbl_file_llr_wo_del
         print "tbl_list_llr",export_is.tbl_list_llr
         # Extract requirements from upper specifications.
-        upper = CheckLLR(dirname_upper,hlr_selected=True)
+        upper = CheckLLR(dirname_upper,
+                         hlr_selected=True)
         if hlr_selected:
             upper.openLog("SSCS")
             list_upper = upper.getListUpper()
@@ -1938,7 +1988,7 @@ class ThreadQuery(threading.Thread,Synergy):
                      hlr_selected=False,
                      list_spec=("SWRD","PLDRD"),
                      hsid_dirname=""):
-        self.master_ihm.success.config(fg='red',bg = 'yellow',text="SPECIFICATION CHECK IN PROGRESS ...")
+
         # Launch clock
         dico_timestamp={}
         dico_timestamp["begin_script"] = datetime.now()

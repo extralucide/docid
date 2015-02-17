@@ -35,6 +35,7 @@ except ImportError:
 from os.path import join
 from tool import Tool
 from conf import VERSION
+from check_llr import CheckLLR
 
 # create a subclass and override the handler methods
 class ApiSQLite():
@@ -597,10 +598,15 @@ class getQA(ApiSQLite):
             print "Missing Django module."
         except RuntimeError:
             print "Settings already configured."
+
     def start(self):
         os.startfile(self.filename)
 
-    def get(self,qams_user_id,action_id=False,url_root="localhost",name=""):
+    def get(self,
+            qams_user_id,
+            action_id=False,
+            url_root="localhost",
+            name=""):
         url = "http://{:s}/qams/atomik/index.php?action=export/export_docid_actions_list&user_id={:d}".format(url_root,qams_user_id)
         if action_id:
             url += "&action_id={:d}".format(action_id)
@@ -626,6 +632,111 @@ class getQA(ApiSQLite):
                 html_handler.write(rendered_filtered)
             except UnicodeEncodeError,e:
                 print e
+        return self.filename
+
+class exportIS_HTML(ApiSQLite,getQA):
+
+    def __init__(self):
+        getQA.__init__(self)
+
+    def get(self):
+        pass
+
+    def exportHTML(self,
+               doc_upper="",
+               doc_inspected="",
+               filename_is="",
+               spec_available=True,
+               list_reqs_is={},
+               dico_errors={},
+               list_reqs_spec={}):
+
+        # Prepare HTML document
+        #print "exportHTML:list_reqs",list_reqs
+        #print "exportHTML:dico_errors",dico_errors
+        print "exportHTML:list_reqs_spec",list_reqs_spec
+        color_flag = 0
+        ul_root = ET.Element('ul')
+        tbl_group = []
+        tbl_sub_group = []
+        tbl_articulation = []
+        tbl_ig = []
+        index_group = 1
+        #build_list_req_failed = []
+        for req in list_reqs_is["REQ_ANALYSIS"]:
+            req_id = req[0]
+            # List errors
+            #for status,is_rule,folder,req_id_error,srts_rule,comment in dico_errors.iteritems():
+            # IS Check report with errors
+            found_error = False
+            found_req_analysis_error = False
+            found_req_review_error = False
+            found_upper_req_analysis_error = False
+            index_sub_group = 0
+            for list,error in dico_errors.iteritems():
+                type = "ERROR"
+                status,rule_tag,localisation,req_id_error,rule = list
+                #localisation = list[2]
+                #req_id_error = list[3]
+                #rule = list[4]
+
+                if req_id == req_id_error:
+                    found_error = True
+                    if rule == "":
+                        rule = rule_tag
+                    #tbl_sub_group.append((index_group,0,txt))
+                    txt = "{:s}: {:s}".format(rule,error[0])
+                    #build_list_req_failed.append
+                    if localisation == "REQ REVIEW":
+                        found_req_review_error = True
+                        tbl_articulation.append((index_group,0,0,txt))
+                        #list_req_review.append(req_id_error)
+                    if localisation == "REQ ANALYSIS":
+                        found_req_analysis_error = True
+                        tbl_articulation.append((index_group,1,0,txt))
+                        #list_req_analysis.append(req_id_error)
+                else:
+                    # Refered to upper requirement problem
+                    if localisation == "UPPER REQ ANALYSIS":
+                        # Check if upper requirement is linked to this requirement
+                        if req_id in list_reqs_spec:
+                            value = list_reqs_spec[str(req_id)]
+                            refer = CheckLLR.getAtribute(value,"refer")
+                            if req_id_error != "" and req_id_error in refer:
+                                found_error = True
+                                found_upper_req_analysis_error = True
+                                print "REQUIREMENT",req_id_error
+                                txt = "{:s}: {:s}".format(req_id_error,error[0])
+                                tbl_articulation.append((index_group,2,0,txt))
+
+            if found_error:
+                tbl_group.append((index_group,req_id))
+            if found_req_review_error:
+                tbl_sub_group.append((index_group,0,"REQ REVIEW"))
+            if found_req_analysis_error:
+                tbl_sub_group.append((index_group,1,"REQ ANALYSIS"))
+            if found_upper_req_analysis_error:
+                tbl_sub_group.append((index_group,2,"UPPER REQ ANALYSIS"))
+            #if not found_error:
+            #        tbl_sub_group.append((index_group,0,"No errors."))
+
+            index_group += 1
+        #tbl_ig.append("TEST")
+        date = datetime.now().strftime('%A %d %b %Y')
+        heure = datetime.now().strftime('%H:%M:%S')
+        generated = "Page created by doCID version {:s} on {:s} at {:s}".format(VERSION,date,heure)
+        try:
+            rendered = render_to_string('is_report.html', {'tbl_group':tbl_group,
+                                                                'tbl_sub_group':tbl_sub_group,
+                                                                'tbl_articulation': tbl_articulation,
+                                                                'tbl_ig':tbl_ig,
+                                                                'GENERATED_DATE':generated})
+        except NameError,e:
+            rendered = "<p>Django rendering failed.</p>"
+            print e
+        with open(self.filename, 'w') as html_handler:
+            html_handler.write(rendered)
+
         return self.filename
 
 class easyIG(ApiSQLite):

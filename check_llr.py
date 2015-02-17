@@ -43,6 +43,7 @@ except ImportError:
     warnings.warn("Module matplotlib.pyplot is missing")
 except RuntimeError,e:
     warnings.warn("Module matplotlib.pyplot data are missing")
+from conf import VERSION
 
 class checkMatrix(Tool):
     @staticmethod
@@ -298,14 +299,19 @@ class CheckLLR(Tool,Conf):
             self.log_handler.write(text + "\n")
         else:
             print text
-        if "general_output_txt" in self.__dict__ and gui_display:
+        if "callback" in self.__dict__ and gui_display:
             if error:
-                color = "yellow"
-                self.general_output_txt.tag_configure("color", foreground=color)
-                self.general_output_txt.insert(END, time.strftime("%H:%M:%S", time.localtime()) + " " + text + "\n", "color")
+                self.callback(text,color = "yellow",display_gui=gui_display)
             else:
-                self.general_output_txt.insert(END, time.strftime("%H:%M:%S", time.localtime()) + " " + text + "\n")
-            self.general_output_txt.see(END)
+                self.callback(text,display_gui=gui_display)
+            if 0==1:
+                if error:
+                    color = "yellow"
+                    self.general_output_txt.tag_configure("color", foreground=color)
+                    self.general_output_txt.insert(END, time.strftime("%H:%M:%S", time.localtime()) + " " + text + "\n", "color")
+                else:
+                    self.general_output_txt.insert(END, time.strftime("%H:%M:%S", time.localtime()) + " " + text + "\n")
+                self.general_output_txt.see(END)
 
     def closeLog(self):
         # Close opened file
@@ -1223,7 +1229,8 @@ class CheckLLR(Tool,Conf):
     def export(self,
                doc_upper="",
                doc_inspected="",
-               filename_is=""):
+               filename_is="",
+               spec_available=True):
         """
         Create report for IS check.
         Use openpyxl package
@@ -1254,7 +1261,7 @@ class CheckLLR(Tool,Conf):
         # Generation date and doCID version
         #print "DATETIME",datetime.now()
         generation_time = time.strftime("%A %d %B %Y %H:%M:%S")
-        version_docid = "3.3.0"
+        version_docid = VERSION
         ws.cell('B6').value = "Generated on {:s} with doCID v{:s}".format(generation_time,version_docid)
         # Warnings
         ws.cell('F6').value = len(self.dico_warnings)
@@ -1332,16 +1339,26 @@ class CheckLLR(Tool,Conf):
         ws.auto_filter.ref = "A8:F8"
         # Summary with list of requirements updated, added or deleted
         ws = wb.get_sheet_by_name(name = 'Summary')
+
         # Compute Change rate
-        total_nb_req_in_spec = 0
-        for name,nb_reqs_in_spec in self.tbl_file_llr_wo_del.iteritems():
-            #print "nb_reqs_in_spec",nb_reqs_in_spec
-            total_nb_req_in_spec += len(nb_reqs_in_spec)
+        # List of updated requirement is computed by
+        # issue of requirement in REQ_REVIEW or REQ_ANALYSIS folder
+        # and issue of specification document found in CONTEXT folder
         nb_req_updated = len(self.tbl_reqs_updated)
+        total_nb_req_in_spec = 0
+        if spec_available:
+            # Take list of requirements found in specification document
+            for name,nb_reqs_in_spec in self.tbl_file_llr_wo_del.iteritems():
+                #print "nb_reqs_in_spec",nb_reqs_in_spec
+                total_nb_req_in_spec += len(nb_reqs_in_spec)
+        else:
+            # Take list of requirements found in REQ ANALYSIS
+            total_nb_req_in_spec = len(self.dico_results["REQ_ANALYSIS"])
         if total_nb_req_in_spec > 0:
             change_rate = (nb_req_updated * 100)/total_nb_req_in_spec
         else:
             change_rate = 100
+
         ws.cell('F3').value = "{:d}%".format(change_rate)
         ws.cell('F4').value = self.is_release
         ws.cell('F6').value = "{:d}".format(self.nb_remarks)
@@ -1359,17 +1376,28 @@ class CheckLLR(Tool,Conf):
             top=Side(border_style=BORDER_THIN),
             bottom=Side(border_style=BORDER_THIN)))
         nb_req_ko = 0
+        #print "EXPORT IS"
+        #print "self.tbl_reqs_updated",self.tbl_reqs_updated
+        #print "self.tbl_list_llr",self.tbl_list_llr
         for req in self.tbl_reqs_updated:
-            #print "REQ",req
-            if req in self.tbl_list_llr:
+            # requirement is in list of requirements found in specification ?
+            if req in self.tbl_list_llr or not spec_available:
+                # Yes, requirement exists in specification document
                 line = []
-                value = self.tbl_list_llr[str(req)]
-                file = self.list_llr_vs_file[str(req)][0]
+                if spec_available:
+                    value = self.tbl_list_llr[str(req)]
+                    file = self.list_llr_vs_file[str(req)][0]
+                    issue = CheckLLR.getAtribute(value,"issue")
+                    derived = CheckLLR.getAtribute(value,"derived")
+                    status = CheckLLR.getAtribute(value,"status")
+                else:
+                    value = ""
+                    file = ""
+                    issue = ""
+                    derived = ""
+                    status = ""
                 line.append(file)
                 line.append(req)
-                issue = CheckLLR.getAtribute(value,"issue")
-                derived = CheckLLR.getAtribute(value,"derived")
-                status = CheckLLR.getAtribute(value,"status")
                 line.append(issue)
                 line.append(derived)
                 line.append(status)
@@ -1731,6 +1759,7 @@ class CheckLLR(Tool,Conf):
         :param type:
         :return:
         """
+        #TODO: Add doc and xls treatment with pywin32 as only openxml files are taken into account so far.
         self.depth += 1
         color = "white"
         if "general_output_txt" in self.__dict__:
@@ -1757,12 +1786,8 @@ class CheckLLR(Tool,Conf):
         #    WindowsError = None
         try:
             print "new_concat_dirname",new_concat_dirname
-            if new_concat_dirname != "":
-                list_dir = os.listdir(new_concat_dirname)
-            else:
-                list_dir = []
+            list_dir = os.listdir(new_concat_dirname)
         except WindowsError,e:
-            # NameError: global name 'WindowsError' is not defined, for Mac
             self.log("{:s}".format(e))
             list_dir = []
         except OSError,e:

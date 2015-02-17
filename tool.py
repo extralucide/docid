@@ -2073,6 +2073,14 @@ class Tool():
                  transition_log,
                  parent_cr,
                  output_filename):
+        """
+        This function populate Change CR template with CR inputs
+        :param text_html:
+        :param transition_log:
+        :param parent_cr:
+        :param output_filename:
+        :return:
+        """
         # instantiate the parser and fed it some HTML
         parser = MyHTMLParser()
         parser.text = ""

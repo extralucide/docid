@@ -649,7 +649,17 @@ class Synergy(Tool):
                 self.ihm.log("No items found")
         return result
 
-    def getCRInfo(self,cr_id,dico_cr,parent=True):
+    def getCRInfo(self,
+                  cr_id,
+                  dico_cr,
+                  parent=True):
+        """
+
+        :param cr_id:
+        :param dico_cr:
+        :param parent:
+        :return:
+        """
         tbl_parent_cr = []
         query = "query -t problem \"(problem_number='{:s}') \" -u -f \"%CR_domain\"".format(cr_id)
         ccm_query = 'ccm ' + query + '\n'
