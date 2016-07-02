@@ -13,8 +13,10 @@
 from distutils.core import setup
 from glob import glob
 import sys
+sys.path.append("pycparser")
 sys.path.append("python-docx")
 sys.path.append("tkintertable")
+import pycparser
 import docid
 import docx
 #import _elementpath as DONTUSE
@@ -44,25 +46,26 @@ shutil.copyfile(sys.prefix + os.sep + "Lib/site-packages/Pmw/Pmw_1_3_3/lib/PmwCo
 newpath = r'result'
 if not os.path.exists(newpath): os.makedirs(newpath)
 
+import win32com.client
+win32com.client.gencache.is_readonly=False
+win32com.client.gencache.GetGeneratePath()
+
 def main():
     data_files = [("Microsoft.VC90.CRT", glob(r'Microsoft.VC90.CRT\*.*')),
                     ("img", glob(r'img\*.*')),
                     ("js", glob(r'js\*.*')),
 					("css", glob(r'css\*.*')),
+					("db", glob(r'db\*.*')),
                     ("template", glob(r'template\*.*')),
                     ("result", glob(r'result\*.*')),
                     ("actions", glob(r'actions\*.*')),
 					("conf", glob(r'conf\*.*')),
+                    ("bin", glob(r'bin\*.exe')),
                     ("doc", glob(r'doc\*.*')),
                     "ico_sys_desktop.ico",
                     "README.txt",
                     "CHANGE_LOG.txt",
 					"explain.txt",
-                    "default_checklists_db.db3",
-                    "eqpt_checklist.db3",
-                    "board_checklist.db3",
-					"pld_checklist.db3",
-					"sw_checklist.db3",
                     "docid.db3",
                     "ig.db3"]
     # Save matplotlib-data to mpl-data ( It is located in the matplotlib\mpl-data
@@ -87,6 +90,8 @@ def main():
         license="License GPL v3.0",
         data_files=data_files,
         options = {"py2exe": {
+            #"skip_archive": True,
+            #"bundle_files": 1,
             "includes": [
                 'docx',
                 'django.template.loaders.filesystem',
@@ -99,7 +104,11 @@ def main():
                 'matplotlib.backends',
                 'matplotlib.figure',
                 'matplotlib.pyplot',
-                'matplotlib.backends.backend_cairo'
+                'matplotlib.backends.backend_cairo',
+                'funcparserlib',
+				'openpyxl',
+                'pythoncom',
+				'pycparser'
 #                "numpy"
 #                 "matplotlib.backends.backend_cairo",
 #                 "matplotlib.backends.backend_tkagg",

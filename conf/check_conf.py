@@ -2,19 +2,31 @@
 # # -*- coding: latin-1 -*-
 # -*- coding: utf-8 -*-
 class Conf():
-    active_dbg = True
+    active_dbg = False
     # TODO: Rendre parametrable dans docid.ini
-
-    dico_attributes = {"issue":"Issue:",
+    dico_styles = {"REQ_Body":"body",
+                        "REQ_Issue":"issue",
+                        "REQ_Refers to":"refer",
+                        "REQ_Status":"status",
+                        "REQ_Derived":"derived",
+                        "REQ_Rationale":"rationale",
+                        "REQ_Terminal":"terminal",
+                        "REQ_Safety":"safety",
+                        "REQ_Verifies":"verify",
+                        "REQ_Additional_information":"additional",
+                        "REQ_End":"end"}
+    dico_attributes = {"body":"",
+                "issue":"Issue:",
                  "status":"Status:",
                  "refer":"Refers to:",
-                 "constraint":"Constraint by:",
+                 # Constraint by, Constrained by
+                 "constraint":"Constrain\w* by:",
                  "derived":"Derived:",
                  "terminal":("Terminal:","Stop Req:"),
                  "rationale":"Rationale:",
                  "safety":"Safety:",
                  "additional":"Additional [i|I]nfo\w*:",
-                 "end":"\[End Requirement\]",
+                 "end":("\[End [R|r]equirement\]","\[End Test Case\]"),
                  # Attributes not used in software specification document
                  "allocation":"Allocation:",
                  "conformity":"Conformity:",
@@ -24,7 +36,11 @@ class Conf():
                  "assumption":"Assumption:",
                  "problem":"Problem Report:",
                  # For PLD
-                 "refined":"Refined:"
+                 "refined":"Refined:",
+                 "source_code":"File name:",
+                 # For SHLVCP
+                 "verify":"Verifies:",
+                 "forward":"Forwarded:"
                  }
 
     tbl_list_of_modif = [("issue","(([0-9])\.([0-9]{1,2}))"),
@@ -39,7 +55,8 @@ class Conf():
                                    "toc":"Table of content",
                                    "requirement":"LOW LEVEL REQUIREMENTS",
                                    "derived":"YES"},
-                           "SWRD":{"modifications":"Purpose of Modification",
+                           "SHLVCP":{"forward":"YES"},
+                           "SWRD":{"modifications":("Purpose of Modification","LIST OF MODIFICATIONS"),
                                    "toc":"TABLE OF CONTENT",
                                    "requirement":"[R|r]equirements",
                                    "derived":"YES",

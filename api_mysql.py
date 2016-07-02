@@ -21,6 +21,7 @@ import copy
 # TODO enlever ConfigParser et utiliser Tool
 # MySQL
 from HTMLParser import HTMLParser
+#from pretty_htmlparser import StatedHTMLParser
 class MyHTMLParser(HTMLParser):
     def __init__(self):
         HTMLParser.__init__(self)
@@ -53,7 +54,7 @@ class MyHTMLParser(HTMLParser):
             try:
                 self.text += self._createBeacon(tag,attrs)
             except UnicodeDecodeError,exception:
-                pass
+                print "UnicodeDecodeError",exception
             #self.text += "<" + tag + ">"
     def handle_endtag(self, tag):
 ##            print "Encountered an end tag :", tag
@@ -69,9 +70,16 @@ class MyHTMLParser(HTMLParser):
             self.text += self._createEndBeacon(tag)
 
     def handle_data(self, data):
-##            print "Encountered some data  :", data
         if self.foundCell:
+            #print "Encountered some data  :", data
             self.text += data
+
+    def handle_charref(self, ref):
+        self.handle_entityref("#" + ref)
+
+    def handle_entityref(self, ref):
+        self.handle_data(self.unescape("&%s;" % ref))
+
 class MySQL():
     def __init__(self):
         '''
@@ -333,7 +341,15 @@ class MySQL():
                         GROUP BY actions.id ORDER BY id ASC".format(review_id,only_open_actions)
 
             sql_opt = "-X -udocid finister -e \" {:s}\" ".format(sql_query)
+            #print "MySQL query:",sql_opt
             stdout,stderr = self.mysql_query(sql_opt,"MySQL getActions")
+        return stdout,stderr
+
+    def getDescription(self,review_id):
+        sql_query = "SELECT description FROM reviews WHERE id = {:s}".format(review_id)
+        sql_opt = "-X -udocid finister -e \" {:s}\" ".format(sql_query)
+        #print "MySQL query:",sql_opt
+        stdout,stderr = self.mysql_query(sql_opt,"MySQL getActions")
         return stdout,stderr
 
     def getAttendeesList(self,review_id,copy=False):
@@ -425,14 +441,18 @@ class MySQL():
         id = raw[key,"id"]
         context = raw[key,"scope"] + " " + raw[key,"type"] + " " + raw[key,"review_id"]
         description = raw[key,"Description"]
-        description_plain_txt = html2text.html2text(Tool.removeNonAscii(description))
+        #print "DESC_1:",description
+        description_wo_nonascii = Tool.replaceNonASCII(description)
+        #print "DESC_2:",description_wo_nonascii
+        description_plain_txt = html2text.html2text(description_wo_nonascii)
+        #print "DESC_3:",description_plain_txt
         impact = raw[key,"context"]
         criticality = raw[key,"criticality"]
         assignee = raw[key,"lname"]
         expected = raw[key,"date_expected"][0:10]
         status = raw[key,"status"]
         response = raw[key,"comment"]
-        response_plain_txt = html2text.html2text(Tool.removeNonAscii(response))
+        response_plain_txt = html2text.html2text(Tool.replaceNonASCII(response))
         tbl = [id,context,description_plain_txt,impact,criticality,assignee,expected,status,response_plain_txt]
         return tbl
 
@@ -478,11 +498,13 @@ class MySQL():
                 tbl_action_items.append(tbl)
         return tbl_action_items
 
-    def exportReviewsList(self,component_selected="",release_selected=""):
+    def exportReviewsList(self,
+                          component_selected="",
+                          release_selected=""):
         stdout,stderr = self.getReviewsList()
-        print "TEST: ", stderr
+        #print "TEST: ", stderr
         m = re.match(r'ERROR 2003',stderr)
-        print "TEST3",m
+        #print "TEST3",m
         if m:
             return "Cannot connect to MySQL server",False
         parser = MyHTMLParser()
@@ -495,7 +517,11 @@ class MySQL():
                 id = parser.dico[key,"id"]
                 type = parser.dico[key,"type_abbreviation"]
                 reference = parser.dico[key,"reference"]
-                item = parser.dico[key,"project"]
+                if "project" in parser.dico:
+                    item = parser.dico[key,"project"]
+                else:
+                    print "NO project key"
+                    item = ""
                 target_release = parser.dico[key,"target_release"]
                 # if "lru" in  parser.dico:
                 #      print "NO lru key"

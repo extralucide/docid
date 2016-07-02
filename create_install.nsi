@@ -6,47 +6,81 @@
 !include "LogicLib.nsh"
 !include "Memento.nsh"
 !include "WordFunc.nsh"
+;!include "Image.nsh"
 
 ;Interface Settings
-!define MUI_ABORTWARNING
-
+!define MUI_ICON "ico_sys_desktop.ico"
 !define MUI_HEADERIMAGE
-!define MUI_WELCOMEFINISHPAGE_BITMAP "${NSISDIR}\Contrib\Graphics\Wizard\nsis.bmp"
-
-!define MUI_COMPONENTSPAGE_SMALLDESC
+!define MUI_HEADERIMAGE_BITMAP "essai2.bmp"
+!define MUI_HEADERIMAGE_RIGHT
 
 Name "doCID"
-LoadLanguageFile "C:\Program Files\NSIS\Contrib\Language Files\French.nlf"
+LoadLanguageFile "C:\Program Files (x86)\NSIS\Contrib\Language Files\French.nlf"
 OutFile "docid_installer.exe"
-InstallDir "c:\program Files\docid"
+InstallDir "C:\Program Files (x86)\docid"
 
 PageEx directory
   DirVar $INSTDIR
 PageExEnd
 Page instfiles
 Section "Install"
+;!insertmacro DisplayImage 'Image.bmp'
 SetOutPath $INSTDIR
-createDirectory "$SMPROGRAMS\doCID"
-createShortCut "$SMPROGRAMS\doCID\doCID.lnk" "$INSTDIR\docid.exe"
-File /r dist\conf
+SetShellVarContext current
+; C:\Users\olivier.appere\AppData\Roaming\Microsoft\Windows\Start Menu\Programs
+createDirectory $SMPROGRAMS\doCID
+createShortCut $SMPROGRAMS\doCID\doCID.lnk $INSTDIR\docid.exe
+;SetShellVarContext All
+;CreateDirectory $SMPROGRAMS\doCID
+;CreateShortcut "$SMPROGRAMS\doCID\All users doCID.lnk" $INSTDIR\docid.exe
+		
+IfFileExists $INSTDIR\conf\docid.ini DOCID_INI_EXISTS  DOCID_INI_NOT_EXISTS
+DOCID_INI_EXISTS:
+    MessageBox MB_OK "Previous version of docid.ini found. Keep it."
+    File /r /x docid_empty.ini /x docid.ini /x *.pyc /x *.py dist\conf
+	${If} ${Cmd} `MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 "Overwrite previous configuration files ?" IDYES`
+		File /r dist\db
+		File /r dist\template
+		; database
+		File dist\docid.db3
+		File dist\ig.db3	
+	${EndIf}	
+	Goto NEXT
+DOCID_INI_NOT_EXISTS:
+    File /r /x docid_empty.ini /x *.pyc /x *.py dist\conf
+	File /r dist\db
+	File /r dist\template
+	; database
+	File dist\docid.db3
+	File dist\ig.db3	
+NEXT:
 File /r dist\img
 File /r dist\js
 File /r dist\css
-File /r dist\template
+
 File /r dist\Microsoft.VC90.CRT
-File /r /x dist\tcl\tk8.5\demos\*.tcl dist\tcl
+File /r dist\tcl
+; TCL
+;File /r dist\tcl\tcl8.5\http1.0
+;createDirectory $INSTDIR\tcl
+;createDirectory $INSTDIR\tcl\tcl8.5
+;createDirectory $INSTDIR\tcl\tcl8.5\tzdata
+;createDirectory $INSTDIR\tcl\tk8.5
+;createDirectory $INSTDIR\tcl\tk8.5\msgs
+
+;File /oname=tcl\tcl8.5\encoding\ascii.enc dist\tcl\tcl8.5\encoding\ascii.enc
+;File /oname=tcl\tcl8.5\encoding\iso8859-1.enc dist\tcl\tcl8.5\encoding\iso8859-1.enc
+;File /oname=tcl\tcl8.5\tclIndex dist\tcl\tcl8.5\tclIndex
+; TK
+;File /oname=tcl\tk8.5\ttk /r dist\tcl\tk8.5\ttk
+;File /oname=tcl\tk8.5\tclIndex \dist\tcl\tk8.5\tclIndex
+;File /oname=tcl\tk8.5\msgs\en.msg dist\tcl\tk8.5\msgs\en.msg
+;File /oname=tcl\tk8.5\msgs\fr.msg dist\tcl\tk8.5\msgs\fr.msg
+
 File /r dist\template
 File /r /x *.docx /x *.xlsx /x *.csv dist\result
 File /r /x *.db3 dist\actions
 
-; database
-File dist\board_checklist.db3
-File dist\default_checklists_db.db3
-File dist\docid.db3
-File dist\eqpt_checklist.db3
-File dist\ig.db3
-File dist\pld_checklist.db3
-File dist\sw_checklist.db3
 ; dll
 File dist\QtCore4.dll
 File dist\QtGui4.dll
@@ -60,6 +94,7 @@ File dist\libglib-2.0-0.dll
 File dist\libgthread-2.0-0.dll
 File dist\libpng14-14.dll
 File dist\python27.dll
+File dist\pythoncom27.dll
 File dist\pywintypes27.dll
 File dist\sqlite3.dll
 File dist\tcl85.dll
@@ -71,8 +106,10 @@ File dist\wxmsw294u_core_vc90.dll
 File dist\wxmsw294u_html_vc90.dll
 File dist\zlib1.dll
 ; exe
+; Main executable
 File dist\docid.exe
-File dist\w9xpopen.exe
+; This program is used by Python's os.popen function to work around a limitation in Windows 95/98
+;File dist\w9xpopen.exe
 
 File dist\ico_sys_desktop.ico
 ; pyd

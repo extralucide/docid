@@ -1,4 +1,4 @@
-VERSION = "3.6.2"
+VERSION = "3.9.3"
 
 def get_version(*args, **kwargs):
     # Avoid circular import

@@ -12,18 +12,22 @@ import subprocess
 from ConfigParser import ConfigParser
 import sys
 import os
-# For regular expressions
-import re
+import re # For regular expressions
 #from tkintertable.TableModels import TableModel
 #from tkintertable.Tables import TableCanvas
 from datetime import datetime
 
 sys.path.append("python-docx")
+sys.path.append("python_docx_html")
+sys.path.append("intelhex")
+sys.path.append("html_build")
+sys.path.append("pycparser")
+
 try:
     import docx
 except ImportError:
-    print "DoCID requires the python-docx library for Python. " \
-            "See https://github.com/mikemaccana/python-docx/"
+    print ("DoCID requires the python-docx library for Python. " \
+            "See https://github.com/mikemaccana/python-docx/")
                 #    raise ImportError, "DoCID requires the python-docx library
 from os.path import join
 import zipfile
@@ -55,9 +59,133 @@ except ImportError:
 import urllib
 import urllib2
 import sys
-sys.path.append("intelhex")
-from intelhex import IntelHex,IntelHex16bit
+try:
+    from intelhex import IntelHex,IntelHex16bit
+except ImportError as e:
+    print (e)
+from math import floor
+from HTMLParser import HTMLParser
+try:
+    from html import add_html
+except ImportError as e:
+    print (e)
+try:
+    from html_build import HTML
+except ImportError as e:
+    print (e)
+#
+# Class Style
+#
+from openpyxl.styles import Font,PatternFill,Border,Side,Alignment
+from openpyxl.styles.borders import BORDER_THIN,BORDER_MEDIUM
+try:
+    from openpyxl.drawing.image import Image
+except ImportError,e:
+    print e
+try:
+    from openpyxl.utils import get_column_letter,range_boundaries
+except ImportError,e:
+    print e
+# Abstract Syntax Tree
+try:
+    from pycparser import c_parser, c_ast,parse_file
+except ImportError as e:
+    print (e)
 
+class Style:
+    def __init__(self,
+                 border=None,
+                 alignment=None,
+                 fill=None,
+                 font=None):
+        self.border=border
+        self.alignment=alignment
+        self.font=font
+        self.fill=fill
+
+    @staticmethod
+    def putLogo(ws,image="small_logo_zodiac.jpeg"):
+        try:
+            img = Image("img/{:s}".format(image))
+            img.drawing.top = 1
+            img.drawing.left = 20
+            ws.add_image(img)
+        except ImportError:
+            pass
+
+    @staticmethod
+    def set_border(ws,
+                   cell_range,
+                   font = Font(name='Arial',size=12,bold=True),
+                   border_style=BORDER_MEDIUM,
+                   alignment_horizontal="center"):
+        #font = Font(name='Arial',size=12,bold=True)
+        border=Border(left=Side(border_style=border_style),
+                                                top=Side(border_style=border_style),
+                                                bottom=Side(border_style=border_style))
+        alignment=Alignment(horizontal=alignment_horizontal,vertical='center',wrap_text=True)
+        style_border_left = Style(border,alignment)
+        border=Border(right=Side(border_style=border_style),
+                                                top=Side(border_style=border_style),
+                                                bottom=Side(border_style=border_style))
+        alignment=Alignment(horizontal=alignment_horizontal,vertical='center',wrap_text=True)
+        style_border_right = Style(border,alignment)
+        border=Border(top=Side(border_style=border_style),
+                                                bottom=Side(border_style=border_style))
+        alignment=Alignment(horizontal=alignment_horizontal,vertical='center',wrap_text=True)
+        style_border_middle = Style(border,alignment)
+        #row = ws.iter_rows(cell_range)
+        min_col, min_row, max_col, max_row = range_boundaries(cell_range.upper())
+        #print "TEST:",min_col, min_row, max_col, max_row
+        for index_row, rows in enumerate(ws.iter_rows(cell_range)):
+        #for row in rows:
+            index_column = 0
+            for row in rows:
+                #print "ROW:",index_row,index_column,row
+                if index_column == 0:
+                    Style.setStyleRow(row,style_border_left)
+                elif index_column == max_col - min_col:
+                    Style.setStyleRow(row,style_border_right)
+                else:
+                    Style.setStyleRow(row,style_border_middle)
+                index_column +=1
+    @staticmethod
+    def setStyleRow(row,style):
+        row.border = style.border
+        row.alignment = style.alignment
+
+    @staticmethod
+    def setStyle(cell,style):
+        cell.border = style.border
+        cell.alignment = style.alignment
+
+    @staticmethod
+    def setCell(ws,line,row,col_idx,style=None,number_format=None):
+        column = get_column_letter(col_idx)
+        current_cell = ws['%s%s'%(column, row)]
+        if col_idx > 0:
+            current_cell.value = '%s' % (line[col_idx - 1])
+        else:
+            current_cell.value = '%s' % (line)
+        if style:
+            if style.border is not None:
+                current_cell.border = style.border
+            if style.alignment is not None:
+                current_cell.alignment = style.alignment
+            if style.font is not None:
+                current_cell.font = style.font
+            if style.fill is not None:
+                current_cell.fill = style.fill
+        if number_format is not None:
+            current_cell.number_format=number_format
+
+    @staticmethod
+    def setHyperlink(ws,row,col_idx,hyperlink):
+        column = get_column_letter(col_idx)
+        current_cell = ws.cell('%s%s'%(column, row))
+        #current_cell.value = '%s' % (line[col_idx - 1])
+        current_cell.hyperlink = hyperlink
+        current_cell.font = Font(color="0000BB",underline="single")
 #
 # Class Tool
 #
@@ -83,7 +211,99 @@ class Tool():
     dico_get_transition_flow = {"Closed":"Close",
                                 "Cancelled":"Cancel",
                                 "Rejected":"Reject",
-                                "Under Modification":"Reviewed"}
+                                "Under Modification":"Reviewed",
+                                "Under Verification":"Modified",
+                                "Postponed":"Postpone",
+                                "Fixed":"Verified"}
+    def getStatementBlock(self,line,keyword="Statement blocks"):
+        m = re.match(r'^\s*'+keyword+'\s*\.*\s*([0-9]{1,3}\.[0-9])%\s\(([0-9]{1,3}\/[0-9]{1,3})\)',line)
+        if m:
+            percentage = m.group(1)
+            range = m.group(2)
+            return percentage,range
+        else:
+            return False,False
+
+    def listDir(self,
+                dirname=""):
+        """
+        Recursive function to find files in directories.
+        Treatment for Excel and Word file is different
+        :param dirname:
+        :param type:
+        :return:
+        """
+        color = "white"
+        if "general_output_txt" in self.__dict__:
+            self.general_output_txt.tag_configure("color", foreground=color)
+        #print "depth",self.depth
+        new_concat_dirname = self.basename
+        for dir in self.stack:
+            new_concat_dirname = join(new_concat_dirname,dir)
+            if sys.platform.startswith('win32'):
+                new_concat_dirname = "{:s}\\".format(new_concat_dirname)
+            else:
+                new_concat_dirname = "{:s}/".format(new_concat_dirname)
+        #print "new_concat_dirname",new_concat_dirname
+        concat_dirname = join(self.basename,dirname)
+        if sys.platform.startswith('win32'):
+            concat_dirname = "{:s}\\".format(concat_dirname)
+        else:
+            concat_dirname = "{:s}/".format(concat_dirname)
+        #print "concat_dirname",concat_dirname
+        #try:
+        #    WindowsError
+        #except NameError,e:
+        #    print e
+        #    WindowsError = None
+        try:
+            print "new_concat_dirname",new_concat_dirname
+            list_dir = os.listdir(new_concat_dirname)
+        except WindowsError,e:
+            #self.log("{:s}".format(e))
+            list_dir = []
+        except OSError,e:
+            #self.log("{:s}".format(e))
+            list_dir = []
+       # del(self.tbl_dico_modifs[:])
+        #self.list_tbl_tables_begin = {}
+        #self.nb_tables = 0
+        #use_full_win32com = True
+        #self.doc_version = ""
+        for found_dir in list_dir:
+            path_dir = os.path.join(new_concat_dirname, found_dir)
+            isdir = os.path.isdir(path_dir)
+            if isdir:
+                self.stack.append(found_dir)
+                self.listDir(found_dir)
+                self.stack.pop()
+            else:
+                void = re.sub(r"(~\$)(.*)\.(.*)",r"\1",found_dir)
+                name = re.sub(r"(.*)\.(.*)",r"\1",found_dir)
+                extension = re.sub(r"(.*)\.(.*)",r"\2",found_dir)
+                new_concat_dirname = re.sub(r'\/',r'\\',new_concat_dirname)
+                filename = join(new_concat_dirname,found_dir)
+                print "1) DOC NAME:",filename
+                fin = open(filename)
+                input = fin.read()
+                output = input.splitlines()
+                found = False
+                tbl_stats = {}
+                for line in output:
+                    for keyword in ("Statement blocks",
+                                    "Decisions",
+                                    "Basic conditions",
+                                    "Modified conditions"):
+                        percentage,range = self.getStatementBlock(line,keyword)
+                        if percentage:
+                            found =True
+                            tbl_stats[keyword] = percentage
+                            #print keyword
+                            #print "percentage:",percentage
+                            #print "range:",range
+                if found:
+                    self.list_coverage[found_dir] = tbl_stats
+
     def CommentStripper (self,iterator):
         '''
             Remove # comment
@@ -101,6 +321,14 @@ class Tool():
         else:
             value = ""
         return value
+
+    def getOptionsTuple(self,key,tag):
+        if self.config_parser.has_option(key,tag):
+            value = [e.strip() for e in self.config_parser.get(key, tag).split(',')]
+        else:
+            value = ["",""]
+        return value
+
 
     def updateCheck(self):
         """
@@ -175,6 +403,16 @@ class Tool():
         return extension
 
     @staticmethod
+    def getFileNameAlone(filename):
+        extension = re.sub(r"(.*)\.(.*)",r"\1",filename)
+        return extension
+
+    @staticmethod
+    def getCoord(txt):
+        coord = re.sub(r"^[\w\\_\.:]*:([0-9]*)$",r"\1",str(txt))
+        return coord
+
+    @staticmethod
     def getFileName(filename):
         #doc_name = re.sub(r"^(.*)(\/|\\)([A-Za-z ]*)\.(.*)$",r"\3",filename)
         doc_name = re.sub(r"^.*(\/|\\)(.*)\.([a-zA-Z]){1,6}$", r"\2", filename)
@@ -215,7 +453,7 @@ class Tool():
         # :0404200031000000a7
         found_pn = False
         for data in txt:
-            print "DATA:",data
+            #print "DATA:",data
             # ECEX
             m = re.match(r'^:10040000010000004543000045([\w]{2})0000([\w]{2})2d0000[\w]{2}$', data)
             if m:
@@ -251,7 +489,7 @@ class Tool():
         # BITE
         if not found_pn:
             for data in txt:
-                print "DATA:",data
+                #print "DATA:",data
                 # ECEX
                 m = re.match(r'^:10040000450000004300000045000000([\w]{2})000000[\w]{2}$', data)
                 if m:
@@ -290,14 +528,16 @@ class Tool():
         str_pn = "".join(pn)
         return str_pn
 
-    def __init__(self):
+    def __init__(self,config_filename="docid.ini"):
         '''
             get in file .ini information to access synergy server
             '''
         # Get config
+        self.stack = []
+        self.list_coverage = {}
         self.found_config = False
         self.config_parser = ConfigParser()
-        config_file = join("conf","docid.ini")
+        config_file = join("conf",config_filename)
         result = self.config_parser.read(config_file)
         if result != []:
             self.found_config = True
@@ -434,7 +674,10 @@ class Tool():
             result = result_query
         return result
 
-    def populate_components_listbox_wo_select(self,listbox,item="",system=""):
+    def populate_components_listbox_wo_select(self,
+                                              listbox,
+                                              item="",
+                                              system=""):
         if item != "" and system != "":
             query = 'SELECT components.name FROM components LEFT OUTER JOIN link_items_components ON components.id = link_items_components.component_id \
                                                             LEFT OUTER JOIN link_systems_items ON link_items_components.item_id = link_systems_items.item_id \
@@ -447,7 +690,8 @@ class Tool():
                                                             LEFT OUTER JOIN systems ON systems.id = link_systems_items.system_id \
                                                             WHERE systems.name LIKE \'' + system + '\'  ORDER BY components.name ASC'
         else:
-             query = 'SELECT components.name FROM components LEFT OUTER JOIN link_items_components ON components.id = link_items_components.component_id \
+            print "TROIS"
+            query = 'SELECT components.name FROM components LEFT OUTER JOIN link_items_components ON components.id = link_items_components.component_id \
                                                              ORDER BY components.name ASC'
         result_query = self.populate_listbox(query,listbox,"None")
         return result_query
@@ -476,15 +720,17 @@ class Tool():
         Get CR type according to component
         Return None if no CR type found
         '''
-        query = "SELECT cr_type FROM components \
+        query = "SELECT cr_type,type FROM components \
                 WHERE components.name LIKE '" + component + "'"
         result = self.sqlite_query(query)
         if result in (None,[]):
             cr_type = None
+            domain = None
         else:
             cr_type = result[0][0]
+            cr_domain = result[0][1]
         print "CR_TYPE",cr_type
-        return cr_type
+        return cr_type,cr_domain
 
     def _getItemCRType(self,item="",system=""):
         '''
@@ -495,6 +741,7 @@ class Tool():
                 LEFT OUTER JOIN link_systems_items ON items.id = link_systems_items.item_id \
                 LEFT OUTER JOIN systems ON systems.id = link_systems_items.system_id \
                 WHERE systems.name LIKE \'' + system + '\' AND items.name LIKE \'' + item + '\'  ORDER BY items.name ASC'
+        print "_getItemCRType:",query
         result = self.sqlite_query(query)
         if result in (None,[]):
             cr_type = None
@@ -523,9 +770,9 @@ class Tool():
         '''
             Get image in SQLite database
             '''
-        query = "SELECT img FROM systems WHERE aircraft LIKE '{:s}'".format(item) + " LIMIT 1"
+        query = "SELECT img FROM systems WHERE aircraft LIKE '{:s}' LIMIT 1".format(item)
         result = self.sqlite_query_one(query)
-        if result == None:
+        if result is None:
             image_name = "earhart12_240x116.gif"
         else:
             image_name = result[0]
@@ -596,6 +843,23 @@ class Tool():
         else:
             infos = result
         return infos
+
+    @staticmethod
+    def get_source_code_version(src_code_name):
+        source_code_version = False
+        try:
+            with open(src_code_name, 'r') as source_code_file:
+                for line in source_code_file:
+                    #print line
+                    m = re.search(r'%version:([0-9\.]*) %',line)
+                    if m:
+                        source_code_version = m.group(1)
+                        print "found version",source_code_version
+                        break
+        except IOError,e:
+            source_code_version = "No such file"
+            print e
+        return source_code_version
 
     def get_ci_identification(self,item):
         if item != "":
@@ -1123,7 +1387,49 @@ class Tool():
 ##        except UnicodeEncodeError as exception:
 ##            print "Character not supported:", exception
 ##        return stdout,stderr
+    # srts_rules.db3
+    @staticmethod
+    def getSRTS_Rule(id):
+        table = "rules"
+        print "rule id:",id
+        query = "SELECT description FROM {:s} WHERE id LIKE '{:s}'".format(table,id)
+        result = Tool.sqlite_query_one(query,database="db/srts_rules.db3")
+        if result is None:
+            data = False
+        else:
+            data = result[0]
+        return data
 
+    # sdts_rules.db3
+    @staticmethod
+    def getSDTS_Rule(id):
+        table = "rules"
+        print "rule id:",id
+        query = "SELECT description FROM {:s} WHERE id LIKE '{:s}'".format(table,id)
+        result = Tool.sqlite_query_one(query,database="db/sdts_rules.db3")
+        if result is None:
+            data = False
+        else:
+            data = result[0]
+        return data
+
+    # sdts_rules.db3
+    @staticmethod
+    def getAll_SDTS_Rule_by_req(by_req=True):
+        table = "rules"
+        print "rule id:",id
+        if by_req:
+            query = "SELECT id,description FROM {:s} WHERE by_req LIKE '1'".format(table)
+        else:
+            query = "SELECT id,description FROM {:s} WHERE by_req LIKE '0'".format(table)
+        result = Tool.sqlite_query(query,database="db/sdts_rules.db3")
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    # docid.db3
     def retrieveLastSelection(self,item):
         data = []
         try:
@@ -1218,7 +1524,7 @@ class Tool():
         query = "SELECT ci_id FROM components WHERE name LIKE '{:s}'".format(component)
         result = self.sqlite_query_one(query)
         if result is None:
-            description = item
+            description = component
         else:
             if result[0] is None:
                 description = ""
@@ -1256,6 +1562,23 @@ class Tool():
             else:
                 cr_type = result[0]
         return cr_type
+
+    @staticmethod
+    def removeBlankSpace(txt):
+        # Remove blank space before and after keyword
+        if txt is not None:
+            if type(txt) in (str,unicode):
+                #print ":{:s}:".format(txt)
+                txt_wo_blank = str(re.sub(r"^\s*([\w\._]*)\s*$", r"\1",txt))
+                #print ":{:s}:".format(txt_wo_blank)
+            else:
+                #if type(txt) is float:
+                #print type(txt)
+                txt_wo_blank = str(txt)
+        else:
+            #print "problem removeBlankSpace",txt
+            txt_wo_blank = "None"
+        return txt_wo_blank
 
     @staticmethod
     def getAllocationComponent(item=""):
@@ -1386,7 +1709,8 @@ class Tool():
             '''
         pass
 
-    def getProjectInfo(self,project):
+    @staticmethod
+    def getProjectInfo(project):
         """
         From Synergy project object get name and version
         :param project:
@@ -1413,6 +1737,7 @@ class Tool():
             self.select(index,listbox)
             self.on_select(index)
         return "break"
+
     def down_event(self, event,listbox):
         index = listbox.index("active")
         if listbox.selection_includes(index):
@@ -1434,12 +1759,30 @@ class Tool():
         listbox.selection_set(index)
         listbox.see(index)
 
+    @staticmethod
+    def discardCRPrefix(text):
+        '''
+        Remove Change Request prefix
+        '''
+        result = re.sub(r'(EXCR|SyCR|ECR|SACR|HCR|SCR|BCR|PLDCR)_(.*)', r'\2', text)
+        # Replace underscore by space, prettier
+        result = re.sub(r'_',r' ',result)
+        return result
+
+    @staticmethod
+    def getCRPrefix(text):
+        '''
+        Get Change Request prefix
+        '''
+        result = re.sub(r'(EXCR|SyCR|ECR|SACR|HCR|SCR|BCR|PLDCR)_(.*)', r'\1', text)
+        return result
+
     def createCrStatus(self,cr_status="",find_status=False):
         '''
             Create Change Request status query
         '''
         condition = ""
-        if cr_status != "" and cr_status != None:
+        if cr_status != "" and cr_status is not None:
             if find_status:
                 condition = ' or (crstatus=\'{:s}\') '.format(cr_status)
             else:
@@ -1575,7 +1918,7 @@ class Tool():
                 pass
         return list_items_skipped
 
-    def _par(self,txt):
+    def _par(self,txt,style=""):
         repl = ''
         # Will make a table
         unicode_paragraph = []
@@ -1602,7 +1945,7 @@ class Tool():
                 # create 'lxml.etree._Element' objects
 ##                print "TEST_PAR",unicode_paragraph
                 try:
-                    repl = docx.paragraph(unicode_paragraph)
+                    repl = docx.paragraph(unicode_paragraph,style=style)
                 except ValueError as exception:
                     print "unicode_paragraph",unicode_paragraph
                     print "TXT",txt
@@ -1639,6 +1982,11 @@ class Tool():
             )
         return repl
 
+    def heading(self,txt):
+        headinglevel = "3"
+        repl = docx.heading(txt,headinglevel,lang='fr')
+        return repl
+
     def replaceTag(self,
                    doc,
                    tag,
@@ -1650,7 +1998,8 @@ class Tool():
     'str': <string> Renders a simple text string
     'par': <paragraph> Renders a paragraph with carriage return
     'tab': <table> Renders a table, use fmt to tune look
-    'mix': <mixed> Render a list of table and paragraph
+    'list': <list> Renders a list of tables
+    'mix': <mixed> Renders a list of tables and paragraph
     'img': <image> Renders an image
     PR_002 Add paragraph type with array as an input
     """
@@ -1681,6 +2030,29 @@ class Tool():
             relationships = docx.relationshiplist()
             relationshiplist, repl = self.picture_add(relationships, replace[1],'This is a test description')
             return docx.advReplace(doc, '\{\{'+re.escape(tag)+'\}\}', repl),relationshiplist
+        elif replace[0] == 'html':
+            paragraph = self._par("")
+            h = HTML('html', 'text')
+            t = h.table(border='1')
+            for line in replace[1]:
+                r = t.tr
+                for cell in line:
+                    r.td(cell)
+            #print "HTML",h
+            #add_html(paragraph, str(h))
+            #repl.append(paragraph)
+        elif replace[0] == 'list':
+            repl = []
+            for dir,tbl in replace[1]:
+                #print "DIR",dir
+                #print "TBL",tbl
+                elt = self.heading(dir)
+                #elt = self._par([(dir,'rb')])
+                repl.append(elt)
+                elt = self._table(tbl,fmt)
+                repl.append(elt)
+                elt = self._par([("",'rb')])
+                repl.append(elt)
         elif replace[0] == 'mix':
             num_begin = ord("a")
             num_end = ord("z")
@@ -1707,7 +2079,7 @@ class Tool():
                     pass
                 else:
                     # Checklist
-                    cr_id = key[1]
+                    cr_id = key[1].zfill(4)
                     cr_status = key[2]
                     tbl_checklist.append((cr_id,cr_status,value))
             tbl_checklist_sorted = sorted(tbl_checklist,key=lambda x: x[index_sort])
@@ -1719,42 +2091,73 @@ class Tool():
             # [u'approve corrective action and impact analysis', '', ''],
             # [u'schedule CR implemented for correction', '', '']]
             #
-            for cr_id,cr_status,value in tbl_checklist_sorted:
-                header = [("{:s}{:s}) {:s} {:s}".format(prefix,chr(num),dico['domain'],cr_id),'rb')]
-                # Next state and transition
-                if cr_status in self.dico_status_flow:
-                    if cr_id in dico["timeline"]:
-                        print "TEST TIMELINE",dico["timeline"][cr_id]
-                        current_cr_status = dico["timeline"][cr_id]["current"]
-                        cr_next_state = [("CR Transition to state: \"{:s}\"".format(current_cr_status),'')]
-                        if current_cr_status in self.dico_get_transition_flow:
-                            transition = self.dico_get_transition_flow[current_cr_status]
-                        else:
-                            transition = "TBD"
-                        cr_transition = [("Conclusion of CR review: Transition \"{:s}\" authorized.".format(transition),'')]
-                    else:
-                        list_target_states = "/".join(map(str, self.dico_status_flow[cr_status]))
-                        list_target_transitions = "/".join(map(str, self.dico_transition_flow[cr_status]))
-                        cr_next_state = [("CR Transition to state: \"{:s}\"".format(list_target_states),'')]
-                        cr_transition = [("Conclusion of CR review: Transition \"{:s}\" authorized/not authorized.".format(list_target_transitions),'')]
-                else:
-                    cr_next_state = [("CR Transition to state:",'b')]
-                    cr_transition = [("Conclusion of CR review:",'b')]
 
+            for cr_id,cr_status,value in tbl_checklist_sorted:
+                #header = [("{:s}{:s}) {:s} {:s}".format(prefix,chr(num),dico['domain'],cr_id),'rb')]
+                header = "{:s}_{:s}".format(dico['domain'],cr_id)
+                # Next state and transition
+                if 0==1:
+                    if cr_status in self.dico_status_flow:
+                        if cr_id in dico["timeline"]:
+                            print "CR_STATUS",cr_status
+                            print "TEST TIMELINE",dico["timeline"][cr_id]
+                            final_cr_status = dico["timeline"][cr_id]["current"]
+                            #cr_next_state = [("CR Transition to state: \"{:s}\"".format(final_cr_status),'')]
+                            if final_cr_status in self.dico_get_transition_flow:
+                                list_target_states = "/".join(map(str, self.dico_status_flow[final_cr_status]))
+                                list_target_transitions = "/".join(map(str, self.dico_transition_flow[final_cr_status]))
+                                cr_next_state = [("CR Transition to state: \"{:s}\"".format(list_target_states),'')]
+                                cr_transition = [("Conclusion of CR review: Transition \"{:s}\" authorized/not authorized.".format(list_target_transitions),'')]
+                            else:
+                                cr_next_state = [("CR Transition to state:",'b')]
+                                cr_transition = [("Conclusion of CR review:",'b')]
+                        else:
+                            list_target_states = "/".join(map(str, self.dico_status_flow[cr_status]))
+                            list_target_transitions = "/".join(map(str, self.dico_transition_flow[cr_status]))
+                            cr_next_state = [("CR Transition to state: \"{:s}\"".format(list_target_states),'')]
+                            cr_transition = [("Conclusion of CR review: Transition \"{:s}\" authorized/not authorized.".format(list_target_transitions),'')]
+                    else:
+                        cr_next_state = [("CR Transition to state:",'b')]
+                        cr_transition = [("Conclusion of CR review:",'b')]
+                else:
+                    if cr_status in self.dico_status_flow:
+                        if cr_id in dico["timeline"]:
+                            print "TEST TIMELINE",dico["timeline"][cr_id]
+                            current_cr_status = dico["timeline"][cr_id]["current"]
+                            former_cr_status = dico["timeline"][cr_id]["former"]
+                            if former_cr_status in self.dico_status_flow:
+                                list_target_states = "/".join(map(str, self.dico_status_flow[former_cr_status]))
+                            else:
+                                list_target_states = "Error, unexpected CR status"
+                            cr_next_state = [("CR Transition to state: \"{:s}\"".format(list_target_states),'')]
+                            if former_cr_status in self.dico_transition_flow:
+                                transition = "/".join(map(str, self.dico_transition_flow[former_cr_status]))
+                                #transition = self.dico_get_transition_flow[current_cr_status]
+                            else:
+                                transition = "Error unexpected transition"
+                            cr_transition = [("Conclusion of CR review: Transition \"{:s}\" authorized.".format(transition),'')]
+                        else:
+                            list_target_states = "/".join(map(str, self.dico_status_flow[cr_status]))
+                            list_target_transitions = "/".join(map(str, self.dico_transition_flow[cr_status]))
+                            cr_next_state = [("CR Transition to state: \"{:s}\"".format(list_target_states),'')]
+                            cr_transition = [("Conclusion of CR review: Transition \"{:s}\" authorized/not authorized.".format(list_target_transitions),'')]
+                    else:
+                        cr_next_state = [("CR Transition to state:",'b')]
+                        cr_transition = [("Conclusion of CR review:",'b')]
                 num += 1
                 if num > num_end:
                     prefix += "a"
                     num = num_begin
-
-                elt = self._par(header)
+                print "HEADER:",header
+                elt = self._par(header,style="Titre2")
                 repl.append(elt)
-
+                print "VALUE:",value
                 elt = self._table(value,fmt)
                 repl.append(elt)
-
+                print "TRANSITION:",cr_transition
                 elt = self._par(cr_transition)
                 repl.append(elt)
-
+                print "STATE:",cr_next_state
                 elt = self._par(cr_next_state)
                 repl.append(elt)
         else:
@@ -1866,6 +2269,16 @@ class Tool():
         paragraph.append(run)
         return relationshiplist, paragraph
 
+    @staticmethod
+    def getReleaseName(release):
+        regexp = '^(.*)/([0-9]*)$'
+        match_result = re.match(regexp,release)
+        if match_result:
+            release_name = match_result.group(1)
+        else:
+            release_name = ""
+        return release_name
+
     def _compareReleaseName(self,releases=[]):
         sub_regexp = '^(.*)/([0-9]*)$'
         name = []
@@ -1880,9 +2293,28 @@ class Tool():
             return True
         else:
             return False
+    @staticmethod
+    def _removeDoublons(tbl_in):
+        '''
+        '''
+        tbl_out = []
+        if tbl_in is not None:
+            for elt in tbl_in:
+                if elt not in tbl_out:
+                    tbl_out.append(elt)
+        return tbl_out
 
     @staticmethod
-    def removeNonAscii(s): return "".join(filter(lambda x: ord(x)<128, s))
+    def removeNonAscii(s):
+        txt = ""
+        try:
+            txt = "".join(filter(lambda x: ord(x)<128, s))
+        except TypeError,e:
+            #print "TypeError",e
+            #print "TXT:",s
+            s = str(s)
+            txt = "".join(filter(lambda x: ord(x)<128, s))
+        return txt
 
     @staticmethod
     def _invert_dol(in_dico):
@@ -1898,12 +2330,31 @@ class Tool():
         return invert_dico
 
     @staticmethod
-    def replaceNonASCII(text):
-        char = {r'\x02':r'<',
-                r'\x03':r'>',
-                r'\xa7':r'chapter '}
-        for before, after in char.iteritems():
-            text = re.sub(before,after,text)
+    def replaceNonASCII(text,html=False):
+        if html:
+            char = {r'\x02':r'<',
+                    r'\x03':r'>',
+                    r'\xa7':r'chapter ',
+                    r'\x0d':r'',                # CR
+                    r'\x0a':r'<br/>',           # LF
+                    r'\x95':r'...',     # dot
+            }
+        else:
+            char = {r'\x02':r'<',
+                    r'\x03':r'>',
+                    r'\x07':r'',    # BEL
+                    r'\x0c':r'',    # Form Feed
+                    r'\xa7':r'chapter ',
+                    r'\xf1':r'+/-',
+                    r'\xf2':r'>=',
+                    r'\xf3':r'<=',
+                    r'&':r'and'
+                    }
+        try:
+            for before, after in char.iteritems():
+                text = re.sub(before,after,text)
+        except TypeError,e:
+            print e
         try:
             from unidecode import unidecode
             text = unidecode(text)
@@ -1911,14 +2362,94 @@ class Tool():
             pass
         return text
 
-    def replaceBeacon(self,text):
+    @staticmethod
+    def replaceBeacon(text):
         char = {r'\x02':r'<',r'\x03':r'>'}
         for before, after in char.iteritems():
             text = re.sub(before,after,text)
         return text
 
+    @staticmethod
+    def adjustCR(stdout):
+        char = {r"<br ?\/>":r", ",
+                        r"\r\n":r"\n",
+                        r"\x1E":"----------\n",
+                        r"\x1C":r"\n",
+                        r"<void>":r"",
+                        r"&":r"and",
+                        r"<font size= \"[0-9]{1,2}\">":r""} #,
+                        #r"<(?!cell|/cell|void|span|div|/p|p\>|a|a\>|/b|b/>|h3|h3\>|td|tr|ul|li|font|style|/)":r" strictly lesser than"}
+        for before,after in char.iteritems():
+            stdout = re.sub(before,after,stdout)
+        return stdout
+
+    # Change part
+    def new_createConditionStatus(self,
+                               detect_release="",
+                               impl_release="",
+                               cr_type="",              # to be deleted
+                               old_cr_workflow=False,   # to be deleted
+                               cr_status="",
+                               attribute="CR_implemented_for",
+                               list_cr_type=[],
+                               list_cr_status=[],
+                               list_cr_doamin=[],
+                               list_cr_selected_by_user=[]
+                               ):
+        '''
+            Create CR status filter for Change query
+        '''
+
+        # Get filter attributes
+        #
+        # Default = CR_implemented_for
+        # Detected on
+        # Implemented for
+        # Applicable Since
+
+        if attribute is "None":
+            filter_cr = ""
+        else:
+            filter_cr = attribute
+        # Determine wether an old or new Change Request workflow is used
+        # Query format is modified accordingly
+        if old_cr_workflow:
+            detection_word = "detected_on"
+            filter_cr = "implemented_in"
+        else:
+            detection_word = "CR_detected_on"
+            filter_cr = "CR_implemented_for"
+        detect_attribut = "%{:s};%{:s}".format(detection_word,filter_cr)
+        condition = '"(cvtype=\'problem\') '
+        if  Tool.isAttributeValid(impl_release):
+            # implemented
+            condition_impl = self._createImpl(filter_cr, impl_release,with_and=False)
+        else:
+            condition_impl = False
+        if Tool.isAttributeValid(detect_release):
+            # detected
+            condition_detect = self._createImpl(detection_word, detect_release,with_and=False)
+        else:
+            condition_detect = False
+        if condition_impl and condition_detect:
+            condition += "and ({:s} or {:s})".format(condition_impl,condition_detect)
+        elif condition_impl:
+            condition += "and {:s}".format(condition_impl)
+        elif condition_detect:
+            condition += "and {:s}".format(condition_detect)
+        # CR types
+        condition += self._createImpl("CR_type", list_cr_type)
+        # CR status
+        condition += self._createImpl("crstatus", list_cr_status)
+        # CR domains
+        condition += self._createImpl("CR_domain", list_cr_doamin)
+        # CRs selected by the user
+        condition += self._createImpl("problem_number", list_cr_selected_by_user)
+        condition += '" '
+        return condition, detect_attribut
+
     @classmethod
-    def _createImpl(cls,keyword,release):
+    def _createImpl(cls,keyword,release,with_and=True):
         '''
         Creates a string like "((CR_implemented_for='SW_ENM/01') or (CR_implemented_for='SW_PLAN/02'))"
         if keyword = CR_implemented_for and release = SW_ENM/01,SW_PLAN/02
@@ -1927,7 +2458,7 @@ class Tool():
             txt = "({:s}='{:s}')".format(keyword,rel)
             return txt
         print "_createImpl",keyword,release
-        if release != []:
+        if release != [] and release != ['']:
             if not cls._is_array(release):
                 # Split string with comma as separator
                 list_rel = release.split(",")
@@ -1936,15 +2467,25 @@ class Tool():
                 list_rel = release
             keywords_tbl = map((lambda x: keyword),list_rel)
             text = " or ".join(map(dico,keywords_tbl, list_rel))
-            text_final = " ( " + text + " ) "
+            if with_and:
+                text_final = " and ( " + text + " ) "
+            else:
+                text_final = " ( " + text + " ) "
         else:
             text_final = ""
         return text_final
 
+    def _parseMultiCRParent(self,text_html):
+        # instantiate the parser and fed it some HTML
+        parser = MyHTMLParserTable()
+        #parser.tbl = []
+        parser.feed(text_html)
+        return parser.tbl
+
     def _parseCRParent(self,text_html):
         # instantiate the parser and fed it some HTML
         parser = MyHTMLParserPlain()
-        parser.tbl = []
+        #parser.tbl = []
         parser.feed(text_html)
         return parser.tbl
 
@@ -1964,7 +2505,8 @@ class Tool():
             transi_log_filtered = transi_log
         return transi_log_filtered
 
-    def _parseCRCell(self,text_html):
+    @staticmethod
+    def _parseCRCell(text_html):
         # instantiate the parser and fed it some HTML
         parser = MyHTMLParser()
         parser.text = ""
@@ -2071,13 +2613,17 @@ class Tool():
     def _parseCR(self,
                  text_html,
                  transition_log,
-                 parent_cr,
-                 output_filename):
+                 parent_cr=[],
+                 information_cr=[],
+                 child_cr=[],
+                 output_filename=""):
         """
         This function populate Change CR template with CR inputs
         :param text_html:
         :param transition_log:
         :param parent_cr:
+        :param information_cr:
+        :param child_cr:
         :param output_filename:
         :return:
         """
@@ -2117,6 +2663,8 @@ class Tool():
                         r'\${CR_VERIFICATION_ACTIVITIES}':parser.dico['CR_verification_activities'],
                         r'\${FUNCTIONAL_LIMITATION}':parser.dico['functional_limitation'],
                         r'\${CR_PARENT}':parent_cr,
+                        r'\${CR_INFORMATION}':information_cr,
+                        r'\${CR_CHILD}':child_cr,
                         r'\${SCR_CLOSED_ID}':parser.dico['SCR_Closed_id'],
                         r'\${SCR_CLOSED_TIME}':parser.dico['SCR_Closed_time'],
                         r'\${TRANSITION_LOG}':transition_log,
@@ -2223,7 +2771,7 @@ class Tool():
                     # Loop to replace tags
                     for key, value in list_tags.items():
                         if curact[0] == "word/document.xml":
-                            print "TEST:" + key,value
+                            print ("TEST:" + key,value)
                         if value['text'] != None:
                             text = value['text']
                         else:
@@ -2243,7 +2791,7 @@ class Tool():
                 target = join(self.gen_dir,docx_filename)
                 outfile = zipfile.ZipFile(target,mode='w',compression=zipfile.ZIP_DEFLATED)
                 # Replace image if image exists in SQLite database
-                if image_name != None:
+                if image_name is not None:
                     actlist.append(('word/media/image1.png', ''))
                     img = open('img/' + image_name,'rb')
                     data = img.read()
@@ -2293,45 +2841,53 @@ class Tool():
         SAQ319
         in the document name
         """
+        def replaceUnderscore(txt):
+            reference = re.sub(r"(.*)_(.*)",r"\1-\2",txt)
+            return reference
         # Documents ET
         m = re.match(r"(.*)(ET[0-9]{4}_[ESV])",filename)
         if m:
-            reference = re.sub(r"(.*)_(.*)",r"\1-\2",m.group(2))
+            reference = replaceUnderscore(m.group(2))
         else:
-            m = re.match(r"(.*)(ET[0-9]{4})",filename)
+            m = re.match(r"(.*)([ETDGSet]{2}[0-9]{4})",filename)
             if m:
-                reference = m.group(2)
+                reference = m.group(2).upper()
             else:
                 # Documents PQ
-                m = re.match(r'(.*)(PQ ?[0-9]\.[0-9]\.[0-9]\.[0-9]{3})',filename)
+                m = re.match(r'(.*)(PQ_[0-9]_[0-9]_[0-9]_[0-9]{3})',filename)
                 if m:
                     reference = m.group(2)
                 else:
-                    # Document GS
-                    m = re.match(r"(.*)(GS[0-9]{4})",filename)
+                    # Documents PQ
+                    m = re.match(r'(.*)(PQ ?[0-9]\.[0-9]\.[0-9]\.[0-9]{3})',filename)
                     if m:
                         reference = m.group(2)
                     else:
-                        # Document AGILE
-                        m = re.match(r"(.*)([A-Z]{3}[0-9]{6})",filename)
+                        # Document 7N
+                        m = re.match(r"(.*)(7N_?[0-9]{5})",filename)
                         if m:
-                            reference = m.group(2)
+                            reference = replaceUnderscore(m.group(2))
                         else:
-                            m = re.match(r"^(EQ[0-9]{4}_[0-9]{3})",filename)
+                            # Document AGILE
+                            m = re.match(r"(.*)([A-Z]{3}[0-9]{6})",filename)
                             if m:
-                                reference = m.group(1)
+                                reference = m.group(2)
                             else:
-                                # Document SAQ
-                                m = re.match(r"^(SAQ[0-9]{3})",filename)
+                                m = re.match(r"^(EQ[0-9]{4}_[0-9]{3})",filename)
                                 if m:
                                     reference = m.group(1)
                                 else:
-                                    # Document CR
-                                    m = re.match(r"^(.*)(CR_[0-9]*)",filename)
+                                    # Document SAQ
+                                    m = re.match(r"^(SAQ[0-9]{3})",filename)
                                     if m:
-                                        reference = m.group(2)
+                                        reference = m.group(1)
                                     else:
-                                        reference = ""
+                                        # Document CR
+                                        m = re.match(r"^(.*)(CR_[0-9]*)",filename)
+                                        if m:
+                                            reference = m.group(2)
+                                        else:
+                                            reference = ""
         return reference
     #
     # Static methods
@@ -2343,6 +2899,14 @@ class Tool():
         instance = m.group(8)
         object_name = "{:s)-{:s}:dir:{:s}".format(document,version,instance)
         return object_name
+
+    @staticmethod
+    def removeCRs(res_tbl,cr_included):
+        #Remove unexpected CRs
+        if cr_included != [] or cr_included != ():
+            for cr in res_tbl[:]:
+                if str(cr) not in cr_included:
+                    res_tbl.remove(cr)
 
     def _clearDicofound(self):
         self.dico_found = {}
@@ -2493,12 +3057,22 @@ class Tool():
                     break
         return result
 
-    def _readEOC(self,filename,dico_addr={"hw_sw_compat":("0x400","0x402"),
-                                          "pn":("0x400","0x424"),
-                                          "checksum":("0x4DE8","0x4DEA")}):
-        def string_range(dico_range):
+    def _readEOC(self,
+                 filename,
+                 dico_addr={"hw_sw_compat":("0x400","0x402"),
+                            "pn":("0x400","0x424"),
+                            "checksum":("0x4DE8","0x4DEA")},
+                 dspic=False):
+        def string_range(dico_range,
+                         dspic=False):
             pn = ""
-            for x in range((int(dico_range[0],16) << 1),(int(dico_range[1],16) << 1)):
+            if dspic:
+                begin = (int(dico_range[0],16) << 1)
+                end = (int(dico_range[1],16) << 1)
+            else:
+                begin = (int(dico_range[0],16))
+                end = (int(dico_range[1],16))
+            for x in range(begin,end):
                 y = ih[x]
                 if y >= 0x20 and y < 0x80:
                     #print "{:d}:{:s}".format(x,chr(y))
@@ -2508,48 +3082,67 @@ class Tool():
                     #print "TEST:",x,y
             return pn
 
-        def int_range(dico_range):
-            pn = 0
-            decal = 8
-            for x in range((int(dico_range[0],16) << 1),(int(dico_range[1],16) << 1)):
-                y = ih[x]
-                # integer
-                pn += y << decal
-                decal -= 8
-                if decal < 0:
-                    break
+        def int_range(dico_range,
+                      dspic=False):
+            pn      = 0
+            if dspic:
+                decal   = 0
+                begin   = (int(dico_range[0],16) << 1)
+                end     = (int(dico_range[1],16) << 1)
+                for x in range(begin,end):
+                    y = ih[x]
+                    # integer
+                    pn += y << decal
+                    decal += 8
+                    if decal > 8:
+                        break
+            else:
+                decal   = 24
+                begin   = (int(dico_range[0],16))
+                end     = (int(dico_range[1],16))
+                for x in range(begin,end):
+                    y = ih[x]
+                    # integer
+                    pn += y << decal
+                    decal -= 8
+                    if decal < 0:
+                        break
             pn = "0x{:02x}".format(pn)
             return pn
-        #print "dico_addr",dico_addr
         name = Tool.getFileName(filename)
-        #print "NAME:",name
         ext = Tool.getFileExt(filename)
         if ext == "srec":
             srec = True
         elif ext == "hex":
             srec = False
+        elif not ext:
+            srec = False
         else:
-            print "Format not taken into account."
+            srec = False
+            print ("Format not taken into account.")
 
         if srec:
             #srec
             output = name + "_%d" % floor(time.time())
-            self.srec_to_intelhex(filename,output)
+            stdout,stderr = self.srec_to_intelhex(filename,output)
             filename = "result\\{:s}.hex".format(output)
 
         ih = IntelHex()
-        ih.fromfile(filename,format='hex')
-        #for x in ih:
-        #    print "IH",x
-        hw_sw_compatibility = int_range(dico_addr["hw_sw_compat"])
-        pn = string_range(dico_addr["pn"])
-
-        checksum = int_range(dico_addr["checksum"])
-
-        print "PN",pn
-        print "Checksum",checksum
-        print "Hw/Sw compatiblity",hw_sw_compatibility
-        return hw_sw_compatibility,pn,checksum
+        try:
+            ih.fromfile(filename,format='hex')
+            #for x in ih:
+            #    print "IH",x
+            hw_sw_compatibility = int_range(dico_addr["hw_sw_compat"],dspic)
+            pn = string_range(dico_addr["pn"],dspic)
+            checksum = int_range(dico_addr["checksum"],dspic)
+            failed = False
+        except IOError as e:
+            print ("Read EOC",e)
+            pn=""
+            checksum=""
+            hw_sw_compatibility=""
+            failed = stderr + "\n" + str(e)
+        return hw_sw_compatibility,pn,checksum,failed
 
     def getEOCAddress(self):
         if self.config_parser.has_section("EOC"):
@@ -2571,15 +3164,50 @@ class Tool():
     sqlite_query = staticmethod(sqlite_query)
     sqlite_query_one = staticmethod(sqlite_query_one)
 
-from HTMLParser import HTMLParser
 # create a subclass and override the handler methods
 class MyHTMLParserPlain(HTMLParser):
+    def __init__(self,target_tag="cell"):
+        HTMLParser.__init__(self)
+        self.data = ""
+        self.tbl = []
     def handle_starttag(self, tag, attrs):
         pass
     def handle_endtag(self, tag):
-        pass
+        if self.data == "":
+            self.tbl.append("")
+        self.data = ""
+    #def handle_startendtag(self, tag):
+    #    print "empty field"
     def handle_data(self, data):
+        self.data = data
         self.tbl.append(data)
+
+class MyHTMLParserTable(HTMLParser):
+    def __init__(self,target_tag="td"):
+        HTMLParser.__init__(self)
+        self.data = ""
+        self.row = []
+        self.tbl = []
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self.row = []
+            #del(self.row[:])
+    def handle_endtag(self, tag):
+        if tag == "tr":
+            #print "self.row",self.row
+            self.tbl.append(self.row)
+            #print "self.tbl",self.tbl
+        else:
+            if self.data == "":
+                self.row.append("")
+                #self.tbl.append("")
+            self.data = ""
+    #def handle_startendtag(self, tag):
+    #    print "empty field"
+    def handle_data(self, data):
+        self.data = data
+        self.row.append(data)
+
 
 class MyHTMLParser(HTMLParser):
     def __init__(self,target_tag="cell"):
@@ -2675,145 +3303,18 @@ class BProc_HTMLParser(HTMLParser):
             data = self.HighlightPattern(data)
         self.text += data
 
+
+
 if __name__ == "__main__":
-    # Put test procedures to the Tool class here
-    # Test 1: Regular expressions
     tool = Tool()
-    # values = [(u'O. Appere', u'ET3142-E', u'1D2', u'A336LM0204', u'100CE01Y00', u'0xCAFE', u'C', u'', u'', u'', u'', u'', u'', u'', u'')]
-    #
-    # print "restore_parameters",values
-    # def convert_values(x):
-    #     print "map",x
-    #     y="{:s}".format(x)
-    #     return y
-    # res = map(convert_values,values[0])
-    # print "RES",res
-    # keys = ["author","reference","issue","pn","board_pn","checksum","dal","previous_bas","release","baseline","project","detect","implemented","item","component"]
-    # test = zip(keys, values[0])
-    # print test
-    # exit()
-    # data = [["","","","","","","","","","","","","","",""]]
-    # parameters = {"author":"O. Appere",
-    #               "reference":"ET-4512-S"}
-    # tool.sqlite_save_parameters(data)
-    data = ['O. Appere', 'CR14-8537', '1.0', 'A336LM0103', '', '0xCAFE', 'A', '', 'PLD_TIE/05', 'PLD_TIE_05_00', 'All', 'SW_PLAN/01,SW_WHCC/01', 'SW_WHCC/02', u'WHCC', u'WHCC', 'Dassault F5X PDS', 'SW_WHCC']
-    dico = {'project': 'All', 'detect': 'SW_PLAN/01,SW_WHCC/01', 'baseline': 'PLD_TIE_05_00', 'reference': 'CR14-8537', 'author': 'O. Appere', 'dal': 'A', 'checksum': '0xCAFE', 'component': u'WHCC', 'system': 'Dassault F5X PDS', 'previous_bas': '', 'board_pn': '', 'part_number': 'A336LM0103', 'item': u'WHCC', 'cr_type': 'SW_WHCC', 'release': 'PLD_TIE/05', 'implemented': 'SW_WHCC/02', 'issue': '1.0'}
-    print "LEN",len(dico)
-    tool.sqlite_save_parameters(data,dico,3)
-    # tool.sqlite_save_parameters(data,2)
-    # exit()
-    result = tool.sqlite_restore_parameters()
-    print 'RESULT',result
-    exit()
-    reference = tool._getReference("PQ 0.1.0.155")
-    print "REFERENCE SQAP= ",reference
-    reference = tool._getReference("GS3058_ICD_PP24C_PP31A_ AnnexB2_DigiInfoSpec_Issue26_MASTER_doc")
-    print "REFERENCE GS= ",reference
-    reference = tool._getReference("SMS_ESSNESS_ATP100776")
-    print "REFERENCE ATP= ",reference
-
-    for filters in [["BUILD"],["INPUT_DATA","REVIEW","VTPR"]]:
-        regexp, list_items_skipped = tool._prepareRegexp(filters)
-        print regexp
-        print list_items_skipped
-    exit()
-    # Test 2
-    result = tool._compareReleaseName(["PLD_TIE/01","PLD_TIE/02"])
-    print "_compareReleaseName PLD_TIE/01 vs PLD_TIE/02",result
-    result = tool._compareReleaseName(["PLD_TIE/01","BOARD_ESSNESS/01"])
-    print "_compareReleaseName PLD_TIE/01 vs BOARD_ESSNESS/01",result
-    try:
-        result = tool._compareReleaseName(["PLD_TIE/01","BOARD_ESSNESS/01","TEST"])
-    except Exception as exception:
-        print "Execution failed:", exception
-    cmd_out = ['CR 418: Modification of "TRU overload in progress" curve definition']
-    cr_id = []
-    for line_cr in cmd_out:
-        m = re.match(r'^CR ([0-9]*):(.*)$',line_cr)
-        # Get CR ID
-        if m:
-            print m
-            cr_id.append(m.group(1))
-            print cr_id
-            break
-    # Test 3
-    result = tool.get_sys_item_old_workflow("Bombardier CSeries EPC","CPDD")
-    print "OLD WORKFLOW",result
-    result = tool.get_sys_item_old_workflow("Dassault F5X PDS","ESSNESS")
-    print "NEW WORKFLOW",result
-    # Test 4
-    output = tool._splitComma("SW_ENM/01,SW_PLAN/01")
-    print "T41",output
-    output = tool._splitComma("SW_ENM/02,SW_PLAN/02")
-    print "T42",output
-    # Test 5
-    result = tool._getCRChecklist("In_Review")
-    print "checklist",result
-    result = tool._getCRChecklist("Postponed")
-    print "checklist",result
-    result = tool._getCRChecklist("Fixed")
-    print "checklist",result
-    result = tool._getCRChecklist("In_Analysis")
-    print "checklist",result
-    result = tool._getItemCRType("ESSNESS","Dassault F5X PDS")
-    print "_getItemCRType",result
-    char = {r'\x02':r'<',r'\x03':r'>'}
-    for before, after in char.iteritems():
-##    for before,after in char:
-        print before," ",after
-##    fichier = open("result/log_SCR_419_1400837741.html", "r")
-##    text_html = fichier.readlines()
-##    tool._parseCR(text_html,'result/test.html')
-    test = (u'SDSIO', u'PLD')
-    print test[0]
-    test = '<span \xe9 style =  "font-size:10.0pt;mso-bidi-font-size:12.0pt;  font-family:"Arial","sans-serif";mso-fareast-font-family:"Times New Roman";  mso-bidi-font-family:"Times New Roman";mso-ansi-language:FR;mso-fareast-language:  FR;mso-bidi-language:AR-SA" >In requirement SDTS_PDS_7073 (new version)<br>CABC1_SHED and CABC2_SHED have to be validated during 100ms<br>'
-    text = re.sub(r"{TEST}",test,"TITI{TEST}TOTO")
-    print text
-    line = "SSCS ESSNESS<br />ICD CAN data<br />ICD SPI data<br />ATP carte ESSNESS<br />software FUNC<br />software BITE<br />"
-    line = re.sub(r"<br ?\/>",r"\n",line)
-    print line
-    psac_doc = ['None', 'PSAC_SW_PLAN_PDS_SDS_ET3131 issue 2.0', 'PSAC_SW_PLAN_PDS_SDS_ET3131 issue 2.0', 'PSAC_SW_PLAN_PDS_SDS_ET3131 issue 2.0', 'PSAC_SW_PLAN_PDS_SDS_ET3131 issue 2.0', 'PSAC_SW_PLAN_WDS_ET3162 issue 2.0']
-    psac_doc_filtered = sorted(set(psac_doc))
-    print psac_doc_filtered
-    cr = "93) SQA: Clarification for SQA audits scheduling and modus operandi (SQA Action item ID 1435)"
-    m = re.match(r'^([0-9]*\)) (.*)$',cr)
-    if m:
-        print "HELLO"
-##    import wckCalendar
-##
-##    root = Tk()
-##
-##    def echo():
-##        print calendar.getselection()
-##
-##    calendar = wckCalendar.Calendar(root, command=echo)
-##    calendar.pack()
-##
-##    mainloop()
-    TBL_IN = {'text': [
-    ['Ref', 'Name', 'Reference', 'Version', 'Description'],
-     ['[R2]', 'SSCS_ESSNESS_ET2788_S', 'ET2788-S', '6', 'Board Specification Document'],
-     ['[R3]', 'SMS_EPDS_ESSNESS_SPI_Annex_ET3547_S', 'ET3547-S', '2', 'SPI Interface Document'],
-     ['[R4]', 'SMS_EPDS_SPI_ICD_ET3532_S', 'ET3532-S', '3', 'Interface Control Document'],
-     ['[R5]', 'CCB_Minutes_SW_ENM_001', '', '1.0', 'CCB minutes'],
-     ['[R6]', 'CCB_Minutes_SW_ENM_002', '', '1.0', 'CCB minutes'],
-     ['[R7]', 'CCB_Minutes_SW_ENM_003', '', '1.0', 'CCB minutes'],
-     ['[R8]', 'CCB_Minutes_SW_ENM_004', '', '1.0', 'CCB minutes'],
-     ['[R9]', 'CCB_Minutes_SW_ENM_005', '', '1.0', 'CCB minutes'],
-     ['[R10]', 'CCB_Minutes_SW_ENM_006', '', '3.0', 'CCB minutes'],
-     ['[R11]', 'CCB_Minutes_SW_ENM_007', '', '3.0', 'CCB minutes'],
-     ['[R12]', 'CCB_Minutes_SW_ENM_008', '', '3.0', 'CCB minutes'],
-     ['[R14]', 'CCB_Minutes_SW_ENM_009', '', '3.0', 'CCB minutes'],
-     ['[R17]', 'SCMP_SW_PLAN_ET3134', 'ET3134', '1.8', 'Software Configuration Management Plan'],
-     ['[R18]', 'CCB_Minutes_SW_PLAN_001', '', '1.0', 'CCB minutes'],
-     ['[R19]', 'SRTS_SW_STANDARD_ET3157', 'ET3157', '1.5', 'Software Requirement Test Standard'],
-     ['[R20]', 'SDP_SW_PLAN_ET3132', 'ET3132', '1.9', 'Software Development Plan'],
-     ['[R21]', 'SVP_SW_PLAN_ET3133', 'ET3133', '1.10', 'Software Verification Plan'],
-     ['[R22]', 'CCB_Minutes_SW_PLAN_002', '', '1.0', 'CCB minutes'],
-     ['[R23]', 'CCB_Minutes_SW_PLAN_PDS_SDS_001', '', '1.0', 'CCB minutes'],
-     ['[R24]', 'CCB_Minutes_SW_PLAN_PDS_SDS_002', '', '1.0', 'CCB minutes']], 'fmt': {'colw': [500, 1000, 500, 500, 2500], 'twunit': 'pct', 'tblw': 5000, 'cwunit': 'pct', 'borders': {'all': {'color': 'auto', 'sz': 6, 'val': 'single', 'space': 0}}, 'heading': True}, 'type': 'tab'}
-    TBL_OUT  = {'text': [
-    ['Ref', 'Name', 'Reference', 'Version', 'Description'],
-    ['[R15]', 'SHLDR_ENM_ET3196_S', 'ET3196-S', '3.0', 'Software High-Level Derived Requirement document'],
-    ['[R16]', 'SWRD_ENM_ET3135_S', 'ET3135-S', '3.2', 'Software Requirements Document']], 'fmt': {'colw': [500, 1000, 500, 500, 2500], 'twunit': 'pct', 'tblw': 5000, 'cwunit': 'pct', 'borders': {'all': {'color': 'auto', 'sz': 6, 'val': 'single', 'space': 0}}, 'heading': True}, 'type': 'tab'}
-
+    tool.basename = "./qualification/summary"
+    tool.listDir("qualification/summary")
+    with open(join("result","tu_coverage.txt"), 'w') as of:
+        of.write("{:s};{:s};{:s};{:s};{:s}\n".format("File","Statements","Decisions","Basic conditions","Modified conditions"))
+        for name,percentage in tool.list_coverage.iteritems():
+            of.write("{:s};{:s};{:s};{:s};{:s}\n".format(name,
+                                                    percentage["Statement blocks"],
+                                                    percentage["Decisions"],
+                                                    percentage["Basic conditions"],
+                                                    percentage["Modified conditions"],
+                                                    ))

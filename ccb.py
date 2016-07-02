@@ -106,9 +106,10 @@ class CCB(Synergy,Tool):
                 tbl_chk = self._getCRChecklist(cr_status)
             else:
                 tbl_chk = self._getCRChecklist(cr_status,sw=False)
-
+            #print "tbl_chk",tbl_chk
+            #print "cr_status",cr_status
             if tbl_chk is not None:
-                list_candidate_cr.append(cr_id)
+                list_candidate_cr.append(cr_id.zfill(4))
                 table_cr_checklist = []
                 table_cr_checklist.append(["Check","Status","Remark"])
                 for chk_item in tbl_chk:
@@ -196,6 +197,44 @@ class CCB(Synergy,Tool):
         if len(tbl_actions) == 1:
             tbl_actions.append(["--","--","--","--","--","--"])
         return tbl_actions
+    @staticmethod
+    def addImpactAnalysis(tbl_cr_for_ccb,list_impact_analysis=[]):
+        alloc_flag = {"SW":"","HW":"","PLD":""}
+        if list_impact_analysis not in ([],None):
+            for impact_allocation in list_impact_analysis:
+                #print "impact_allocation",impact_allocation
+                value = impact_allocation[1]
+                m = re.search(r'[Y|y][E|e][S|s]',value)
+                if not alloc_flag["SW"] and impact_allocation[0] == "SW":
+                    if m:
+                        #tbl_cr_for_ccb.extend(["Yes"])
+                        alloc_flag["SW"] = "Yes"
+                    else:
+                        #tbl_cr_for_ccb.extend([""])
+                        alloc_flag["SW"] = ""
+                    #alloc_flag["SW"] = True
+                elif not alloc_flag["HW"] and impact_allocation[0] == "HW":
+                    if m:
+                        #tbl_cr_for_ccb.extend(["Yes"])
+                        alloc_flag["HW"] = "Yes"
+                    else:
+                        #tbl_cr_for_ccb.extend([""])
+                        alloc_flag["HW"] = ""
+                elif not alloc_flag["PLD"] and impact_allocation[0] == "PLD":
+                    if m:
+                        #tbl_cr_for_ccb.extend(["Yes"])
+                        alloc_flag["PLD"] = "Yes"
+                    else:
+                        #tbl_cr_for_ccb.extend([""])
+                        alloc_flag["PLD"] = ""
+        #if not alloc_flag["SW"]:
+        #    tbl_cr_for_ccb.extend([""])
+        #if not alloc_flag["HW"]:
+        #    tbl_cr_for_ccb.extend([""])
+        #if not alloc_flag["PLD"]:
+        #    tbl_cr_for_ccb.extend([""])
+        tbl_checks = [alloc_flag["SW"],alloc_flag["HW"],alloc_flag["PLD"]]
+        tbl_cr_for_ccb.extend(tbl_checks)
 
     def fillPRTable(self,
                      for_review,
@@ -211,7 +250,8 @@ class CCB(Synergy,Tool):
                     "cr_domain":"",
                     "cr_type":"",
                     "cr_detected_on":"",
-                    "cr_implemented_for":""}
+                    "cr_implemented_for":"",
+                    "impact_analysis":""}
         if dico["cr_id"] != "":
             cr_id = dico["cr_id"].zfill(4)
         else:
@@ -239,6 +279,7 @@ class CCB(Synergy,Tool):
                               dico["cr_detected_on"],
                               dico["cr_implemented_for"],
                               dico["info_parent_cr"]]
+            self.addImpactAnalysis(tbl_cr_for_ccb,dico["impact_analysis"])
         else:
             tbl_cr_for_ccb = [dico["cr_domain"],
                               dico["cr_type"],
@@ -248,20 +289,57 @@ class CCB(Synergy,Tool):
                               dico["cr_severity"],
                               dico["cr_detected_on"],
                               dico["cr_implemented_for"]]
-
+            self.addImpactAnalysis(tbl_cr_for_ccb,dico["impact_analysis"])
+            if 0==1:
+                if dico["impact_analysis"] != []:
+                    alloc_flag = {"SW":False,"HW":False,"PLD":False}
+                    for impact_allocation in dico["impact_analysis"]:
+                        print "impact_allocation",impact_allocation
+                        value = impact_allocation[1]
+                        m = re.search(r'[Y|y][E|e][S|s]',value)
+                        if not alloc_flag["SW"] and impact_allocation[0] == "SW":
+                            if m:
+                                tbl_cr_for_ccb.extend(["Yes"])
+                            else:
+                                tbl_cr_for_ccb.extend([""])
+                            alloc_flag["SW"] = True
+                        elif not alloc_flag["HW"] and impact_allocation[0] == "HW":
+                            if m:
+                                tbl_cr_for_ccb.extend(["Yes"])
+                            else:
+                                tbl_cr_for_ccb.extend([""])
+                            alloc_flag["HW"] = True
+                        elif not alloc_flag["PLD"] and impact_allocation[0] == "PLD":
+                            if m:
+                                tbl_cr_for_ccb.extend(["Yes"])
+                            else:
+                                tbl_cr_for_ccb.extend([""])
+                            alloc_flag["PLD"] = True
+                    if not alloc_flag["SW"]:
+                        tbl_cr_for_ccb.extend([""])
+                    if not alloc_flag["HW"]:
+                        tbl_cr_for_ccb.extend([""])
+                    if not alloc_flag["PLD"]:
+                        tbl_cr_for_ccb.extend([""])
+                else:
+                    tbl_cr_for_ccb.extend(["","",""])
         return tbl_cr_for_ccb
 
     @staticmethod
     def createCRlist(cr_id,
                      cr_synopsis,
                      list_change_requests):
+        # left pad cr_id with zeros
         list_change_requests.append("{:s}) {:s}".format(cr_id.zfill(4),cr_synopsis))
 
     def getPR_CCB(self,
                   cr_status="",
                   for_review=False,
                   cr_with_parent=False,
-                  cr_type=""):
+                  cr_type="",
+                  list_cr_type=[],
+                  list_cr_status=[],
+                  list_cr_doamin=[]):
         """
         Create CR table for CCB minutes from Synergy query
         Useful Change keywords:
@@ -286,13 +364,22 @@ class CCB(Synergy,Tool):
         # Header
         if cr_status is not None:
             query = 'query -sby crstatus  '
-            #TODO: Call to TKinter inside _createConditionStatus not good here
-            condition,detect_attribut = self.ihm._createConditionStatus(detect_release=self.detect_release,
-                                                                        impl_release=self.impl_release,
-                                                                        cr_type=cr_type,
-                                                                        old_cr_workflow=self.old_cr_workflow,
-                                                                        cr_status=cr_status)
-
+            if 0==1:
+                condition,detect_attribut = self.new_createConditionStatus(detect_release=self.detect_release,
+                                                                            impl_release=self.impl_release,
+                                                                            cr_type=cr_type,
+                                                                            old_cr_workflow=self.old_cr_workflow,
+                                                                            cr_status=cr_status)
+            else:
+                condition,detect_attribut = self.new_createConditionStatus(old_cr_workflow=False,
+                                                                       detect_release = self.detect_release,
+                                                                       impl_release = self.impl_release,
+                                                                       cr_type = cr_type,
+                                                                       list_cr_type=list_cr_type,
+                                                                       list_cr_status=list_cr_status,
+                                                                       list_cr_doamin=list_cr_doamin,
+                                                                       cr_status=cr_status
+                                                                       )
             # Ajouter la gestion de l'ancien workflow
             classification = self.getClassif(self.old_cr_workflow)
             detect_attribut_tag = re.sub(r";","</cell><cell>",detect_attribut)
@@ -303,8 +390,11 @@ class CCB(Synergy,Tool):
                          '<cell>{:s}</cell>' \
                          '<cell>%CR_request_type</cell>' \
                          '<cell>%CR_domain</cell>' \
-                         '<cell>{:s}</cell>"'.format(classification,detect_attribut_tag)
+                         '<cell>{:s}</cell>' \
+                         '<cell>%impact_analysis</cell>' \
+                         '"'.format(classification,detect_attribut_tag)
             query += " {:s} {:s} ".format(condition,attributes)
+            print "QUERY:",query
             stdout,stderr = self.ccm_query(query,"Get PRs")
             self.ihm.log(query + " completed.")
             self.list_change_requests = []
@@ -325,9 +415,15 @@ class CCB(Synergy,Tool):
                         dico["cr_domain"] = cr_decod[6]
                         dico["cr_detected_on"] = cr_decod[7]
                         dico["cr_implemented_for"] = cr_decod[8]
-                        #if dico["cr_request_type"] == "Evolution":
-                        #    dico["cr_severity"] = "N/A"
-                        #else:
+                        #dico["impact_analysis"] = cr_decod[9]
+                        impact_analysis = self.replaceBeacon(cr_decod[9])
+                        impact_analysis = Tool.adjustCR(impact_analysis)
+                        #print "impact_analysis",impact_analysis
+                        # Impact Sw,HW or PLD
+                        impact_match = re.findall(r'(SW|HW|PLD) impact ?: ?([Y|y][E|e][S|s]|[N|n][O|o]n?e?)',impact_analysis)
+                        # Result example: [('SW', 'yes'), ('HW', 'no'), ('PLD', 'yes')]
+                        dico["impact_analysis"] = impact_match
+                        #print "IMPACT",dico["impact_analysis"]
                         severity = re.sub(r"<void>",r"",cr_decod[4])
                         dico["cr_severity"] = severity
                         dico["info_parent_cr"] = ""
@@ -368,120 +464,22 @@ class CCB(Synergy,Tool):
         if len(tableau_pr) == 0:
             result = self.fillPRTable(for_review,
                                       cr_with_parent)
-            tableau_pr.append(result)
+            tableau_pr.append([result])
         # Set scrollbar at the bottom
         self.ihm.defill()
         return tableau_pr,found_cr
 
-    def _getSpecificCR(self,cr_status=""):
-        """
-        To get info from a CR, TBD
-        """
-        tableau_pr = []
-        # Header
-        tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis"])
-        if cr_status is not None:
-            query_root = 'query -sby crstatus  '
-            condition = '"(cvtype=\'problem\')'
-            old_cr_workflow = self.ihm.getTypeWorkflow()
-            condition,detect_attribut = self.ihm._createConditionStatus(detect_release=self.target_release,
-                                                                        impl_release="",
-                                                                        cr_type="",
-                                                                        old_cr_workflow=old_cr_workflow)
-            condition += ' -f "%problem_number;%problem_synopsis;%crstatus;' + detect_attribut + '"'
-            if old_cr_workflow:
-                detection_word = "detected_on"
-                impl_word = "implemented_in"
-            else:
-                detection_word = "CR_detected_on"
-                impl_word = "CR_implemented_for"
-            # detected
-            if self.detect_release != "":
-                condition += ' and '
-                condition += self._createImpl(detection_word,self.detect_release)
-            # implemented
-            if self.impl_release != "":
-                condition += ' and '
-                condition += self._createImpl(impl_word,self.impl_release)
-            if cr_status != "":
-                condition +=  ' and (crstatus=\''+ cr_status +'\') '
-                condition_func_root = condition
-                condition += '" '
-            else:
-                sub_cond = self.getStatusCheck()
-                #gros patch
-                condition += sub_cond[19:]
-            condition_func_root = condition[0:-2]
-            query = query_root + condition + '-f "%problem_number;%CR_type;%problem_synopsis;%crstatus;%CR_detected_on;%submitter;%resolver;%CR_implemented_for;%modify_time"' # ;%CR_functional_impact
-            stdout,stderr = self.ccm_query(query,"Get PRs")
-            self.ihm.log(query + " completed.")
-            if stdout != "":
-                output = stdout.splitlines()
-                for line in output:
-                    line = re.sub(r"<void>",r"",line)
-                    line = re.sub(r"^ *[0-9]{1,3}\) ",r"",line)
-                    m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)',line)
-                    if m:
-                        cr_type = m.group(2)
-                        synopsis = m.group(3)
-                        cr_status = m.group(4)
-                        print "TEST",cr_status
-                        status_m = re.match(r'(EXCR|SyCR|ECR|SACR|HCR|SCR|BCR|PLDCR)_(.*)',cr_status)
-                        if status_m:
-                            domain = status_m.group(1)
-                            status = status_m.group(2)
-                        else:
-                            domain = ""
-                            status = cr_status
-                        cr_id = m.group(1)
-                        # Find functional limitation
-                        func_impact = ""
-                        condition_func = condition_func_root + ' and (problem_number = \'' + cr_id + '\')" '
-                        query = query_root + ' -u ' + condition_func + '-f "%CR_functional_impact"'
-                        func_impact,stderr = self.ccm_query(query,"Get PRs")
-                        self.ihm.log(query + " completed.")
-##                        print func_impact
-                        # remove ASCI control character
-                        filtered_func_impact = filter(string.printable[:-5].__contains__,func_impact)
-                        #remove <void>
-                        filtered_func_impact = re.sub(r"<void>",r"",filtered_func_impact)
-                        #remove br/
-                        filtered_func_impact = re.sub(r"br/",r"",filtered_func_impact)
-                        print "Functional impact:",filtered_func_impact
-##                        m = re.match(r'(.*)',line)
-                        # Explode status by removing prefix
-                        # Print pretty status self.ccb_type
-                        status = re.sub(self.ccb_type+"_","",m.group(4))
-                        tableau_pr.append([domain,cr_type,cr_id,status,synopsis])
-                    else:
-                        # Remove ASCII control characters
-                        filtered_line = filter(string.printable[:-5].__contains__,line)
-                        print "Functional impact:",filtered_line
-                        tableau_pr.append(["","","","",""])
-            if len(tableau_pr) == 1:
-                 tableau_pr.append(["--","--","--","--","--"])
-        else:
-            tableau_pr.append(["--","--","--","--","--"])
-        # Set scrollbar at the bottom
-        self.ihm.defill()
-        return tableau_pr
-
-    @staticmethod
-    def discardCRPrefix(text):
-        '''
-        Remove Change Request prefix
-        '''
-        result = re.sub(r'(EXCR|SyCR|ECR|SACR|HCR|SCR|BCR|PLDCR)_(.*)', r'\2', text)
-        # Replace underscore by space, prettier
-        result = re.sub(r'_',r' ',result)
-        return result
-
     def getPR(self,
               dico_pr,
-              detect_in,
-              implemented_for,
-              cr_type,
-              cr_with_parent=False):
+              detect_in="",
+              implemented_for="",
+              cr_type="",
+              cr_with_parent=False,
+              list_cr=[],
+              no_header=False,
+              list_cr_type=[],
+              list_cr_status=[],
+              list_cr_doamin=[]):
         """
             Run a Change Request query
             Remove prefix to make generic status name
@@ -489,30 +487,61 @@ class CCB(Synergy,Tool):
             --------------------------------------------------------------------
             | ID | Synopsis | Type | Status | Detected on | Implemented in/for |
             --------------------------------------------------------------------
-            or if parent CR is requested
+            or if parent CR is requested (cr_with_parent = TRUE)
             --------------------------------------------------------------------------------
             | ID | Synopsis | Type | Status | Detected on | Implemented in/for | Parent CR |
             --------------------------------------------------------------------------------
+            %CR_type => SW_ENM, SW_BITE, SW_WHCC, SW_PLAN etc...
             Used by CreateCID function
+
+        :param dico_pr: OUTPUT Ex: {"all":[['ID', 'Synopsis', 'Type', 'Status', 'Detected on', 'Implemented in/for', 'Parent CR'],
+                                            ['1001', 'Inhibition of TRU over ripple protection', 'Evolution', 'Closed', 'N/A', 'SW_ENM/06', '910'], etc.
+        :param detect_in: INPUT
+        :param implemented_for: INPUT
+        :param cr_type: INPUT
+        :param cr_with_parent: INPUT
         """
+
         # Header
-        empty_line = ["--","--","--","--","--","--"]
-        if not cr_with_parent:
-            header = ["ID","Synopsis","Type","Status","Detected on","Implemented in/for"]
-            tableau_pr = [header]
-            tableau_closed_pr = [header]
-            tableau_opened_pr = [header]
+        empty_line = ["--","--","--","--","--","--","--"]
+        header = ["ID","Synopsis","Type","Status","Detected on","Implemented in/for","Classif."]
+        if cr_with_parent:
+            header.append("Parent CR")
+            empty_line.append("--")
+
+        tableau_pr          = [] #[header]
+        tableau_closed_pr   = [] #[header]
+        tableau_opened_pr   = [] #[header]
+        if self.ihm is not None:
+            # Callback pourri
+            old_cr_workflow = False
+            condition,detect_attribut = self.new_createConditionStatus(detect_release=detect_in,
+                                                                        impl_release=implemented_for,
+                                                                        list_cr_type=list_cr_type,
+                                                                        list_cr_status=list_cr_status,
+                                                                        list_cr_doamin=list_cr_doamin)
         else:
-            header = ["ID","Synopsis","Type","Status","Detected on","Implemented in/for","Parent CR"]
-            empty_line.extend(["--"])
-            tableau_pr = [header]
-            tableau_closed_pr = [header]
-            tableau_opened_pr = [header]
-        old_cr_workflow = self.ihm.getTypeWorkflow()
-        condition,detect_attribut = self.ihm._createConditionStatus(detect_release=detect_in,
-                                                                    impl_release=implemented_for,
-                                                                    cr_type=cr_type,
-                                                                    old_cr_workflow=old_cr_workflow)
+            # Should not be here
+            # Patch for input CRs treatment in get_ig_query for IS checking ...
+            old_cr_workflow = False
+            condition = '"(cvtype=\'problem\') '
+            detection_word = "CR_detected_on"
+            filter_cr = "CR_implemented_for"
+            detect_attribut = "%{:s};%{:s}".format(detection_word,filter_cr)
+            if  Tool.isAttributeValid(implemented_for):
+                # implemented
+                condition += self._createImpl(filter_cr, implemented_for,with_and=True)
+            condition += '" '
+        cr_domain = ""
+        if list_cr != []:
+            # overwrite condition previously computed
+            query_list_cr = Tool._createImpl("problem_number",list_cr,with_and=False)
+            condition = "-t problem \"{:s}\" ".format(query_list_cr)
+            cr_domain = "<cell>%CR_domain</cell><cell>%CR_correction_description</cell>"
+        if not no_header:
+            tableau_pr.append(header)
+            tableau_closed_pr.append(header)
+            tableau_opened_pr.append(header)
 
         implementation_baseline_f = "%CR_implementation_baseline"
         # new with tags
@@ -522,24 +551,29 @@ class CCB(Synergy,Tool):
                      '<cell>%problem_synopsis</cell>' \
                      '<cell>%CR_request_type</cell>' \
                      '<cell>%crstatus</cell>' \
-                     '<cell>{:s}</cell>"'.format(detect_attribut_tag)
+                     '<cell>{:s}</cell>' \
+                     '{:s}' \
+                     '<cell>%CR_customer_classification</cell>"'.format(detect_attribut_tag,cr_domain)
         # query sorted by CR status
         query = "query -sby crstatus {:s} {:s} ".format(condition,attributes)
-        #self.ihm.cr_activate_all_button()
-        #self.ihm.checkbutton_all = True
-        stdout,stderr = self.ccm_query(query,"Get CRs for CID creation")
-        self.ihm.log(query + " completed.")
+        stdout,stderr = self.ccm_query(query,"Get CRs")
+        if self.ihm is not None:
+            self.ihm.log(query + " completed.")
+        else:
+            print "getPR query:",query
         # Set scrollbar at the bottom
-        #self.ihm.defill()
         list_change_requests = []
         if stdout != "":
             output = stdout.splitlines()
             for line in output:
                 line = re.sub(r"<void>",r"",line)
                 cr_decod = self._parseCRCell(line)
+                print "cr_decod",cr_decod
                 cr_id = cr_decod[0]
-                cr_synopsis = cr_decod[1] #ThreadQuery.extractCR(cr_decod)
+                cr_synopsis = cr_decod[1]
                 type = cr_decod[2]
+                cr_domain = self.getCRPrefix(cr_decod[3])
+                cr_decod[0] = cr_domain + " " + cr_decod[0]
                 cr_decod[3] = self.discardCRPrefix(cr_decod[3])
                 status = cr_decod[3]
                 detected_on = cr_decod[4]
@@ -565,7 +599,7 @@ class CCB(Synergy,Tool):
                     pass
                     #cr_decod.extend([""])
                 tableau_pr.append(cr_decod)
-                if status in ("Closed","Fixed"):
+                if status in ("Closed","Fixed","Rejected","Cancelled"):
                     tableau_closed_pr.append(cr_decod)
                 else:
                     tableau_opened_pr.append(cr_decod)
@@ -669,8 +703,11 @@ class CCB(Synergy,Tool):
         self.project = project
 
     def isSwDomain(self):
-        if "SCR" in self.ccb_type:
-            result = True
+        if self.ccb_type is not None:
+            if "SCR" in self.ccb_type:
+                result = True
+            else:
+                result = False
         else:
             result = False
         return result
@@ -687,6 +724,7 @@ class CCB(Synergy,Tool):
                   dico_former_cr_status_list={},
                   tableau_pr_unsorted=[],
                   found_cr=False,
+                  ccb_time_obj="",
                   **kwargs):
         """
         This function creates the document based on the template
@@ -731,17 +769,20 @@ class CCB(Synergy,Tool):
         #print "dico_former_cr_status_list",dico_former_cr_status_list
         dico_time_capsule = {}
         #print "tableau_pr_unsorted",tableau_pr_unsorted
-        for cr in tableau_pr_unsorted:
-            #cr_id = cr[2]
-            cr_id = cr[2].lstrip('0')
-            #print "CR_ID__",cr_id
-            current_cr_status = cr[3]
-            if cr_id in dico_former_cr_status_list:
-                # update status with former status in the past
-                former_cr_status = dico_former_cr_status_list[cr_id]
-                dico_time_capsule[cr_id] = {"current":current_cr_status,
-                                            "former":former_cr_status}
-                cr[3] = former_cr_status
+        if found_cr:
+            for cr in tableau_pr_unsorted:
+                #cr_id = cr[2]
+                cr_id = cr[2].lstrip('0')
+                #print "CR_ID__",cr_id
+                current_cr_status = cr[3]
+                if cr_id in dico_former_cr_status_list:
+                    # update status with former status in the past
+                    former_cr_status = dico_former_cr_status_list[cr_id]
+                    dico_time_capsule[cr_id] = {"current":current_cr_status,
+                                                "former":former_cr_status}
+                    cr[3] = former_cr_status
+                    print "dico_time_capsule",dico_time_capsule
+                    print "CR",cr
         #print "dico_time_capsule",dico_time_capsule
         # Sort CR according to ID, status or severity column
         # by default CR are sorted by severity
@@ -780,26 +821,41 @@ class CCB(Synergy,Tool):
         if self.isSwDomain():
             # Software domain
             tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity"])
-            # Annex
-            num_begin = ord("a")
-            num_end = ord("z")
-            num = num_begin
-            prefix = ""
-            for cr_domain,cr_type,cr_id,cr_status,cr_synopsis,cr_severity in tableau_pr_sorted:
-                # Patch
-                if cr_id in list_candidate_cr:
-                    line = "{:s}{:s}) Extract {:s} - {:s}".format(prefix,chr(num),cr_domain,cr_id)
-                    num += 1
-                    if num > num_end:
-                        prefix += "a"
-                        num = num_begin
-                    list_cr_annex.append((line,'rb'))
-                    list_cr_annex.append(('','r'))
+            if found_cr:
+                # Annex
+                num_begin = ord("a")
+                num_end = ord("z")
+                num = num_begin
+                prefix = ""
+                print "list_candidate_cr",list_candidate_cr
+                for cr_domain,cr_type,cr_id,cr_status,cr_synopsis,cr_severity in tableau_pr_sorted:
+                    # Patch
+                    # cr_id: 0001 etc.
+                    if cr_id in list_candidate_cr:
+                        line = "{:s}{:s}) Extract {:s} {:s}".format(prefix,chr(num),cr_domain,cr_id)
+                        print "LINE",line
+                        num += 1
+                        if num > num_end:
+                            prefix += "a"
+                            num = num_begin
+                        list_cr_annex.append((line,'rb'))
+                        list_cr_annex.append(('','r'))
+                tableau_pr.extend(tableau_pr_sorted)
+            else:
+                tableau_pr.append(["-","-","-","-","-","-"])
         elif cr_with_parent:
-            tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity","Detected on","Implemented for","Parent CR"])
+            tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity","Detected on","Implemented for","Parent CR","SW impact","HW impact","PLD impact"])
+            if not found_cr:
+                tableau_pr.append(["-","-","-","-","-","-","-","-","-","-","-","-"])
+            else:
+                tableau_pr.extend(tableau_pr_sorted)
         else:
-            tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity","Detected on","Implemented for"])
-        tableau_pr.extend(tableau_pr_sorted)
+            tableau_pr.append(["Domain","CR Type","ID","Status","Synopsis","Severity","Detected on","Implemented for","SW impact","HW impact","PLD impact"])
+            if not found_cr:
+                tableau_pr.append(["-","-","-","-","-","-","-","-","-","-","-"])
+            else:
+                tableau_pr.extend(tableau_pr_sorted)
+
 
         tableau_log = [["id","Log"],["--","--"]]
 
@@ -841,31 +897,54 @@ class CCB(Synergy,Tool):
             reference = dico["reference"]
 
         if self.isSwDomain():
+            # Software
             template_name = self._getTemplate("CCB")
-            if not cr_with_parent:
-                colw_pr = [500,      # Domain
-                            500,     # CR Type
-                            500,     # ID
-                            500,     # Synopsis
-                            2500,
-                            500] # 5000 = 100%
-            else:
+            #if not cr_with_parent:
+            colw_pr = [500,      # Domain
+                        500,     # CR Type
+                        500,     # ID
+                        500,     # Synopsis
+                        2500,
+                        500] # 5000 = 100%
+            if 0==1:
                 colw_pr = [300,      # Domain
                             300,     # CR Type
                             300,     # ID
                             500,     # Status
                             2000,    # Synopsis
-                            400,
-                            400,400,400,300] # 5000 = 100%
+                            400,     # Severity
+                            400,     # Detected on
+                            400,     # Implemented for
+                            400,     # Parent CR
+                            300] # 5000 = 100%
         else:
+            # Hardware
             template_name = self._getTemplate("CCB_PLD","CCB_Minutes_HW_PLD_template.docx")
-            colw_pr = [300,      # Domain
-                        300,     # CR Type
-                        300,     # ID
-                        500,     # Status
-                        2000,    # Synopsis
-                        400,
-                        400,400,400,300] # 5000 = 100%
+            if not cr_with_parent:
+                colw_pr = [300,         # Domain
+                            300,        # CR Type
+                            300,        # ID
+                            500,        # Status
+                            2000,       # Synopsis
+                            400,        # Severity
+                            400,        # Detected on
+                            400,        # Implemented for
+                            300,        # SW impact
+                            300,        # HW impact
+                            300]        # PLD impact 5000 = 100%
+            else:
+                colw_pr = [300,         # Domain
+                            300,        # CR Type
+                            300,        # ID
+                            500,        # Status
+                            2000,       # Synopsis
+                            400,        # Severity
+                            400,        # Detected on
+                            400,        # Implemented for
+                            400,        # Parent CR
+                            300,        # SW impact
+                            300,        # HW impact
+                            300]        # PLD impact 5000 = 100%
         fmt_pr =  {
                     'heading': True,
                     'colw': colw_pr, # 5000 = 100%
@@ -896,6 +975,13 @@ class CCB(Synergy,Tool):
             issue = "1"
         else:
             issue = dico["issue"]
+        if ccb_time_obj:
+            #print "ccb_time_obj",ccb_time_obj
+            #ccb_time = datetime.strftime("%d %b %Y",ccb_time_obj)
+            #t = datetime(ccb_time_obj)
+            ccb_time = ccb_time_obj
+        else:
+            ccb_time = time.strftime("%d %b %Y", time.localtime())
         list_tags = {
                     'SUBJECT':{'type':'str','text':subject,'fmt':{}},
                     'TITLE':{'type':'str','text':title,'fmt':{}},
@@ -905,6 +991,7 @@ class CCB(Synergy,Tool):
                     'ITEM':{'type':'str','text':dico["item"],'fmt':{}},
                     'ITEM_DESCRIPTION':{'type':'str','text':item_description,'fmt':{}},
                     'DATE':{'type':'str','text':time.strftime("%d %b %Y", time.localtime()),'fmt':{}},
+                    'DATE_MEET':{'type':'str','text':ccb_time,'fmt':{}},
                     'PROJECT':{'type':'str','text':project_text,'fmt':{}},
                     'RELEASE':{'type':'str','text':dico["release"],'fmt':{}},
                     'BASELINE':{'type':'str','text':dico["baseline"],'fmt':{}},
@@ -922,6 +1009,10 @@ class CCB(Synergy,Tool):
                     'TABLELOGS':{'type':'tab','text':tableau_log,'fmt':fmt_log},
                     'TABLEANNEX':{'type':'par','text':list_cr_annex,'fmt':{}}
                         }
+        #for pr in tableau_pr:
+        #    print "PR:",pr
+        #    print "LEN:",len(pr)
+        #print "FMT:",fmt
         if dico["item"] != "":
             docx_filename = dico["system"] + "_" + dico["item"] + "_CR_" + template_type + "_Minutes_" + dico["reference"] + "_%f" % time.time() + ".docx"
         else:
@@ -933,4 +1024,11 @@ class CCB(Synergy,Tool):
         return self.docx_filename,exception
 
 if __name__ == '__main__':
-    pass
+    result = "FALSE"
+    impact_analysis = " - Assembly Board impact: 402CE06L0504Y--, SW impact: yes, HW impact: no, PLD impact: yes, , - SSCS impact: "
+    #impact_match = re.match(r'SW impact: ([Y|y]es)',impact_analysis)
+    impact_match = re.findall(r'(SW|HW|PLD) impact: ?([Y|y]es|[N|n]on?e?)',impact_analysis)
+    print "impact_match",impact_match
+    if impact_match:
+        result = impact_match.group(1)
+    print "RESULT:",result

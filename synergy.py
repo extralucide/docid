@@ -16,11 +16,9 @@ import logging
 # For regular expressions
 import re
 import string
+# system
 import os
 from os.path import join
-
-# For Unit Tests
-from Tkinter import *
 import time
 from math import floor
 
@@ -64,7 +62,7 @@ class Synergy(Tool):
             self.ihm = None
         self.init_done = True
         self.session_started = session_started
-
+        self.deactivate_history_cr = False
         # Set logging
         self.loginfo = logging.getLogger(__name__)
 
@@ -80,6 +78,7 @@ class Synergy(Tool):
         self.loginfo.debug("NO")
         Tool.__init__(self)
         self._loadConfigSynergy()
+        self.preview = False
 
     def _ccmCmd(self,cmd_txt,print_log=True):
         # remove \n
@@ -165,50 +164,116 @@ class Synergy(Tool):
         #
         # Get parent ID informations
         #
-        query = "query -t problem \"(problem_number='" + parent_cr_id + "')\" -u -f \"<td><IMG SRC=\"../img/changeRequestIcon.gif\">%CR_domain</td>" \
+        query = "query -t problem \"(problem_number='" + parent_cr_id + "')\" -u -f \"<tr><td><IMG SRC=\"../img/changeRequestIcon.gif\">%CR_domain</td>" \
                                                                         "<td>%CR_type</td>" \
                                                                         "<td>%problem_number</td>" \
                                                                         "<td>%crstatus</td>" \
                                                                         "<td>%problem_synopsis</td>" \
-                                                                        "<td>%CR_implemented_for%</td>\""
+                                                                        "<td>%CR_implemented_for</td>" \
+                                                                        "<td>%CR_AC_milestones</td></tr>"
         ccm_query = 'ccm ' + query + '\n'
         self.ihm.log(ccm_query)
-        parent_cr = self._ccmCmd(query)
-        if parent_cr not in ("",None,"Lost connection to server"):
+        result = self._ccmCmd(query)
+        if result not in ("",None,"Lost connection to server"):
             if self.ihm is not None:
                 pass
                 #self.ihm.log("parent CR:" + parent_cr,False)
-            result = parent_cr
+            result = result
         else:
             if self.ihm is not None:
                 pass
                 #self.ihm.log("No result for _getParentInfo.",False)
         return result
 
-    def _getParentCR(self,cr_id):
+    def patchCR(self,cr_decod):
+        # ID
+        cr_id = cr_decod[0]
+        # Patch to get CR domain from CR status
+        cr_domain = self.getStatusPrefix(cr_decod[3])
+        cr_decod[0] = "{:s} {:s}".format(cr_domain,cr_decod[0])
+        # Synopsis
+        cr_decod[2] = self.replaceNonASCII(cr_decod[2])
+        # Status
+        cr_decod[3] = self.removeStatusPrefix(cr_decod[3])
+        # Impact analysis
+        cr_decod[9] = self.cleanImpactAnalysis(cr_decod[9])
+        cr_id = cr_decod[0]
+        cr_synopsis = cr_decod[2]
+        cr_status = cr_decod[3]
+        return cr_id,cr_synopsis,cr_status
+
+    def _getParentCR(self,
+                     cr_id,
+                     type_cr="parent",
+                     full_info=False):
         """
         :param cr_id: ex: 809 (SACR)
         :return: ex: ['1', '162'] (SYCR)
         """
-        query = "query -t problem \"has_child_CR(cvtype='problem' and problem_number='{:s}')\" -u -f \"%problem_number\" ".format(cr_id)
+        if type_cr == "parent":
+            # to get parents
+            keyword = "has_child_CR"
+        elif type_cr == "child":
+            # to get children
+            keyword = "is_child_CR_of"
+        else:
+            keyword = "is_information_CR_of"
+        if not full_info:
+            query = "query -t problem \"{:s}(cvtype='problem' and problem_number='{:s}')\" -u -f \"%problem_number\" ".format(keyword,cr_id)
+        else:
+            query = "query -t problem \"{:s}(cvtype='problem' and problem_number='{:s}')\" -u -f \"<tr>" \
+                    "<td>%CR_domain</td>" \
+                    "<td>%CR_type</td>" \
+                    "<td>%problem_number</td>" \
+                    "<td>%crstatus</td>" \
+                    "<td>%problem_synopsis</td>" \
+                    "<td>%CR_implemented_for</td>" \
+                    "<td>%CR_AC_milestones</td>" \
+                    "<td>%CR_customer_classification</td>" \
+                    "</tr>".format(keyword,cr_id)
+
         executed = True
         if query != "":
             ccm_query = 'ccm ' + query
-            if self.ihm is not None:
-                self.ihm.log(ccm_query)
-                self.ihm.defill()
+            #if self.ihm is not None:
+            #    self.ihm.log(ccm_query)
+                #self.ihm.defill()
             ccm_query += '\n'
             cmd_out = self._ccmCmd(query,False)
-            if cmd_out == "":
+            if cmd_out in ("",None):
                 if self.ihm is not None:
-                    self.ihm.log("No parent CR found for CR {:s}.".format(cr_id))
-                    self.ihm.defill()
+                    self.ihm.log("No {:s} CR found for CR {:s}.".format(type_cr,cr_id))
                 executed = False
             else:
-                executed = cmd_out.splitlines()
-                for parent_cr_id in executed:
-                    self.ihm.log("Parent CR {:s} found for CR {:s}.".format(parent_cr_id,cr_id))
-                    self.ihm.defill()
+                if full_info:
+                    cmd_out = Tool.adjustCR(cmd_out)
+                    tbl_decod = self._parseMultiCRParent(cmd_out)
+                    found_parent_cr_info = []
+                    found_display = []
+                    for parent_decod in tbl_decod:
+                        #self.patchCR(parent_decod)
+                        cr_info = parent_decod[0] + " " + parent_decod[1] + " " + parent_decod[2]
+                        parent_cr_status = Tool.discardCRPrefix(parent_decod[3])
+                        cr_synopsis = Tool.replaceNonASCII(parent_decod[4])
+                        cr_implemented_for = parent_decod[5]
+                        cr_ac_milestone = parent_decod[6]
+                        cr_classif = parent_decod[7]
+                        found_parent_cr_info.append([cr_info,parent_cr_status,cr_synopsis,cr_implemented_for,cr_ac_milestone,cr_classif])
+                        found_display.append(parent_decod[2])
+                    found_display_txt = ",".join(found_display)
+                    self.ihm.log("Found {:s} CR {:s} for CR {:s}.".format(type_cr,found_display_txt,cr_id))
+                    executed = found_parent_cr_info
+                else:
+                    if cmd_out is not None:
+                        executed = cmd_out.splitlines()
+                        found_display = []
+                        for parent_cr_id in executed:
+                            found_display.append(parent_cr_id)
+                            #self.ihm.log("Found {:s} CR {:s} for CR {:s}.".format(type_cr,parent_cr_id,cr_id))
+                        found_display_txt = ",".join(found_display)
+                        self.ihm.log("Found {:s} CR {:s} for CR {:s}.".format(type_cr,found_display_txt,cr_id))
+                    else:
+                        executed = False
         return executed
 
     def get_eoc_infos(self,
@@ -219,6 +284,7 @@ class Synergy(Tool):
             for object in list_found_items:
                 m = re.match(r'^(.*)\.(.*)-(.*):(.*):([0-9]*)$',object)
                 if m:
+                    filename = m.group(1)
                     ext = m.group(2)
                     print "EXT",ext
                     if (ext == "hex") or (ext == "srec"):
@@ -226,12 +292,13 @@ class Synergy(Tool):
                         # Call synergy command
                         self.catEOC(object,eoc_filename)
                         dico_addr = self.getEOCAddress()
-                        hw_sw_compatibility,pn,checksum = self._readEOC(join("result",eoc_filename),dico_addr)
+                        hw_sw_compatibility,pn,checksum,failed = self._readEOC(join("result",eoc_filename),dico_addr)
                         dico_tags["part_number"] = pn # Ex: ECE3E-A338-0501
-                        dico_tags["eoc_id"] =  re.sub(r'ECE[A-Z0-9]{2}-A([0-9]{3})-([0-9]{4})',r'A\1L\2',pn)
                         dico_tags["checksum"] = checksum # Ex: 0x6b62
+                        dico_tags["eoc_id"] =  re.sub(r'ECE[A-Z0-9]{2}-A([0-9]{3})-([0-9]{4})',r'A\1L\2',pn)
                         dico_tags["hw_sw_compatibility"] = hw_sw_compatibility # Ex 0x100
-                        break
+                        dico_tags["failed"] = failed
+                        return "{:s}.{:s}".format(filename,ext)
 
     def catEOC(self,object,filename):
         query = 'cat {:s}'.format(object)
@@ -250,12 +317,29 @@ class Synergy(Tool):
         stdout = re.sub(r"\n",r"",stdout)
         return stdout
 
+    def getProjectsInBaseline(self,baseline):
+        tbl_projects = []
+        query = 'baseline -u -show projects -f "%name-%version:%type:%instance" {:s}'.format(baseline)
+        stdout,stderr = self.ccm_query(query,"Get projects in baseline {:s}".format(baseline))
+        if stderr:
+           print "Error"
+        if stdout != "":
+            output = stdout.splitlines()
+            for line in output:
+                print "LINE",line
+                m = re.match(r'(.*):project:[0-9]*$',line)
+                if m:
+                    project_obj = m.group(1)
+                    tbl_projects.append(["",baseline,project_obj])
+        return tbl_projects
+
     def getFolderName(self,
-                      folder="",
+                      folder="*",
                       project="",
                       baseline="",
                       release="",
-                      mute=False):
+                      mute=False,
+                      extra_info=""):
         """
         Search directory information and sub-directories list
 
@@ -276,21 +360,23 @@ class Synergy(Tool):
         :param mute:
         :return:
         """
-        #print "DEBUG getFolderName",folder,release,baseline,project
         baseline_query = False
-        if project in ("*","All",""):
-            if baseline not in ("","All",None,"None"):
-                query = 'baseline -u -show objects -f "%name-%version:dir:%instance;%type" {:s}'.format(baseline)
+        if not Tool.isAttributeValid(project):
+            # Project not valid
+            if Tool.isAttributeValid(baseline):
+                query = 'baseline -u -show objects -f "%name-%version:%type:%instance{:s}" {:s}'.format(extra_info,baseline)
                 baseline_query = True
             else:
-                if release not in ("","All",None,"None"):
-                    query = 'query -u -n "*{:s}*" -t dir -release {:s} -f "%name-%version:dir:%instance"'.format(folder,release)
+                if Tool.isAttributeValid(release):
+                    query = 'query -u -n "*{:s}" -t dir -release {:s} -f "%name-%version:%type:%instance{:s}"'.format(folder,release,extra_info)
                 else:
-                    query = 'query -u -n "*{:s}*" -t dir  -f "%name-%version:dir:%instance"'.format(folder)
+                    query = 'query -u -n "*{:s}" -t dir  -f "%name-%version:%type:%instance{:s}"'.format(folder,extra_info)
         else:
-            query = 'query -u "is_member_of(\'{:s}\')" -n "*{:s}*" -t dir -f "%name-%version:dir:%instance"'.format(project,folder)
+            query = 'query -u "is_member_of(\'{:s}\')" -n "*{:s}" -t dir -f "%name-%version:%type:%instance{:s}"'.format(project,folder,extra_info)
         if "ihm" in self.__dict__ and not mute:
             self.ihm.log("ccm " + query)
+        else:
+            print "ccm " + query
         stdout,stderr = self.ccm_query(query,"Get {:s} folder".format(folder))
         if stderr:
             m = re.match(r'Project name is either invalid or does not exist',stderr)
@@ -298,21 +384,415 @@ class Synergy(Tool):
                 self.ihm.log("Project name is either invalid or does not exist.")
         output = stdout.splitlines()
         if output != []:
-                if baseline_query:
-                    object_filtered = ""
-                    for object in output:
-                        m = re.match(r'^({:s})-(.*):(.*):([0-9]*);dir$'.format(folder),object,re.IGNORECASE)
-                        if m:
-                            object_filtered = "{:s}-{:s}:{:s}:{:s}".format(m.group(1),m.group(2),m.group(3),m.group(4))
-                            #print "DIR BASELINE:",object_filtered
-                    return object_filtered
+            if baseline_query:
+                object_filtered = []
+                if extra_info == "":
+                    regexp = r'^(.*{:s}.*)-(.*):(.*):([0-9]*)$'.format(folder)
                 else:
-                    #print "DIR PROJECT:",output
-                    return output[0]
+                    regexp = r'^(.*{:s}.*)-(.*):(.*):([0-9]*):(.*):(.*)$'.format(folder)
+                for object in output:
+                    print regexp,object
+                    m = re.match(regexp,object,re.IGNORECASE)
+                    if m:
+                        if extra_info == "":
+                            object_filtered.append("{:s}-{:s}:{:s}:{:s}".format(m.group(1),m.group(2),m.group(3),m.group(4)))
+                        else:
+                            object_filtered.append("{:s}-{:s}:{:s}:{:s}:{:s}:{:s}".format(m.group(1),m.group(2),m.group(3),m.group(4),m.group(5),m.group(6)))
+                        print "DIR BASELINE:",object_filtered
+                return object_filtered
+            else:
+                # Not a baseline query. Take first index
+                return output
         return False
 
+    def getFoldersList_essai_un(self,
+                      folder="*",
+                      project="",
+                      baseline="",
+                      release="",
+                      mute=False,
+                      exclude=[]):
+        """
+        Search directory information and sub-directories list
+
+        Example
+        -------
+
+        folder = "BIN"
+        release = "SW_ENM/06"
+        baseline = "SW_ENM_06_06"
+        project = "CODE_SW_ENM-6.1"
+        ccm query -u "is_member_of('CODE_SW_ENM-6.1')" -n "*BIN*" -t dir -f "%name-%version:dir:%instance"
+        return ['BIN-1.0:dir:12']
+
+        :param folder:
+        :param project:
+        :param baseline:
+        :param release:
+        :param mute:
+        :return:
+        """
+        baseline_query = False
+        if not Tool.isAttributeValid(project):
+            # Project not valid
+            if Tool.isAttributeValid(baseline):
+                query = 'baseline -u -show objects -f "%name-%version:dir:%instance;%type" {:s}'.format(baseline)
+                baseline_query = True
+            else:
+                if Tool.isAttributeValid(release):
+                    query = 'query -u -n "{:s}" -t dir -release {:s} -f "%name-%version:dir:%instance"'.format(folder,release)
+                else:
+                    query = 'query -u -n "{:s}" -t dir  -f "%name-%version:dir:%instance"'.format(folder)
+        else:
+            query = 'query -u "is_member_of(\'{:s}\')" -n "{:s}" -t dir -f "%name-%version:dir:%instance"'.format(project,folder)
+        if "ihm" in self.__dict__ and not mute:
+            self.ihm.log("ccm " + query)
+        else:
+            print "ccm " + query
+        stdout,stderr = self.ccm_query(query,"Get {:s} folder".format(folder))
+        if stderr:
+            m = re.match(r'Project name is either invalid or does not exist',stderr)
+            if m:
+                self.ihm.log("Project name is either invalid or does not exist.")
+        output = stdout.splitlines()
+        output_filtered = []
+        if output != []:
+            for object in output:
+                m = False
+                print "object:",object
+                if folder == "*":
+                    folder = ".*"
+                if baseline_query:
+                    m = re.match(r'^({:s})-(.*):(.*):([0-9]*);dir$'.format(folder),object,re.IGNORECASE)
+                else:
+                    m = re.match(r'^({:s})-(.*):(.*):([0-9]*)$'.format(folder),object,re.IGNORECASE)
+                if m:
+                    directory_name = m.group(1)
+                    if directory_name not in exclude:
+                        object_filtered = "{:s}-{:s}:{:s}:{:s}".format(directory_name,m.group(2),m.group(3),m.group(4))
+                        output_filtered.append(object_filtered)
+                    else:
+                        print "Exclude: {:s}".format(directory_name)
+            return output_filtered
+        return False
+
+    def deactivate_getPredecessor(self):
+        self.deactivate_history_cr =True
+
+    def getPredecessor(self,
+                       object_name,
+                       tbl=[],
+                       recur=False,
+                       mute=False):
+
+        def extractMajorIssue(object_name):
+            major_issue = False
+            m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',object_name,re.IGNORECASE)
+            if m:
+                name = m.group(1)
+                version = m.group(2)
+                major_issue = re.sub(r'([0-9]{1,2})\.([0-9]{1,2})',r'\1',version)
+            return major_issue
+
+        if not self.deactivate_history_cr:
+            top_major_issue = extractMajorIssue(object_name)
+            query = "query -u \"is_predecessor_of('{:s}')\" -f \"%name-%version:%type:%instance:%change_request\"".format(object_name)
+            if "ihm" in self.__dict__ and not mute:
+                self.ihm.log("ccm " + query)
+            else:
+                print "ccm " + query
+            stdout,stderr = self.ccm_query(query,"Get {:s} predecessors".format(object_name))
+            if stderr:
+                print "ERROR:",stderr
+            output = stdout.splitlines()
+            if output != []:
+                for object in output:
+                    object = re.sub(r"<void>",r"",object)
+                    #print "X:",object
+                    m = re.match(r'^(.*)-(.*):(.*):([0-9]*):(.*)$',object,re.IGNORECASE)
+                    if m:
+                        name = m.group(1)
+                        version = m.group(2)
+                        major_issue = re.sub(r'([0-9]{1,2})\.([0-9]{1,2})',r'\1',version)
+                        type = m.group(3)
+                        instance = m.group(4)
+                        cr = m.group(5)
+                        if major_issue == top_major_issue:
+                            tbl.append((version,cr))
+                            if recur:
+                                self.getPredecessor("{:s}-{:s}:{:s}:{:s}".format(name,version,type,instance),
+                                                    tbl,
+                                                    recur=True)
+
+    def getFoldersList(self,
+                      folder="*",
+                      project="",
+                      baseline="",
+                      release="",
+                      mute=False,
+                      exclude=[]):
+        """
+        Search directory information and sub-directories list
+
+        Example
+        -------
+
+        folder = "BIN"
+        release = "SW_ENM/06"
+        baseline = "SW_ENM_06_06"
+        project = "CODE_SW_ENM-6.1"
+        ccm query -u "is_member_of('CODE_SW_ENM-6.1')" -n "*BIN*" -t dir -f "%name-%version:dir:%instance"
+        return ['BIN-1.0:dir:12']
+
+        :param folder:
+        :param project:
+        :param baseline:
+        :param release:
+        :param mute:
+        :return:
+        """
+        baseline_query = False
+        if Tool.isAttributeValid(project):
+            prj_name, prj_version = self.getProjectInfo(project)
+            query = 'query -u "is_child_of(\'{:s}\',\'{:s}\')" -t dir -f "%name-%version:dir:%instance"'.format(prj_name,project)
+        if "ihm" in self.__dict__ and not mute:
+            self.ihm.log("ccm " + query)
+        else:
+            print "ccm " + query
+        stdout,stderr = self.ccm_query(query,"Get {:s} folder".format(folder))
+        if stderr:
+            m = re.match(r'Project name is either invalid or does not exist',stderr)
+            if m:
+                self.ihm.log("Project name is either invalid or does not exist.")
+        output = stdout.splitlines()
+        output_filtered = []
+        if output != []:
+            for object in output:
+                m = False
+                #print "object:",object
+                if folder == "*":
+                    folder = ".*"
+                m = re.match(r'^({:s})-(.*):(.*):([0-9]*)$'.format(folder),object,re.IGNORECASE)
+                if m:
+                    directory_name = m.group(1)
+                    if directory_name not in exclude:
+                        object_filtered = "{:s}-{:s}:{:s}:{:s}".format(directory_name,m.group(2),m.group(3),m.group(4))
+                        output_filtered.append(object_filtered)
+                    else:
+                        print "Exclude: {:s}".format(directory_name)
+            return output_filtered
+        return False
+
+    def isInspection(self,name,type):
+        found_is = False
+        if type in ('xls',"doc"):
+            dico = {"IS_":"Inspection Sheet",
+                    "FDL":"Fiche de Lecture",
+                    "PRR":"Peer Review Register"}
+            doc_name = re.sub(r"(.*)\.(.*)",r"\1",name)
+            for key in dico:
+                if key in doc_name:
+                    found_is = True
+        return found_is
+
+    def addInList(self,
+                  tbl_tables,
+                  exclude_is,
+                  name,
+                  version,
+                  type,
+                  instance,
+                  release,
+                  cr,
+                  with_cr=False,
+                  code=False):
+        if not (self.isInspection(name,type) and exclude_is):
+            description,reference = self._getDescriptionDoc(name)
+            if with_cr:
+                if not code:
+                    tbl_tables.append((reference,name,version,type,instance,release,cr))
+                else:
+                    tbl_tables.append((name,version,type,instance,release,cr))
+            else:
+                tbl_tables.append((description,reference,name,version,type,instance,release))
+
+    def getListCR(self,
+             name,
+             version,
+             type,
+             instance,
+             last_cr="",
+             with_cr=True,
+             cr_included=()):
+        """
+
+        :param name:
+        :param version:
+        :param type:
+        :param instance:
+        :return: list of CR
+        """
+
+        def crCarriageReturn(cr_txt):
+            tbl_cr = cr_txt.split(",")
+            if tbl_cr != []:
+                if len(tbl_cr) > 1:
+                    list_cr = ",\n".join(tbl_cr)
+                else:
+                    list_cr = "\n".join(tbl_cr)
+            return list_cr
+
+        # def removeCRs(res_tbl,cr_included):
+        #     #Remove unexpected CRs
+        #     if cr_included != [] or cr_included != ():
+        #         for cr in res_tbl[:]:
+        #             print "CR:",cr
+        #             if str(cr) not in cr_included:
+        #                 print "TEST",cr,cr_included
+        #                 res_tbl.remove(cr)
+        #                 #exit()
+        object_name = "{:s}-{:s}:{:s}:{:s}".format(name,version,type,instance)
+        tbl = []
+        res_tbl = []
+        #print "object_name",object_name
+        if not self.preview and with_cr:
+            # get previous version of objet
+            self.getPredecessor(object_name,
+                                tbl,
+                                recur=True)
+            for cr_tuple in tbl:
+                if cr_tuple[1] != "":
+                    cr = cr_tuple[1].split(",")
+                    res_tbl.extend(cr)
+        if last_cr != "":
+            last_tbl_cr = last_cr.split(",")
+            res_tbl.extend(last_tbl_cr)
+
+        if res_tbl != []:
+            res_tbl = map((lambda x: str(x)),res_tbl)
+            #Remove unexpected CRs
+            Tool.removeCRs(res_tbl,cr_included)
+            res_tbl = Tool._removeDoublons(res_tbl)
+            if len(res_tbl) > 1:
+                list_cr = ",".join(res_tbl)
+            else:
+                list_cr = "".join(res_tbl)
+        else:
+            list_cr = ""
+        return list_cr
+
+    def getObjectsPerFolder(self,
+                            keyword = "Input_Data",
+                            project="",
+                            baseline="",
+                            release="",
+                            list_tbl=[],
+                            header=["Title","Reference","Synergy Name","Version","Type","Instance","Release"],
+                            with_cr=False,
+                            exclude_is=True,
+                            code=False,
+                            cr_included=()):
+
+        list_objects = []
+        list_file_specs = []
+        list_obj_light = []
+         #"S[w|W]DD"
+        user_exclude = []
+        self.ihm.log("Looking for {:s} folder ...".format(keyword))
+        folder_found = self.getItemsInFolder(keyword,
+                                             project = project,
+                                             baseline = baseline,
+                                             release = release,
+                                             only_name=True,
+                                             exclude=user_exclude,
+                                             with_extension=True,
+                                             mute=False,
+                                             converted_list=list_objects,
+                                             list_found_items=list_file_specs,
+                                             extra_info = ":%change_request:%release",
+                                             folder_found = True)
+        if not folder_found:
+            folder_found = "Miscelleanous"
+        #list_tbl = []
+        tbl_tables_misc =  [header]
+        found_objects = False
+        found_dir = False
+        list_folders = []
+        for folder_info in list_file_specs:
+            print "getObjectsPerFolder:folder_info",folder_info
+            top_name,version,type,instance,last_cr,release = self.getObjectInfos(folder_info,extra_info=True)
+            object_name = "{:s}-{:s}:{:s}:{:s}".format(top_name,version,type,instance)
+            if type == "dir":
+                del(list_folders[:])
+                print "------------------------"
+                print "Found sub directory {:s}".format(folder_info)
+                print "------------------------"
+
+                result = self.getFromFolder(folder_info,
+                                                  project = project,
+                                                  exclude=user_exclude,
+                                                  mute=False,
+                                                  recur=True,
+                                                  negate=False,
+                                                  tbl=list_folders,
+                                                  only_dir=False,
+                                                  extra_info = ":%change_request:%release"
+                                                  )
+                tbl_tables = [header]
+                for object_name_with_extra in list_folders:
+                    print "object_name_with_extra",object_name_with_extra
+                    name,version,type,instance,last_cr,release = self.getObjectInfos(object_name_with_extra,extra_info=True)
+                    if type != "dir":
+                        #print "Name",name
+                        list_cr = self.getListCR(name,
+                                                 version,
+                                                 type,
+                                                 instance,
+                                                 last_cr,   # CRs list from the current object version
+                                                 with_cr=with_cr,
+                                                 cr_included=cr_included
+                                                 )
+                        self.addInList(tbl_tables,
+                                       exclude_is,
+                                       name,
+                                       version,
+                                       type,
+                                       instance,
+                                       release,
+                                       list_cr,
+                                       with_cr,
+                                       code=code)
+                        list_obj_light.append(name + " version " + version)
+                        found_dir = True
+                if found_dir:
+                    print "folder_found::",folder_found
+                    list_tbl.append((folder_found + "/" + top_name,tbl_tables[:]))
+            else:
+                list_cr = self.getListCR(top_name,
+                                         version,
+                                         type,
+                                         instance,
+                                         last_cr,
+                                         with_cr=with_cr,
+                                         cr_included=cr_included)
+                self.addInList(tbl_tables_misc,
+                               exclude_is,
+                               top_name,
+                               version,
+                               type,
+                               instance,
+                               release,
+                               list_cr,
+                               with_cr,
+                               code=code)
+                list_obj_light.append(top_name + " version " + version)
+                found_objects = True
+        if found_objects:
+            list_tbl.append((folder_found,tbl_tables_misc[:]))
+        return list_obj_light
+
     def getItemsInFolder(self,
-                         folder_keyword="",
+                         folder_keyword="*",
                          project="",
                          baseline="",
                          release="",
@@ -321,7 +801,13 @@ class Synergy(Tool):
                          with_extension=False,
                          mute=False,
                          converted_list=[],
-                         list_found_items=[]):
+                         list_found_items=[],
+                         recur=False,
+                         negate=False,
+                         only_dir=False,
+                         extra_info="",
+                         folder_found="",
+                         exclude_dir=False):
         """
         Gives list of files included in folders
         :param folder_keyword:
@@ -329,52 +815,106 @@ class Synergy(Tool):
         :param only_name:
         :return:
         """
-        folder_info = self.getFolderName(folder_keyword,
-                                         project,
-                                         baseline,
-                                         release,
-                                         mute=mute
-                                         )
-        if folder_info:
-            # getFromFolder method needs a project
-            try:
-                if project == "":
-                    raise ValueError("Project cannot be empty")
-            except ValueError:
-                print "Project cannot be empty"
-            list_folders = self.getFromFolder(folder_info,
-                                              project,
-                                              exclude=exclude,
-                                              mute=mute
-                                              )
-            for folder in list_folders:
-                print "ITEMS:",folder
-                m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',folder)
-                if m:
-                    document = m.group(1)
-                    issue = m.group(2)
-                    type_object = m.group(3)
-                    remove_object = False
-                    if exclude != []:
-                        for key in exclude:
-                            if key in document:
-                                remove_object = True
-                    if not remove_object:
-                        if type_object == "project":
-                            # Found a project
-                            print "Found project:",document
-                        else:
-                            # Discard object of type "project"
-                            if only_name:
-                                if with_extension:
-                                    doc = document
+        folder_info_list = self.getFolderName(folder_keyword,
+                                             project,
+                                             baseline,
+                                             release,
+                                             mute=mute,
+                                             extra_info=extra_info
+                                             )
+        #folder_found = False
+        folder_info = False
+        if folder_info_list:
+            for folder_info in folder_info_list:
+                if folder_info:
+                    print "getItemsInFolder::folder_info",folder_info
+                    # getFromFolder method needs a project
+                    try:
+                        if project == "":
+                            raise ValueError("Project cannot be empty")
+                    except ValueError:
+                        print "Project cannot be empty"
+                    list_folders = []
+                    result = self.getFromFolder(folder_info,
+                                                      project,
+                                                      exclude=exclude,
+                                                      mute=mute,
+                                                      recur=recur,
+                                                      negate=negate,
+                                                      tbl=list_folders,
+                                                      only_dir=only_dir,
+                                                      extra_info=extra_info,
+                                                      exclude_dir=exclude_dir
+                                                      )
+                    for folder in list_folders:
+                        #print "ITEMS:",folder
+                        #m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',folder)
+                        document,issue,type_object,instance,cr,release = self.getObjectInfos(folder,extra_info=extra_info)
+                        if document:
+                            #document = m.group(1)
+                            #issue = m.group(2)
+                            #type_object = m.group(3)
+                            remove_object = False
+                            if exclude != []:
+                                for key in exclude:
+                                    if key in document:
+                                        remove_object = True
+                            if not remove_object:
+                                if type_object == "project":
+                                    # Found a project
+                                    print "Found project:",document
                                 else:
-                                    doc = re.sub(r"(.*)\.(.*)",r"\1",document)
-                            else:
-                                doc = "{:s} issue {:s}".format(document,issue)
-                            converted_list.append(doc)
-                            list_found_items.append(folder)
-        return converted_list
+                                    # Discard object of type "project"
+                                    if only_name:
+                                        if with_extension:
+                                            doc = document
+                                        else:
+                                            doc = re.sub(r"(.*)\.(.*)",r"\1",document)
+                                    else:
+                                        doc = "{:s} issue {:s}".format(document,issue)
+                                    converted_list.append(doc)
+                                    list_found_items.append(folder)
+        if folder_found and folder_info:
+            folder_name,version,type,instance,cr,release = self.getObjectInfos(folder_info,
+                                                                               extra_info=extra_info)
+            return folder_name
+        else:
+            return converted_list
+
+    def createListRelBasProj(self,
+                             project_set_list):
+        include_code = False
+        if project_set_list != []:
+            # Projects are available in GUI
+            self.ihm.log("Use project set list to create CID for documents",False)
+            # Project set in GUI
+            list_projects = self.ihm.project_set_list
+        else:
+            project = self.ihm.project
+            # [self.release,self.baseline,self.project]]
+            if Tool.isAttributeValid(project):
+                find_sub_projects = True
+                list_projects = [[self.ihm.release,self.ihm.baseline,project]]
+                prj_name, prj_version = self.getProjectInfo(project)
+                self.findSubProjects(prj_name,
+                                     prj_version,
+                                     list_projects,
+                                     mute = True)
+                #print "TBL",list_projects
+                for sub_release,sub_baseline,sub_project in list_projects:
+                    if project != sub_project:
+                        self.ihm.log("Find sub project {:s}".format(sub_project))
+            else:
+                #Valid baseline ?
+                if Tool.isAttributeValid(self.ihm.baseline):
+                    list_projects = self.getProjectsInBaseline(self.ihm.baseline)
+                else:
+                    list_projects = [[self.ihm.release,"",""]]
+                    # No project nor baseline
+                    # Patch: Looking for only release
+                    print "INCLUDE_CODE"
+                    include_code = True
+        return include_code
 
     def _defineProjectQuery(self,
                             release,
@@ -408,7 +948,10 @@ class Synergy(Tool):
         query = 'query -u "(cvtype=\'project\') and is_member_of( name=\'{:s}\' and version=\'{:s}\')"' \
                                                             '  -f "%name;%version;%release" '.format(prj_name,prj_version)
         if not mute:
-            self.ihm.log("ccm " + query)
+            try:
+                self.ihm.log("ccm " + query)
+            except AttributeError,e:
+                print "ccm " + query
         stdout,stderr = self.ccm_query(query,"Get sub-projects for {:s} version {:s}".format(prj_name,prj_version))
         tbl_projects = []
         if stdout == "":
@@ -446,11 +989,16 @@ class Synergy(Tool):
         list_projects = []
         if self.session_started:
             query = self._defineProjectQuery(release,baseline_selected)
+            print "_getProjectsList_wo_ihm",query
             stdout,stderr = self.ccm_query(query,"Get projects")
+            if stderr != "":
+                # Ex if not in the correct database:
+                # Invalid value 'SW_DCENM_01_23' for the baseline_spec argument.
+                print "STDERR",stderr
             if stdout != "":
                 output = stdout.splitlines()
-                if baseline_selected not in ("*","All","",None):
-                    if release not in ("","All",None):
+                if Tool.isAttributeValid(baseline_selected):
+                    if Tool.isAttributeValid(release):
                         for line in output:
                             line = re.sub(r"^ *[0-9]{1,3}\) ",r"",line)
                             m = re.match(r'(.*)-(.*);(.*|<void>)$',line)
@@ -605,60 +1153,146 @@ class Synergy(Tool):
             stdout = ""
         return stdout
 
+    def getObjectInfos(self,line,extra_info=False):
+        #print "LINE",line,extra_info
+        name = ""
+        version = ""
+        type = ""
+        instance = ""
+        cr = ""
+        release = ""
+        line = re.sub(r"<void>",r"",line)
+        if not extra_info:
+            m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',line,re.IGNORECASE)
+            if m:
+                name = m.group(1)
+                version = m.group(2)
+                type = m.group(3)
+                instance = m.group(4)
+        else:
+            m = re.match(r'^(.*)-(.*):(.*):([0-9]*):(.*):(.*)$',line,re.IGNORECASE)
+            if m:
+                name = m.group(1)
+                version = m.group(2)
+                type = m.group(3)
+                instance = m.group(4)
+                cr = m.group(5)
+                release = m.group(6)
+        return name,version,type,instance,cr,release
+        #print "M",m
+
     def getFromFolder(self,
-                      object_name,
+                      object_name="*",
                       project="",
                       recur=True,
                       exclude=[],
-                      mute=False):
-        result = []
-        m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',object_name)
-        if m:
-            folder_name = m.group(1)
-            #print "folder_name",folder_name
-            #print "exclude",exclude
-        if Tool.isAttributeValid(project) and folder_name not in exclude:
-            prj_name, prj_version = self.getProjectInfo(project)
-            query = "query -u \"is_child_of('{:s}', cvtype='project' and name='{:s}' and version='{:s}')\" -f \"%name-%version:%type:%instance\"".format(object_name,prj_name,prj_version)
-            if not mute:
-                self.ihm.log("ccm " + query)
-                self.ihm.defill()
-            stdout,stderr = self.ccm_query(query,"Get from folder")
-            if stdout != "":
+                      mute=False,
+                      negate=False,
+                      tbl=[],
+                      only_dir=False,
+                      extra_info="",
+                      exclude_dir=False):
+
+        output_filtered = []
+        print "getFromFolder:",object_name
+        #if extra_info == "":
+        #    m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',object_name)
+        #else:
+        #    m = re.match(r'^(.*)-(.*):(.*):([0-9]*):(.*):(.*)$',object_name)
+        folder_name,issue,type_object,instance,cr,release = self.getObjectInfos(object_name,extra_info)
+        if folder_name:
+            object_name_synergy = "{:s}-{:s}:{:s}:{:s}".format(folder_name,issue,type_object,instance)
+            #folder_name = m.group(1)
+            if Tool.isAttributeValid(project): # and folder_name not in exclude:
+                #print "GO"
+                prj_name, prj_version = self.getProjectInfo(project)
+                if only_dir:
+                    filter_dir = " -t dir "
+                else:
+                    filter_dir = ""
+                query = "query -u \"is_child_of('{:s}', cvtype='project' and name='{:s}' and version='{:s}')\" {:s} -f \"%name-%version:%type:%instance{:s}\"".format(object_name_synergy,prj_name,prj_version,filter_dir,extra_info)
                 if not mute:
-                    self.ihm.log(stdout,display_gui=False)
+                    self.ihm.log("ccm " + query)
                     #self.ihm.defill()
-                output = stdout.splitlines()
-                if not recur:
-                    return output
-                for item in output:
-                    m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',item)
-                    if m:
-                        type = m.group(3)
-                        if type == "dir":
-                            if item:
-                                recur_output = self.getFromFolder(object_name=item,
-                                                                  project=project,
-                                                                  exclude=exclude,
-                                                                  mute=mute)
-                                result.extend(recur_output)
-                        else:
-                            result.append(item)
-            else:
-                self.ihm.log(stderr)
-                self.ihm.log("No items found")
-        return result
+                stdout,stderr = self.ccm_query(query,"Get from folder")
+                if stdout != "":
+                    if not mute:
+                        self.ihm.log(stdout,display_gui=False)
+                        #self.ihm.defill()
+                    output = stdout.splitlines()
+                    if not recur:
+                        for line in output:
+                            directory_name,version,type,instance,cr,release = self.getObjectInfos(line,extra_info)
+                            if negate:
+                                if directory_name in exclude:
+                                    output_filtered.append(line)
+                                    print "TBL_1:",line
+                                    tbl.append(line)
+                            else:
+                                if directory_name not in exclude:
+                                    output_filtered.append(line)
+                                    print "TBL_2:",line
+                                    tbl.append(line)
+                        #print "No recur"
+                        return output_filtered
+                    else:
+                        for line in output:
+                            directory_name,version,type,instance,cr,release =  self.getObjectInfos(line,extra_info)
+                            if negate:
+                                if directory_name in exclude:
+                                    output_filtered.append(line)
+                            else:
+                                if directory_name not in exclude:
+                                    output_filtered.append(line)
+                        for item in output_filtered:
+                            name,version,type,instance,cr,release =  self.getObjectInfos(item,extra_info)
+                            if type:
+                                if type == "dir":
+                                    if not exclude_dir:
+                                        tbl.append(item)
+                                    print "TBL_3:",item
+                                    if negate:
+                                        recur_output = self.getFromFolder(object_name=item,
+                                                                          project=project,
+                                                                          mute=mute,
+                                                                          tbl=tbl,
+                                                                          recur = recur,
+                                                                          only_dir=only_dir,
+                                                                          extra_info=extra_info,
+                                                                          exclude_dir=exclude_dir)
+                                    else:
+                                        recur_output = self.getFromFolder(object_name=item,
+                                                                          project=project,
+                                                                          exclude=exclude,
+                                                                          mute=mute,
+                                                                          tbl=tbl,
+                                                                          recur = recur,
+                                                                          only_dir=only_dir,
+                                                                          extra_info=extra_info,
+                                                                          exclude_dir=exclude_dir)
+                                    if 0==1:
+                                        if recur_output != []:
+                                            print "TBL_4:",recur_output
+                                            tbl.extend(recur_output)
+                                        else:
+                                            pass
+                                else:
+                                    print "TBL_5:",item
+                                    tbl.append(item)
+                else:
+                    self.ihm.log(stderr)
+                    self.ihm.log("No items found")
+        return output_filtered
 
     def getCRInfo(self,
                   cr_id,
                   dico_cr,
                   parent=True):
         """
-
-        :param cr_id:
-        :param dico_cr:
-        :param parent:
-        :return:
+        To get "domain" information of the CR and information on parent CR
+        :param cr_id: INPUT Ex "810"
+        :param dico_cr: OUTPUT Ex: {'810': ('SACR', '<td><IMG SRC=../img/changeRequestIcon.gif>SyCR</td><td>PDS</td><td>806</td><td>SyCR_Under_Verification</td><td>Precision of 115V measurement on bus bar</td><td>S1.6%</td>\r\n')}
+        :param parent: True/False
         """
         tbl_parent_cr = []
         query = "query -t problem \"(problem_number='{:s}') \" -u -f \"%CR_domain\"".format(cr_id)
@@ -686,8 +1320,6 @@ class Synergy(Tool):
                 dico_cr[cr_id] = (cr_domain,list_parent_cr)
             else:
                 dico_cr[cr_id] = (cr_domain,)
-        #print "tbl_parent_cr",tbl_parent_cr
-        #return dico_cr
 
     def getParentCR(self,cr_id):
         """
@@ -860,13 +1492,24 @@ class Synergy(Tool):
         # Set scrollbar at the bottom
         return(tableau_pr)
 
+    def getCR_linked_to_Task(self,task_id_str):
+        stdout = ""
+        stderr = ""
+        text_summoning = "find CRs"
+        query = "task -show change_request " + task_id_str
+        self.ihm.log("ccm " + query)
+        stdout,stderr = self.ccm_query(query,text_summoning)
+        return stdout,stderr
+
     def getArticles(self,
-                    type_object,
-                    release,
-                    baseline,
+                    type_object=(),
+                    release="",
+                    baseline="",
                     project="",
                     source=False,
-                    recursive=True):
+                    recursive=True,
+                    exclude=False,
+                    cid_type=None):
         """
          Function to get list of items in Synergy with a specific release or baseline
 
@@ -882,19 +1525,29 @@ class Synergy(Tool):
         :param source:
         :return: list of objects found
         """
+        def dico(keyword,object_name,project):
+            txt = "{:s}('{:s}','{:s}')".format(keyword,object_name,project)
+            return txt
+        additional_conditions = ""
         if self.session_started:
             # Create filter for item type
-            query_cvtype = ""
+            query_cvtype = "\""
+            query_cvtype_and = ""
             status = False
             if type_object != ():
-                query_cvtype = "\"("+Tool._createImpl("cvtype",type_object)+")"
+                #query_cvtype = "\"("+Tool._createImpl("cvtype",type_object,with_and=False)+")"
+                query_cvtype += Tool._createImpl("cvtype",type_object,with_and=False)
                 query_cvtype += self.makeobjectsFilter(self.object_released,
                                                        self.object_integrate)
+                query_cvtype_and = ' and '
+
             if source:
                 # get task and CR for source code
                 sortby = "name"
                 text_summoning = "Get source files from "
-                if self.getCIDType() not in ("SCI"):
+                if cid_type is None:
+                    cid_type = self.getCIDType()
+                if cid_type not in ("SCI"):
                     display_attr = ' -f "%release;%name;%version;%task;%change_request;%type;%project;%instance"' # %task_synopsis
                 else:
                     display_attr = self.display_attr
@@ -904,36 +1557,61 @@ class Synergy(Tool):
                 display_attr = ' -f "%release;%name;%version;%task;%change_request;%type;%project;%instance"'
             if Tool.isAttributeValid(project):
                 # Project
+                prj_name, prj_version = self.getProjectInfo(project)
+                # Get valid directories
+                if exclude:
+                    list_found_items = []
+                    list_dir = self.getItemsInFolder(folder_keyword=prj_name,
+                                                    project=project,
+                                                    exclude=exclude,
+                                                    negate=True,
+                                                    recur=True,
+                                                    list_found_items=list_found_items,
+                                                    only_dir=True
+                                                     )
+                    if list_found_items:
+                        #for folder in list_found_items:
+                        #    print "folder",folder
+
+                        keyword = "not is_child_of"
+                        if not Tool._is_array(list_found_items):
+                            # Split string with comma as separator
+                            list_rel = list_found_items.split(",")
+                        else:
+                            # Keep list
+                            list_rel = list_found_items
+                        keywords_tbl = map((lambda x: keyword),list_rel)
+                        keywords_prj = map((lambda x: project),list_rel)
+                        additional_conditions = " and ".join(map(dico,keywords_tbl, list_rel,keywords_prj))
+                        additional_conditions = " and " + additional_conditions
+                    #exit(0)
                 text_summoning += "project: {:s}".format(project)
                 query = 'query -sby {:s} -n * -u '.format(sortby)
-                if query_cvtype != "":
-                    query += query_cvtype
-                    need_and = True
-                else:
-                    need_and = False
-                prj_name, prj_version = self.getProjectInfo(project)
+                query += query_cvtype + query_cvtype_and
+
+                #prj_name, prj_version = self.getProjectInfo(project)
                 #% option possible: ccm query "recursive_is_member_of('projname-version','none')"
-                if need_and:
-                     query += ' and '
+                #if need_and:
+                #     query += ' and '
                 if not recursive:
-                    query += ' is_member_of(cvtype=\'project\' and name=\'{:s}\' and version=\'{:s}\')" '.format(prj_name,prj_version)
+                    query += ' is_member_of(cvtype=\'project\' and name=\'{:s}\' and version=\'{:s}\') {:s} " '.format(prj_name,prj_version,additional_conditions)
                 else:
-                    query += ' recursive_is_member_of(cvtype=\'project\' and name=\'{:s}\' and version=\'{:s}\' , \'none\')" '.format(prj_name,prj_version)
+                    query += ' recursive_is_member_of(cvtype=\'project\' and name=\'{:s}\' and version=\'{:s}\' , \'none\') {:s}" '.format(prj_name,prj_version,additional_conditions)
                 query += display_attr
                 self.ihm.log("ccm " + query,color="white")
                 stdout,stderr = self.ccm_query(query,text_summoning)
                 # Set scrollbar at the bottom
-                self.ihm.defill()
+                #self.ihm.defill()
                 if stdout != "":
                     self.ihm.log(stdout)
-                    self.ihm.defill()
+                    #self.ihm.defill()
                     output = stdout.splitlines()
                     return output
                 else:
                     self.ihm.log(stderr)
                     self.ihm.log("No items found.")
                     return ""
-            elif  Tool.isAttributeValid(baseline):
+            elif Tool.isAttributeValid(baseline):
                 # Baseline
                 #
                 #  -sh: show
@@ -959,24 +1637,17 @@ class Synergy(Tool):
                 # Release
                 text_summoning += "release: {:s}".format(release)
                 query = 'query -sby {:s} -n * -u -release {:s} '.format(sortby,release)
-                if query_cvtype != "":
-                    query += query_cvtype
-                    need_and = True
-                else:
-                    need_and = False
+                query += query_cvtype
+
                 if Tool.isAttributeValid(project):
                     # Project
                     prj_name, prj_version = self.getProjectInfo(project)
                     #% option possible: ccm query "recursive_is_member_of('projname-version','none')"
-                    if need_and:
-                         query += ' and '
-                    query += ' recursive_is_member_of(cvtype=\'project\' and name=\'{:s}\' and version=\'{:s}\' , \'none\')" '.format(prj_name,prj_version)
+                    query += query_cvtype_and + ' recursive_is_member_of(cvtype=\'project\' and name=\'{:s}\' and version=\'{:s}\' , \'none\')" '.format(prj_name,prj_version)
                     text = "project"
                     param = project
                 else:
-                    # peut mieux faire
-                    if query_cvtype != "":
-                        query += '"'
+                    query += '"'
                     text = "release"
                     param = release
                 query += display_attr
@@ -1001,71 +1672,8 @@ class Synergy(Tool):
         self.ihm.defill()
         return ""
 
-class Gui(Frame):
-    def log(self,txt,test=False):
-        print txt
-    def defill(self):
-        pass
-    def __init__(self,window):
-        self.type_cr_workflow = False
-    def getTypeWorkflow(self):
-        return False
 def main():
-    output = "Dspic33fj256GP710a-1.0:dir:1"
-    m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',output)
-    if m:
-        type = m.group(3)
-        print type
-    # test = Synergy()
-    fenetre = Tk()
-    gui = Gui(fenetre)
-    # test = Synergy(ihm=gui)
-    # Test Folder filtering
-    thread = synergy_thread.ThreadQuery(master=gui,
-                                        login="appereo1",
-                                        password="jeudi2009",
-                                        system="Dassault F5X PDS",
-                                        item="ESNESS")
-    print "T2",thread.session_started
-    while not thread.getSessionStarted():
-        print "T3",thread.session_started
-        pass
-    time.sleep(5)
-    # docid.startSession("","db_sms_pds","appereo1","jeudi2009","SMS")
-    result = thread.getFolderName("*Data*sheet*","SW_WHCC-2.4")
-    print result
-    result = thread.getItemsInFolder("*Data*sheet*","SW_ENM-3.6")
-    print result
-    result = thread.getFolderName("*Input*Data*")
-    print "getFolderName",result
-    result = thread.getItemsInFolder("*Input*Data*","SW_ENM-3.6")
-    # thread.getDataSheetFolderName()
-    # result = thread. _getParentCR("704")
-    print "getItemsInFolder",result
-    project = "SW_WHCC-2.4"
-    list_datasheets = []
-    folder_info = thread.getFolderName("Input*Data",project)
-    # result should like this Input Data-1:dir:2
-    if folder_info:
-        #print "folder_info",folder_info
-        list_folders = thread.getFromFolder(folder_info,project,recur=False)
-        #print "LISTFOLDERS",list_folders
-        for sub_folder_info in list_folders:
-            m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',sub_folder_info)
-            if m:
-                dirname = m.group(1)
-                #print "DIRNAME",dirname
-                m = re.match(r'Data ?sheet',dirname,re.IGNORECASE)
-                if m:
-                    sub_list_folders = thread.getFromFolder(sub_folder_info,project)
-                    print "LISTFOLDERSTEST",sub_list_folders
-                    for sub_folder in sub_list_folders:
-                        m = re.match(r'^(.*)-(.*):(.*):([0-9]*)$',sub_folder)
-                        if m:
-                            doc = "{:s} issue {:s}".format(m.group(1),m.group(2))
-                            list_datasheets.append(doc)
-                    # we found Datasheet folder
-                    break
-    print "list_datasheets",list_datasheets
+    pass
+
 if __name__ == '__main__':
     main()

@@ -53,6 +53,8 @@ except ImportError:
         except ImportError:
           print("Failed to import ElementTree from any known place")
 from ccb import CCB
+from os.path import join
+
 # patch docx
 nsprefixes = {
     'mo': 'http://schemas.microsoft.com/office/mac/office/2008/main',
@@ -397,12 +399,17 @@ class Review(Synergy):
 
         self.subject = self.getReviewList(review_number,review_domain)
 
-    def _loadSQLConfig(self,review_domain="SW"):
+    def _loadSQLConfig(self,
+                       review_domain="SW"):
+
         def getChecklistDbFilename(filename_key="sw_checklists_db"):
             db_filename = self.getOptions("SQL",filename_key)
             if db_filename == "":
-                db_filename = "default_checklists_db.db3"
+                db_filename = join("db","default_checklists_db.db3")
+            else:
+                db_filename = join("db",db_filename)
             return db_filename
+
         self.gen_dir = "result"
         try:
             # get generation directory
@@ -468,7 +475,7 @@ class Review(Synergy):
 
     def getObjective(self,review_id=3):
         """
-            from SQLite tables review_checklists_dispatch and review_checklists and review_types
+
         """
         database=self.database
         print "DATABASE",self.database
@@ -484,7 +491,7 @@ class Review(Synergy):
 
     def getTransition(self,review_id=3):
         """
-            from SQLite tables review_checklists_dispatch and review_checklists and review_types
+
         """
         database=self.database
         query = "SELECT transition FROM review_types \
@@ -498,7 +505,7 @@ class Review(Synergy):
 
     def getConclusion(self,review_id=3):
         """
-            from SQLite tables review_checklists_dispatch and review_checklists and review_types
+
         """
         database=self.database
         query = "SELECT conclusion FROM review_types \
@@ -536,7 +543,7 @@ class Review(Synergy):
             query = "SELECT id,description FROM review_types"
             result = Tool.sqlite_query(query,database)
             if result is None:
-                reviews_list = "None"
+                reviews_list = False
             else:
                 reviews_list = result
             return reviews_list
@@ -544,7 +551,7 @@ class Review(Synergy):
             query = "SELECT description FROM review_types WHERE id LIKE '{:d}'".format(review_type_id)
             result = Tool.sqlite_query_one(query,database)
             if result is None:
-                description = "None"
+                description = False
             else:
                 description = result[0]
             return description
@@ -569,12 +576,26 @@ class Review(Synergy):
         :return:
         """
         for tag, doc in dico.iteritems():
-            print "Tag",tag,doc
+            #print "Tag",tag,doc
             text = re.sub('\{\{'+re.escape(tag)+'\}\}',doc,text)
         return text
 
-    def createChecksTable(self,review_number,type_check_id,tbl_check,dico,nb_item=1,selected_level=2):
+    def createChecksTable(self,
+                          review_number,
+                          type_check_id,
+                          tbl_check,
+                          dico,
+                          nb_item=1,
+                          selected_level=2,
+                          high_level=True):
         """
+
+        :param review_number:
+        :param type_check_id:
+        :param tbl_check:
+        :param dico:
+        :param nb_item:
+        :param selected_level:
         :return:
         """
         result = self.getChecks(review_number, type_check_id)
@@ -589,14 +610,25 @@ class Review(Synergy):
             else:
                 justification = "Not applicable for conformity level {:s}".format(selected_level)
                 compliance_status = "NA"
-            tbl_check.append([nb_item_str, description, compliance_status,justification, ""])
+            if high_level:
+                if category != u'Low Level Tests':
+                    tbl_check.append([nb_item_str, description, compliance_status,justification, ""])
+            else:
+                if category != u'High Level Tests':
+                    tbl_check.append([nb_item_str, description, compliance_status,justification, ""])
             nb_item += 1
         if len(tbl_check) == 1:
             tbl_check.append(["--", "--", "--", "--", "--"])
         print "tbl_check",tbl_check
         return nb_item
 
-    def createInputChecksTable(self,review_number,type_check_id,tbl_check,dico,nb_item=1):
+    def createInputChecksTable(self,
+                               review_number,
+                               type_check_id,
+                               tbl_check,
+                               dico,
+                               nb_item=1,
+                               high_level=True):
         """
         :return:
         """
@@ -606,7 +638,14 @@ class Review(Synergy):
             nb_item_str = "{:d}".format(nb_item)
             # Replace tag by documents name found
             description = self.replaceDocTag(description,dico)
-            tbl_check.append([nb_item_str, category, description, "OK/NOK/NA", "", ""])
+            if high_level:
+                if category != u'Low Level Tests':
+                    tbl_check.append([nb_item_str, category, description, "OK/NOK/NA", "", ""])
+
+            else:
+                if category != u'High Level Tests':
+                    tbl_check.append([nb_item_str, category, description, "OK/NOK/NA", "", ""])
+
             nb_item += 1
         if len(tbl_check) == 1:
             tbl_check.append(["--", "--", "--", "--", "--", "--"])
@@ -677,11 +716,77 @@ class Review(Synergy):
                 data_sheets_str = False
         return data_sheets_str
 
+    def setDicoTags(self,
+                    empty=False,
+                    dico_change = {},
+                    dico_quality = {},
+                    dico_inputs = {},
+                    dico_produced={},
+                    dico_verif={},
+                    dico_conformity = {},
+                    dico_transition={}):
+        pass
+
+    def getMap(self,txt):
+        mapping = ""
+        output = txt.splitlines()
+        for line in output:
+            print line
+            result = re.match(r'^(.*\.map)',line)
+            if result:
+                mapping = result.group(1)
+                break
+        return mapping
+
+    def getListDataInFolder(self,
+                            list_projects,
+                            baseline,
+                            release,
+                            keywords="",
+                            exclude=["IS_"],
+                            recur=False
+                            ):
+        list_str = ""
+        list_docs = []
+        if self._is_array(keywords):
+            for keyword in keywords:
+                for found_project in list_projects:
+                    self.getItemsInFolder(folder_keyword=keyword,
+                                         project=found_project,
+                                         baseline=baseline,
+                                         release=release,
+                                         converted_list=list_docs,
+                                         exclude=exclude,
+                                         recur=recur,
+                                         exclude_dir=True)
+        else:
+            for found_project in list_projects:
+                self.getItemsInFolder(folder_keyword=keywords,
+                                     project=found_project,
+                                     baseline=baseline,
+                                     release=release,
+                                     converted_list=list_docs,
+                                     exclude=exclude,
+                                     recur=recur,
+                                     exclude_dir=True)
+            #if list_docs != []:
+            #    break
+        if list_docs:
+            for item in list_docs:
+                self.ihm.log("Found data: {:s}".format(item),display_gui=True)
+            list_str = "\n ".join(map(str, list_docs))
+        else:
+            list_str = ""
+        return list_str
+
     def createReviewReport(self,
                            empty=False,
                            number=30,
                            detect_release="",
-                           impl_release=""):
+                           impl_release="",
+                           list_cr_type=[],
+                           list_cr_status=[],
+                           list_cr_doamin=[]):
         """
         Create review report using docx module
         """
@@ -704,6 +809,38 @@ class Review(Synergy):
             ihm.forceCCBType(cr_type)
             return review_domain
 
+        def emptyTag():
+            # Shallow review
+            # Change
+            dico_change = {'CCB_MINUTES':""}
+            # Quality Assurance
+            dico_quality = {'SQAR':""}
+             # Inputs
+            dico_inputs = {'DAL_DOC':"",'CUS_DOC':"",'SRTS_DOC':"",'SDTS_DOC':"",'SCS_DOC':"",'SYS_DOC':"",
+                           "HSID_DOC":"","DATASHEETS":"","SWRD_DOC":"","SWDD_DOC":"",
+                           "SHLVCP_DOC":"","SCOD_DOC":"",
+                           "EOC":"","RTA_DOC":"",
+                           "SLLVCP_DOC":"","SRC_FILES":""}
+            # Development
+            dico_produced = {'PSAC_DOC':"",'SDP_DOC':"",'SVP_DOC':"",'SCMP_DOC':"",'SQAP_DOC':"",
+                             "SWRD_DOC":"","SHLDR_DOC":"","SWDD_DOC":"","SLLDR_DOC":"",
+                             "SRC_FILE":"","MAKEFILE":"","EOC":"","MAPPING":"","SCOD_DOC":"",
+                             "SCI_DOC":"","SECI_DOC":"","SAS_DOC":""}
+            # Verification
+            dico_verif = {'PSAC_IS':"",'SDP_IS':"",'SVP_IS':"",'SCMP_IS':"",'SQAP_IS':"",
+                          "SWRD_IS":"","SWDD_IS":"",
+                          "SRC_IS":"","SCOD_IS":"",
+                          "SHLVCP_DOC":"","IS_SHLVCP":"","SLLVCP_DOC":"","IS_SLLVCP":"",
+                          "SHLVR_DOC":"","SLLVR_DOC":"","IS_SHLVR":"","IS_SLLVR":"",
+                          "SCI_IS":"","SECI_IS":"","SAS_IS":""}
+            # Conformity check
+            dico_conformity = {'CCB_MINUTES':""}
+            # Transition
+            dico_transition = {'SYS_DOC':"",
+                               "HSID_DOC":"",
+                               "DATASHEETS":""}
+            return dico_change,dico_quality,dico_inputs,dico_produced,dico_verif,dico_conformity,dico_transition
+
         reference = self.reference
         issue = self.issue
         target_release = self.impl_release
@@ -723,7 +860,8 @@ class Review(Synergy):
         # tableau_pr.append(["CR ID", "Synopsis", "Severity", "Status", "Comment/Impact/Risk"])
         # tableau_pr.append(self.tbl_cr)
 
-        cr_domain = getCRDomain(number,self.ihm)
+        cr_domain = getCRDomain(number,
+                                self.ihm)
         #
         # Creation of CR table
         #
@@ -741,10 +879,16 @@ class Review(Synergy):
         if not empty:
             tableau_pr_unsorted,found_cr = ccb.getPR_CCB(cr_status="",
                                                     for_review=True,
-                                                    cr_with_parent=cr_with_parent)
+                                                    cr_with_parent=cr_with_parent,
+                                                    list_cr_type=list_cr_type,
+                                                    list_cr_status=list_cr_status,
+                                                    list_cr_doamin=list_cr_doamin)
+            if not found_cr:
+                result = ccb.fillPRTable(for_review=True,cr_with_parent=cr_with_parent)
+                tableau_pr_unsorted = [result]
         else:
-            tableau_pr_unsorted = ccb.fillPRTable(for_review=True,
-                                             cr_with_parent=cr_with_parent)
+            result = ccb.fillPRTable(for_review=True,cr_with_parent=cr_with_parent)
+            tableau_pr_unsorted = [result]
 
         print "tableau_pr_unsorted",tableau_pr_unsorted
         # tableau_pr_sorted = sorted(tableau_pr_unsorted,key=ccb._getSeverity)
@@ -984,8 +1128,10 @@ class Review(Synergy):
         # Accès base MySQL QAMS pour les personnes qui assistent à la réunion
         if self.review_qams_id != "":
             tbl_attendees = mysql.exportAttendeesList(self.review_qams_id)
-        else:
+        elif not empty:
             tbl_attendees = [[self.author, "Function"]]
+        else:
+            tbl_attendees = [["Name", "Function"]]
         # List of missing
         if self.review_qams_id != "":
             tbl_missing = mysql.exportAttendeesList(self.review_qams_id, True)
@@ -1002,6 +1148,10 @@ class Review(Synergy):
         conclusion = self.getConclusion(review_number)
         conclusion = self.replaceDocTag(conclusion,{"CONFLEVEL":conformity_level,
                                                     "PART_NUMBER":part_number})
+        if self.review_qams_id != "":
+            description,stderr = mysql.getDescription(self.review_qams_id)
+        else:
+            description = ""
         user_info_sw={"name":self.author,
                    "mail":"olivier.appere@zodiacaerospace.com"}
         user_info_pld = user_info_sw
@@ -1014,8 +1164,21 @@ class Review(Synergy):
             user_info = user_info_sw
         print "fmt_pr",fmt_pr
         print "tableau_pr",tableau_pr
+        high_level_test = True
+        list_tags_basics = {
+            'TBL_CR': {'type': 'tab', 'text': tableau_pr, 'fmt': fmt_pr},
+            'ATTENDEES': {'type': 'tab', 'text': tbl_attendees, 'fmt': fmt_two},
+            'MISSING': {'type': 'tab', 'text': tbl_missing, 'fmt': fmt_two},
+            'COPIES': {'type': 'tab', 'text': tbl_copies, 'fmt': fmt_two},
+            'OBJECTIVE': {'type': 'str', 'text': objective, 'fmt': {}},
+            'TRANSITION': {'type': 'str', 'text': transition, 'fmt': {}},
+            'CONCLUSION': {'type': 'str', 'text': conclusion, 'fmt': {}},
+            'PREVIOUS_ACTIONS': {'type': 'tab', 'text': tbl_previous_actions_whdr, 'fmt': fmt_action},
+            'CURRENT_ACTIONS': {'type': 'tab', 'text': tbl_current_actions_whdr, 'fmt': fmt_action}
+            #'HTML_ACTIONS': {'type': 'html', 'text': tbl_current_actions_whdr, 'fmt': fmt_action}
+        }
         if not empty:
-            list_tags_basics = {
+            list_tags_basics.update({
                 'Name': {'type': 'str', 'text': user_info["name"], 'fmt': {}},
                 'DateMe': {'type': 'str', 'text': date_meeting, 'fmt': {}},
                 'Date': {'type': 'str', 'text': date_report, 'fmt': {}},
@@ -1034,28 +1197,29 @@ class Review(Synergy):
                 'SW_LEVEL': {'type': 'str', 'text': 'B', 'fmt': {}},
                 'PART_NUMBER': {'type': 'str', 'text': part_number, 'fmt': {}},
                 'CHECKSUM': {'type': 'str', 'text': checksum, 'fmt': {}},
-                'TBL_CR': {'type': 'tab', 'text': tableau_pr, 'fmt': fmt_pr},
-                'ATTENDEES': {'type': 'tab', 'text': tbl_attendees, 'fmt': fmt_two},
-                'MISSING': {'type': 'tab', 'text': tbl_missing, 'fmt': fmt_two},
-                'COPIES': {'type': 'tab', 'text': tbl_copies, 'fmt': fmt_two},
-                'OBJECTIVE': {'type': 'str', 'text': objective, 'fmt': {}},
-                'TRANSITION': {'type': 'str', 'text': transition, 'fmt': {}},
-                'CONCLUSION': {'type': 'str', 'text': conclusion, 'fmt': {}},
-                'PREVIOUS_ACTIONS': {'type': 'tab', 'text': tbl_previous_actions_whdr, 'fmt': fmt_action},
-                'CURRENT_ACTIONS': {'type': 'tab', 'text': tbl_current_actions_whdr, 'fmt': fmt_action}
-            }
+            })
         else:
-            list_tags_basics = {
-                'TBL_CR': {'type': 'tab', 'text': tableau_pr, 'fmt': fmt_pr},
-                'ATTENDEES': {'type': 'tab', 'text': tbl_attendees, 'fmt': fmt_two},
-                'MISSING': {'type': 'tab', 'text': tbl_missing, 'fmt': fmt_two},
-                'COPIES': {'type': 'tab', 'text': tbl_copies, 'fmt': fmt_two},
-                'OBJECTIVE': {'type': 'str', 'text': objective, 'fmt': {}},
-                'TRANSITION': {'type': 'str', 'text': transition, 'fmt': {}},
-                'CONCLUSION': {'type': 'str', 'text': conclusion, 'fmt': {}},
-                'PREVIOUS_ACTIONS': {'type': 'tab', 'text': tbl_previous_actions_whdr, 'fmt': fmt_action},
-                'CURRENT_ACTIONS': {'type': 'tab', 'text': tbl_current_actions_whdr, 'fmt': fmt_action}
-            }
+            list_tags_basics.update({
+                'Name': {'type': 'str', 'text': "", 'fmt': {}},
+                'DateMe': {'type': 'str', 'text': "", 'fmt': {}},
+                'Date': {'type': 'str', 'text': "", 'fmt': {}},
+                'Subject': {'type': 'str', 'text': "", 'fmt': {}},
+                'SUBJECT': {'type': 'str', 'text': "", 'fmt': {}},
+                'Service': {'type': 'str', 'text': 'Quality Department', 'fmt': {}},
+                'Place': {'type': 'str', 'text': 'Montreuil', 'fmt': {}},
+                'Ref': {'type': 'str', 'text': "", 'fmt': {}},
+                'Issue': {'type': 'str', 'text': "", 'fmt': {}},
+                'Tel': {'type': 'str', 'text': '', 'fmt': {}},
+                'Fax': {'type': 'str', 'text': '', 'fmt': {}},
+                'Email': {'type': 'str', 'text': "", 'fmt': {}},
+                'TGT_REL': {'type': 'str', 'text': "", 'fmt': {}},
+                'CSCI': {'type': 'str', 'text': "", 'fmt': {}},
+                'CONFLEVEL': {'type': 'str', 'text': "", 'fmt': {}},
+                'SW_LEVEL': {'type': 'str', 'text': "", 'fmt': {}},
+                'PART_NUMBER': {'type': 'str', 'text': "", 'fmt': {}},
+                'CHECKSUM': {'type': 'str', 'text': "", 'fmt': {}}
+            })
+        list_tags_basics.update({'MINUTES': {'type': 'str', 'text': description, 'fmt': {}}})
         baseline_doc = ""
         release_doc = ""
         project_doc = ""
@@ -1078,12 +1242,11 @@ class Review(Synergy):
         sdts_doc = ""
 
         # Specifications
-        swrd_doc = ""
         shldr_doc = ""
         # Design
         swdd_doc = ""
         slldr_doc = ""
-        hsid_doc = ""
+        hsid_doc = []
 
         # Interfaces
         icd_doc = ""
@@ -1096,81 +1259,173 @@ class Review(Synergy):
         tbl_plans = []
         ccb_doc = []
         list_datasheets = []
-
+        input_data_keyword = "Input*Data"
+        datasheet_keyword = ["Data*[s|S]heet*","Errata"]
+        design_keyword = "S[w|W]DD"
+        specification_keyword = "S[w|W]RD"
+        hsid_keyword = "HSID"
+        data_sheets_str = ""
+        list_input_data_str = ""
+        list_swrd_doc_str = ""
+        list_design_document_str = ""
+        list_hl_svcp_str = ""
+        list_ll_svcp_str = ""
+        list_source_code_str = ""
+        list_makefile_str = ""
+        list_eoc_str = ""
+        print "project_list",self.project_list
+        #top_list_projects = []
+        #result = self.createListRelBasProj(top_list_projects)
+        data_sheets = []
+        list_input_data = []
+        list_swrd_doc = []
+        list_design_document = []
+        list_obj_light = []
         for release, baseline, project in self.project_list:
-            input_data_keyword = "Input*Data"
-            datasheet_keyword = ["Data*[s|S]heet","Errata"]
-            design_keyword = "S[w|W]DD"
-            # No project selected ?
-            if Tool.isAttributeValid(release) and \
-                    Tool.isAttributeValid(baseline) and \
-                    not Tool.isAttributeValid(project) :
-                # We have a baseline but no project
-                # input_data_keyword = "Input ?Data"
-                # datasheet_keyword = "Data ?sheet"
-                # design_keyword = "S[w|W]DD"
-                # Test get projects
-                list_projects = self._getProjectsList_wo_ihm(release,
-                                                             baseline)
-                print "TEST list_projects in reviews.py module",list_projects
-            else:
-                list_projects = [project]
+            print "TEST in loop"
+            if 1==1:
+                # No project selected ?
+                if Tool.isAttributeValid(release) and \
+                        Tool.isAttributeValid(baseline) and \
+                        not Tool.isAttributeValid(project) :
+                    # We have a baseline but no project
+                    # input_data_keyword = "Input ?Data"
+                    # datasheet_keyword = "Data ?sheet"
+                    # design_keyword = "S[w|W]DD"
+                    # Test get projects
+                    list_projects = self._getProjectsList_wo_ihm(release,
+                                                                 baseline)
+                    print "TEST list_projects in reviews.py module",list_projects
+                else:
+                    list_projects = [project]
             output = self.getArticles(("pdf", "doc", "xls", "ascii","dir"),
                                       release,
                                       baseline,
                                       project,
                                       False)
-            #if baseline not in baseline_store:
-            baseline_store.append(baseline)
-            #if release not in release_store:
-            release_store.append(release)
-            #if project not in project_store:
-            project_store.append(project)
-            data_sheets_str = ""
-            for found_project in list_projects:
-                result = self.getDataSheet(datasheet_keyword,
-                                            found_project,
-                                            baseline,
-                                            release)
-                if result:
-                    data_sheets_str = result
-                    break
 
-            print "datasheet:",data_sheets_str
+            if Tool.isAttributeValid(baseline) and baseline not in baseline_store:
+                baseline_store.append(baseline)
+
+            if Tool.isAttributeValid(release) and release not in release_store:
+                release_store.append(release)
+
+            if Tool.isAttributeValid(project) and project not in project_store:
+                project_store.append(project)
+
+            # Data sheets
+            if 0==1:
+                data_sheets_str += self.getListDataInFolder(list_projects,
+                                                            baseline,
+                                                            release,
+                                                            datasheet_keyword,
+                                                            recur=True)
+
+            if self._is_array(datasheet_keyword):
+                for keyword in datasheet_keyword:
+                    list_obj_light_part = self.getObjectsPerFolder(keyword=keyword,
+                                         project = project,
+                                         baseline = baseline,
+                                         release = release,
+                                         list_tbl = data_sheets
+                                        )
+                    list_obj_light.extend(list_obj_light_part)
+            else:
+                list_obj_light_part = self.getObjectsPerFolder(keyword=datasheet_keyword,
+                                     project = project,
+                                     baseline = baseline,
+                                     release = release,
+                                     list_tbl = data_sheets
+                                    )
+                list_obj_light.extend(list_obj_light_part)
+            #print "data_sheets_str",data_sheets_str
             # INPUT DATA
-            list_input_data_str = ""
-            list_input_data = []
-            for found_project in list_projects:
-                list_input_data = self.getItemsInFolder(input_data_keyword,
-                                                        found_project,
-                                                        baseline,
-                                                        release)
-                if list_input_data != []:
-                    break
-            if list_input_data:
-                list_input_data_str = "\n ".join(map(str, list_input_data))
+            if 1==1:
+                list_input_data_str += self.getListDataInFolder(list_projects,
+                                                                baseline,
+                                                                release,
+                                                                input_data_keyword,
+                                                                recur=True)
             else:
-                list_input_data_str = ""
-            print "input data:",list_input_data_str
+                self.getObjectsPerFolder(keyword=input_data_keyword,
+                                     project = project,
+                                     baseline = baseline,
+                                     release = release,
+                                     list_tbl = list_input_data
+                                    )
+                list_input_data_str = "\n".join(list_input_data)
+            #print "list_input_data_str:",list_input_data_str
+            # SPECIFICATION
+            if 1==1:
+                list_swrd_doc_str += self.getListDataInFolder(list_projects,
+                                                            baseline,
+                                                            release,
+                                                            specification_keyword,
+                                                            recur=True)
+            else:
+                self.getObjectsPerFolder(keyword=specification_keyword,
+                                     project = project,
+                                     baseline = baseline,
+                                     release = release,
+                                     list_tbl = list_swrd_doc
+                                    )
+                list_swrd_doc_str = "\n".join(list_swrd_doc)
+            #print "list_swrd_doc_str:",list_swrd_doc_str
             # DESIGN
-            list_design_document_str = ""
-            list_design_document = []
-            for found_project in list_projects:
-                list_design_document = self.getItemsInFolder(design_keyword,
-                                                             found_project,
-                                                             baseline,
-                                                             release,
-                                                             exclude=["IS_"])
-                if list_design_document != []:
-                    break
-            if list_design_document:
-                list_design_document_str = "\n ".join(map(str, list_design_document))
+            if 1==1:
+                list_design_document_str += self.getListDataInFolder(list_projects,
+                                                                    baseline,
+                                                                    release,
+                                                                    design_keyword,
+                                                                    recur=True)
             else:
-                list_design_document_str = ""
-            print "design:",list_design_document_str
+                self.getObjectsPerFolder(keyword=design_keyword,
+                                     project = project,
+                                     baseline = baseline,
+                                     release = release,
+                                     list_tbl = list_design_document
+                                    )
+                list_design_document_str = "\n".join(list_design_document)
+            if review_number == 4:
+                # CODE
+                list_source_code_str += self.getListDataInFolder(list_projects,
+                                                                    baseline,
+                                                                    release,
+                                                                    keywords="SRC",
+                                                                    recur=True)
+                list_makefile_str += self.getListDataInFolder(list_projects,
+                                                                    baseline,
+                                                                    release,
+                                                                    keywords="BUILD",
+                                                                    recur=True)
+                list_eoc_str += self.getListDataInFolder(list_projects,
+                                                                    baseline,
+                                                                    release,
+                                                                    keywords="BIN",
+                                                                    recur=True)
+            # Software Verification Cases and Procedures
+            if review_number == 5:
+                print "review_number",review_number
+                print "trr_level",self.ihm.trr_level
+                if self.ihm.trr_level == 1:
+                    high_level_test = True
+                    list_hl_svcp_str += self.getListDataInFolder(list_projects,
+                                                                    baseline,
+                                                                    release,
+                                                                    keywords="SHLVCP",
+                                                                    recur=True)
+                    print "list_hl_svcp_str",list_hl_svcp_str
+                else:
+                    high_level_test = False
+                    list_ll_svcp_str += self.getListDataInFolder(list_projects,
+                                                                    baseline,
+                                                                    release,
+                                                                    keywords="SLLVCP",
+                                                                    recur=True)
+            # output from getArticles method
             for line in output:
                 line = re.sub(r"<void>", r"", line)
-                self.ihm.log("Found doc: " + line, False)
+                self.ihm.log("Found doc: " + line, display_gui=True)
                 m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)', line)
                 if m:
                     #
@@ -1276,7 +1531,7 @@ class Review(Synergy):
                             self._getSpecificDoc(m, "SwRD", ("doc")) or \
                             self._getSpecificDoc(m, "PLDRD", ("doc","pdf")):
                         index_doc += 1
-                        swrd_doc = self.getDocName(m)
+                        swrd_doc.append(self.getDocName(m))
                         link_id = self._createTblDocuments(m, tbl_output_doc, link_id)
                     elif self._getSpecificDoc(m, "SHLDR", ("xls")):
                         index_doc += 1
@@ -1299,7 +1554,7 @@ class Review(Synergy):
                     elif self._getSpecificDoc(m, "HSID", ("doc", "pdf")) or \
                             self._getSpecificDoc(m, "HPID", ("doc", "xls","pdf")):
                         index_doc += 1
-                        hsid_doc = self.getDocName(m)
+                        hsid_doc.append(self.getDocName(m))
                         link_id = self._createTblDocuments(m, tbl_transition_doc, link_id)
                     elif self._getSpecificDoc(m, "SWDD", ("doc")) or \
                         self._getSpecificDoc(m, "PLDDD", ("doc")) or \
@@ -1323,7 +1578,8 @@ class Review(Synergy):
                             if name not in ccb_doc:
                                 ccb_doc.append(name)
                         #link_id = self._createTblDocuments(m, tbl_upper_doc, link_id)
-
+        print "data_sheets",list_obj_light
+        data_sheets_str = "\n".join(list_obj_light)
         if len(tbl_upper_doc) == 1:
             tbl_upper_doc.append(["--", "--", "--", "--", "--"])
         if len(tbl_output_doc) == 1:
@@ -1332,14 +1588,17 @@ class Review(Synergy):
             tbl_peer_review_doc.append(["--", "--", "--", "--", "--"])
         if len(tbl_inspection_doc) == 1:
             tbl_inspection_doc.append(["--", "--", "--", "--", "--"])
-
+        # Documents
         sqar_doc_str = "\n ".join(map(str, sqar_doc))
         ccb_doc_str = "\n ".join(map(str, ccb_doc))
-        peer_review_str = "\n ".join(map(str, tbl_prr))
         plans_str = "\n ".join(map(str, tbl_plans))
         sys_doc_str = "\n ".join(map(str, sys_doc))
         cur_doc_str = "\n ".join(map(str, cur_doc))
         psac_doc_str = "\n ".join(map(str, psac_doc))
+        list_hsid_doc_str = "\n ".join(map(str, hsid_doc))
+
+        # Inspection Sheets
+        peer_review_str = "\n ".join(map(str, tbl_prr))
         psac_is_str = "\n ".join(map(str, psac_is))
         sdp_is_str = "\n ".join(map(str, sdp_is))
         svp_is_str = "\n ".join(map(str, svp_is))
@@ -1386,20 +1645,7 @@ class Review(Synergy):
                 dico_transition = {}
             else:
                 # Shallow review
-                # Change
-                dico_change = {}
-                # Quality Assurance
-                dico_quality = {}
-                 # Inputs
-                dico_inputs = {}
-                # Development
-                dico_produced = {}
-                # Verification
-                dico_verif = {}
-                # Conformity check
-                dico_conformity = {}
-                # Transition
-                dico_transition = {}
+                dico_change,dico_quality,dico_inputs,dico_produced,dico_verif,dico_conformity,dico_transition = emptyTag()
 
         elif review_number == 1:  # PR:
             review_string = ""
@@ -1427,51 +1673,25 @@ class Review(Synergy):
                 dico_transition = {"SYS_DOC":sys_doc_str}
             else:
                 # Shallow review
-                # Change
-                dico_change = {}
-                # Quality Assurance
-                dico_quality = {}
-                 # Inputs
-                dico_inputs = {}
-                # Development
-                dico_produced = {}
-                # Verification
-                dico_verif = {}
-                # Conformity check
-                dico_conformity = {}
-                # Transition
-                dico_transition = {}
+                dico_change,dico_quality,dico_inputs,dico_produced,dico_verif,dico_conformity,dico_transition = emptyTag()
         elif review_number == 2:  # SRR:
             review_string = ""
             filename_header = "REV_SRR_{:s}_SQA_{:s}".format(self.cr_type,self.reference)
             if not empty:
                 # Inputs
                 dico_inputs = {"SRTS_DOC":srts_doc,
-                               "SYS_DOC":sys_doc_str}
+                               "SYS_DOC":list_input_data_str}
                 # Development
-                dico_produced = {"SWRD_DOC":swrd_doc,
+                dico_produced = {"SWRD_DOC":list_swrd_doc_str,
                                "SHLDR_DOC":shldr_doc}
                 # Verification
                 dico_verif = {"SWRD_IS":swrd_is_str}
                 # Transition
-                dico_transition = {"HSID_DOC":hsid_doc,
+                dico_transition = {"HSID_DOC":list_hsid_doc_str,
                                    "DATASHEETS":data_sheets_str}
             else:
                 # Shallow review
-                # Change
-                dico_change = {}
-                # Quality Assurance
-                dico_quality = {}
-                 # Inputs
-                dico_inputs = {}
-                # Development
-                dico_produced = {}
-                # Verification
-                dico_verif = {}
-                # Conformity check
-                dico_conformity = {}
-                # Transition
-                dico_transition = {}
+                dico_change,dico_quality,dico_inputs,dico_produced,dico_verif,dico_conformity,dico_transition = emptyTag()
         elif review_number == 3:  # SDR:
             review_string = ""
             filename_header = "REV_SDR_{:s}_SQA_{:s}".format(self.cr_type,self.reference)
@@ -1479,9 +1699,10 @@ class Review(Synergy):
                 # Inputs
                 dico_inputs = {"SRTS_DOC":srts_doc,
                                "SDTS_DOC":sdts_doc,
-                               "HSID_DOC":hsid_doc,
+                               "HSID_DOC":list_hsid_doc_str,
                                "DATASHEETS":data_sheets_str,
-                               "SWRD_DOC":swrd_doc}
+                               "SWRD_DOC":list_swrd_doc_str}
+                print "SDR: dico_inputs",dico_inputs
                 # Development
                 dico_produced = {"SWDD_DOC":list_design_document_str,
                                "SLLDR_DOC":slldr_doc}
@@ -1491,20 +1712,90 @@ class Review(Synergy):
                 dico_transition = {}
             else:
                 # Shallow review
-                # Change
-                dico_change = {}
-                # Quality Assurance
-                dico_quality = {}
-                 # Inputs
-                dico_inputs = {}
+                dico_change,dico_quality,dico_inputs,dico_produced,dico_verif,dico_conformity,dico_transition = emptyTag()
+        elif review_number == 4:    #SCOR review
+            review_string = ""
+            filename_header = "REV_SCOR_{:s}_SQA_{:s}".format(self.cr_type,self.reference)
+            if not empty:
+                # Inputs
+                dico_inputs = {"SCS_DOC":scs_doc,
+                               "DATASHEETS":data_sheets_str,
+                               "SWDD_DOC":list_design_document_str}
                 # Development
-                dico_produced = {}
+                mapping = self.getMap(list_eoc_str)
+                dico_produced = {"SRC_FILE":list_source_code_str,
+                                 "MAKEFILE":list_makefile_str,
+                                 "EOC":list_eoc_str,
+                                 "MAPPING":mapping,
+                                 "SCOD_DOC":""}
+
                 # Verification
-                dico_verif = {}
-                # Conformity check
-                dico_conformity = {}
+                dico_verif = {"SRC_IS":"",
+                              "SCOD_IS":""}
                 # Transition
                 dico_transition = {}
+            else:
+                # Shallow review
+                dico_change,dico_quality,dico_inputs,dico_produced,dico_verif,dico_conformity,dico_transition = emptyTag()
+
+        elif review_number == 5:    #TRR review
+            if self.ihm.trr_level == 1:
+                high_level_test = True
+            else:
+                high_level_test = False
+            review_string = ""
+            filename_header = "REV_TRR_{:s}_SQA_{:s}".format(self.cr_type,self.reference)
+            if not empty:
+                # Inputs
+                dico_inputs = {}
+                dico_inputs_hl = {"SWRD_DOC":list_swrd_doc_str,
+                                  "SRTS_DOC":sdts_doc,
+                                  "HSID_DOC":list_hsid_doc_str
+                               }
+                scod_doc = ""
+                dico_inputs_ll = {"SWDD_DOC":list_design_document_str,
+                                  "SHLVCP_DOC":list_hl_svcp_str,
+                                  "SDTS_DOC":sdts_doc,
+                                  "SCOD_DOC":scod_doc
+                               }
+                dico_inputs.update(dico_inputs_hl)
+                dico_inputs.update(dico_inputs_ll)
+                # Verification
+                dico_verif = {"SHLVCP_DOC":list_hl_svcp_str,
+                              "IS_SHLVCP":"",
+                              "SLLVCP_DOC":list_ll_svcp_str,
+                              "IS_SLLVCP":""}
+                # Transition
+                dico_transition = {}
+            else:
+                # Shallow review
+                dico_change,dico_quality,dico_inputs,dico_produced,dico_verif,dico_conformity,dico_transition = emptyTag()
+        elif review_number == 7:    #TR review
+            if self.ihm.tr_level == 1:
+                high_level_test = True
+            else:
+                high_level_test = False
+            review_string = ""
+            filename_header = "REV_TR_{:s}_SQA_{:s}".format(self.cr_type,self.reference)
+            if not empty:
+                # Inputs
+                dico_inputs = {}
+                dico_inputs_hl = {
+                               }
+                scod_doc = ""
+                dico_inputs_ll = {
+                               }
+                dico_inputs.update(dico_inputs_hl)
+                dico_inputs.update(dico_inputs_ll)
+                # Verification
+                dico_verif = {"SHLVR_DOC":"",
+                              "IS_SHLVR":"",
+                              "SLLVR_DOC":"",
+                              "IS_SLLVR":""}
+                # Transition
+                dico_transition = {}
+            else:
+                dico_change,dico_quality,dico_inputs,dico_produced,dico_verif,dico_conformity,dico_transition = emptyTag()
         elif review_number == 20:  # SwRD audit:
             review_string = "AUD_SWRD"
             filename_header = "AUD_SWRD_{:s}_SQA_{:s}".format(self.cr_type,self.reference)
@@ -1535,11 +1826,11 @@ class Review(Synergy):
             # Conformity check
             dico_conformity = {}
             # Transition
-            dico_transition = {"HPID_DOC":hsid_doc,
+            dico_transition = {"HPID_DOC":list_hsid_doc_str,
                                 "COMPLEXITY":""}
         elif review_number == 32:  # PLD Detailled Design Review::
             dico_inputs = {"PLANS":plans_str,
-                            "HPID_DOC":hsid_doc,
+                            "HPID_DOC":list_hsid_doc_str,
                             "PLDRD_DOC":swrd_doc,
                            "ICD_DOC":icd_doc,
                            "PRR":peer_review_str,
@@ -1571,15 +1862,7 @@ class Review(Synergy):
                 review_string = "GENERIC"
                 filename_header = "GENERIC_{:s}_QA_{:s}".format(self.cr_type,self.reference)
 
-            dico_inputs = {}
-            # Development
-            dico_produced = {}
-            # Verification
-            dico_verif = {}
-            # Conformity check
-            dico_conformity = {}
-            # Transition
-            dico_transition = {}
+            dico_change,dico_quality,dico_inputs,dico_produced,dico_verif,dico_conformity,dico_transition = emptyTag()
             self.synergy_log("Review report export not implemented yet")
         self.synergy_log("Amount of SCI found: {:d}".format(index_sci), False)
         self.synergy_log("Amount of SAS found: {:d}".format(index_sas), False)
@@ -1602,7 +1885,7 @@ class Review(Synergy):
         if not empty:
             tbl_scope.append([ci_identification, release_doc, baseline_doc, conformity_level, self.sw_level])
         else:
-            tbl_scope.append(["{{CSCI ID}}","{{RELEASE}}","{{BASELINE}}","{{CONFORMITY LEVEL}}","{{SW LEVEL}}"])
+            tbl_scope.append(["","","","",""])
         list_tags_scope = {
             'SCOPE': {'type': 'tab', 'text': tbl_scope, 'fmt': fmt_scope},
             'REL': {'type': 'str', 'text': release_doc, 'fmt': {}},
@@ -1643,15 +1926,42 @@ class Review(Synergy):
         # SQA Activity
         nb_item= self.createChecksTable(review_number,6,tbl_sqa_check,dico_quality,nb_item)
         # Inputs
-        nb_item= self.createInputChecksTable(review_number,1,tbl_inputs_check,dico_inputs,nb_item)
+        nb_item= self.createInputChecksTable(review_number,
+                                             1,
+                                             tbl_inputs_check,
+                                             dico_inputs,
+                                             nb_item,
+                                             high_level=high_level_test)
         # Development
-        nb_item = self.createChecksTable(review_number,2,tbl_dev_check,dico_produced,nb_item,conformity_level)
+        nb_item = self.createChecksTable(review_number,
+                                         2,
+                                         tbl_dev_check,
+                                         dico_produced,
+                                         nb_item,
+                                         conformity_level)
         # Verification
-        nb_item = self.createChecksTable(review_number,3,tbl_verif_check,dico_verif,nb_item,conformity_level)
+        nb_item = self.createChecksTable(review_number,
+                                         3,
+                                         tbl_verif_check,
+                                         dico_verif,
+                                         nb_item,
+                                         conformity_level,
+                                         high_level=high_level_test)
         # Conformity
-        nb_item = self.createChecksTable(review_number,7,tbl_conformity_check,dico_conformity,nb_item,conformity_level)
+        nb_item = self.createChecksTable(review_number,
+                                         7,
+                                         tbl_conformity_check,
+                                         dico_conformity,
+                                         nb_item,
+                                         conformity_level)
         # Transition
-        nb_item = self.createChecksTable(review_number,4,tbl_transition_check,dico_transition,nb_item,conformity_level)
+        nb_item = self.createChecksTable(review_number,
+                                         4,
+                                         tbl_transition_check,
+                                         dico_transition,
+                                         nb_item,
+                                         conformity_level,
+                                         high_level=high_level_test)
         # CR checklist creation
         # TODO: redondant avec synergy_thread
         ccb = CCB(self.ihm,
@@ -1666,7 +1976,7 @@ class Review(Synergy):
         ccb.setDomain(self.ccb_type)
         ccb.tableau_pr,found_cr = ccb.getPR_CCB(for_review=True)
         print "tableau_pr in review",tableau_pr
-        if found_cr:
+        if found_cr and not empty:
             dico_cr_checklist = ccb.createChecklist(self.ccb_type,
                                                     for_review=True)
         else:
@@ -1676,52 +1986,21 @@ class Review(Synergy):
             # table_cr_checklist.append(["--","--","--"])
             # dico_cr_checklist['checklist',"1","In_Analysis"] = table_cr_checklist
         print "dico_cr_checklist",dico_cr_checklist
-        if not empty:
-            list_tags = {
-                'MAKE_LOG': {'type': 'str', 'text': make_log, 'fmt': {}},
-                'SCI_DOC': {'type': 'str', 'text': sci_doc, 'fmt': {}},
-                'SECI_DOC': {'type': 'str', 'text': seci_doc, 'fmt': {}},
-                'SAS_DOC': {'type': 'str', 'text': sas_doc, 'fmt': {}},
-                'SCI_IS': {'type': 'str', 'text': sci_is, 'fmt': {}},
-                'SECI_IS': {'type': 'str', 'text': seci_is, 'fmt': {}},
-                'SAS_IS': {'type': 'str', 'text': sas_is, 'fmt': {}},
-                'PSAC_DOC': {'type': 'tab', 'text': psac_doc_str, 'fmt': fmt_one},
-                'SDP_DOC': {'type': 'str', 'text': sdp_doc, 'fmt': {}},
-                'SVP_DOC': {'type': 'str', 'text': svp_doc, 'fmt': {}},
-                'SCMP_DOC': {'type': 'str', 'text': scmp_doc, 'fmt': {}},
-                'SRTS_DOC': {'type': 'str', 'text': srts_doc, 'fmt': {}},
-                'SDTS_DOC': {'type': 'str', 'text': sdts_doc, 'fmt': {}},
-                'SCS_DOC': {'type': 'str', 'text': scs_doc, 'fmt': {}},
-                'SWRD_DOC': {'type': 'str', 'text': swrd_doc, 'fmt': {}},
-                'SWDD_DOC': {'type': 'str', 'text': swdd_doc, 'fmt': {}},
-                'SWDD_IS': {'type': 'str', 'text': swdd_is, 'fmt': fmt_one},
-                'CR_CHECK': {'type': 'tab', 'text': tbl_cr_check, 'fmt': fmt_checks},
-                'TABLECHECKLIST':{'type':'mix','text':dico_cr_checklist,'fmt':ccb.fmt_chk},
-                'SQA_CHECK': {'type': 'tab', 'text': tbl_sqa_check, 'fmt': fmt_checks},
-                'INPUTS_CHECK': {'type': 'tab', 'text': tbl_inputs_check, 'fmt': fmt_ipnut_checks},
-                'DEV_CHECK': {'type': 'tab', 'text': tbl_dev_check, 'fmt': fmt_checks},
-                'VERIF_CHECK': {'type': 'tab', 'text': tbl_verif_check, 'fmt': fmt_checks},
-                'TRANSITION_CHECK': {'type': 'tab', 'text': tbl_transition_check, 'fmt': fmt_checks},
-                'CONFORMITY_CHECK': {'type': 'tab', 'text': tbl_conformity_check, 'fmt': fmt_checks},
-                'TBL_IN': {'type': 'tab', 'text': tbl_upper_doc, 'fmt': fmt_baseline},
-                'TBL_OUT': {'type': 'tab', 'text': tbl_output_doc, 'fmt': fmt_baseline},
-                'TBL_TRANSITION': {'type': 'tab', 'text': tbl_transition_doc, 'fmt': fmt_baseline},
-                'TBL_INSPECTION': {'type': 'tab', 'text': tbl_inspection_doc, 'fmt': fmt_baseline},
-            }
-        else:
-             list_tags = {
-                'CR_CHECK': {'type': 'tab', 'text': tbl_cr_check, 'fmt': fmt_checks},
-                'SQA_CHECK': {'type': 'tab', 'text': tbl_sqa_check, 'fmt': fmt_checks},
-                'INPUTS_CHECK': {'type': 'tab', 'text': tbl_inputs_check, 'fmt': fmt_ipnut_checks},
-                'DEV_CHECK': {'type': 'tab', 'text': tbl_dev_check, 'fmt': fmt_checks},
-                'VERIF_CHECK': {'type': 'tab', 'text': tbl_verif_check, 'fmt': fmt_checks},
-                'TRANSITION_CHECK': {'type': 'tab', 'text': tbl_transition_check, 'fmt': fmt_checks},
-                'CONFORMITY_CHECK': {'type': 'tab', 'text': tbl_conformity_check, 'fmt': fmt_checks},
-                'TBL_IN': {'type': 'tab', 'text': tbl_upper_doc, 'fmt': fmt_baseline},
-                'TBL_OUT': {'type': 'tab', 'text': tbl_output_doc, 'fmt': fmt_baseline},
-                'TBL_TRANSITION': {'type': 'tab', 'text': tbl_transition_doc, 'fmt': fmt_baseline},
-                'TBL_INSPECTION': {'type': 'tab', 'text': tbl_inspection_doc, 'fmt': fmt_baseline},
-            }
+
+        list_tags = {
+        'TABLECHECKLIST':{'type':'mix','text':dico_cr_checklist,'fmt':ccb.fmt_chk},
+        'CR_CHECK': {'type': 'tab', 'text': tbl_cr_check, 'fmt': fmt_checks},
+        'SQA_CHECK': {'type': 'tab', 'text': tbl_sqa_check, 'fmt': fmt_checks},
+        'INPUTS_CHECK': {'type': 'tab', 'text': tbl_inputs_check, 'fmt': fmt_ipnut_checks},
+        'DEV_CHECK': {'type': 'tab', 'text': tbl_dev_check, 'fmt': fmt_checks},
+        'VERIF_CHECK': {'type': 'tab', 'text': tbl_verif_check, 'fmt': fmt_checks},
+        'TRANSITION_CHECK': {'type': 'tab', 'text': tbl_transition_check, 'fmt': fmt_checks},
+        'CONFORMITY_CHECK': {'type': 'tab', 'text': tbl_conformity_check, 'fmt': fmt_checks},
+        'TBL_IN': {'type': 'tab', 'text': tbl_upper_doc, 'fmt': fmt_baseline},
+        'TBL_OUT': {'type': 'tab', 'text': tbl_output_doc, 'fmt': fmt_baseline},
+        'TBL_TRANSITION': {'type': 'tab', 'text': tbl_transition_doc, 'fmt': fmt_baseline},
+        'TBL_INSPECTION': {'type': 'tab', 'text': tbl_inspection_doc, 'fmt': fmt_baseline},
+        }
         list_tags.update(list_tags_basics)
         list_tags.update(list_tags_scope)
         # Remove dash in filename for Synergy

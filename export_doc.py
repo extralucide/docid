@@ -44,6 +44,7 @@ from tool import Tool
 from ccb import CCB
 from datetime import datetime
 from conf import VERSION
+import json
 import webbrowser
 
 __author__ = 'olivier'
@@ -63,7 +64,11 @@ class BuildDoc(Synergy):
     def setSessionStarted(self,session_started):
         self.session_started = session_started
 
-    def __init__(self,ihm=None,**kwargs):
+    def __init__(self,
+                 ihm=None,
+                 dico_parameters={},
+                 preview=False,
+                 **kwargs):
         """
         :param ihm:
         :param kwargs:
@@ -79,27 +84,43 @@ class BuildDoc(Synergy):
         #self.session_started = session_started
         self.ccb_type = "SCR"
         self.list_cr_for_ccb_available = False
+        self.preview = preview
         try:
-            self.author = self.ihm.author_entry.get()
-            self.reference = self.ihm.reference_entry.get()
-            self.revision = self.ihm.revision_entry.get()
-            self.release = self.ihm.release
-            self.aircraft = self.ihm.aircraft
-            self.system = self.ihm.system
-            self.item = self.ihm.item
-            self.component = self.ihm.component
-            self.project = self.ihm.project
-            self.baseline = self.ihm.baseline
+            if "cid_type" in self.__dict__:
+                self.cid_type = self.__dict__["cid_type"]
+            else:
+                if ihm is not None:
+                    self.cid_type = self.ihm.getCIDType()
+                else:
+                    self.cid_type = ""
             self.tableau_pr = []
             self.docx_filename = ""
-            self.cid_type = self.ihm.getCIDType()
-            self.part_number = self.ihm.part_number_entry.get()
-            self.board_part_number = self.ihm.board_part_number_entry.get()
-            self.checksum = self.ihm.checksum_entry.get()
-            self.dal = self.ihm.dal_entry.get()
+            self.object_released = ""
+            self.object_integrate = ""
+            self.author = dico_parameters["author"]
+            self.reference = dico_parameters["reference"]
+            self.revision = dico_parameters["issue"]
+            self.release = dico_parameters["release"]
+            if "aircraft" in dico_parameters:
+                self.aircraft = dico_parameters["aircraft"]
+            else:
+                self.aircraft = "Unknown A/C"
+            self.system = dico_parameters["system"]
+            self.item = dico_parameters["item"]
+            self.component = dico_parameters["component"]
+            self.project = dico_parameters["project"]
+            self.baseline = dico_parameters["baseline"]
+            self.part_number = dico_parameters["part_number"]
+            self.board_part_number = dico_parameters["board_pn"]
+            self.checksum = dico_parameters["checksum"]
+            self.dal = dico_parameters["dal"]
             self.previous_release = self.ihm.previous_release_entry.get()
-            self.impl_release = self.ihm.impl_release_entry.get()
-            self.detect_release = self.previous_release
+            self.impl_release = dico_parameters["implemented"]
+            self.detect_release = dico_parameters["detect"]
+            self.target_release = dico_parameters["implemented"]
+        except KeyError,e:
+            print "KeyError:",e
+            self.target_release = ""
         except AttributeError,e:
             print "AttributeError:",e
             self.author = ""
@@ -121,7 +142,10 @@ class BuildDoc(Synergy):
             self.dal = ""
             self.previous_release = ""
             self.impl_release = ""
+            self.target_release = ""
             self.detect_release = ""
+            self.object_released = ""
+            self.object_integrate = ""
         self.programing_file = ""
         self.input_data_filter =""
         self.peer_reviews_filter = ""
@@ -136,6 +160,22 @@ class BuildDoc(Synergy):
             result = self._loadConfig()
         self.protocol_interface_index = "0"
         self.data_interface_index = "0"
+        self.ref_index = 1
+        # Read user cid tags (json format)
+        self.dico_onw_user_cid_tags = {}
+        try:
+            src_file = join("conf","user_cid_tags.json")
+            with open(src_file) as src:
+                try:
+                    self.dico_own_user_cid_tags = json.load(src)
+                except ValueError as exception:
+                    print ("Json file error:",str(exception))
+                #print "IN:",self.dico_own_user_cid_tags
+        except IOError as e:
+            print (e)
+            self.dico_oww_user_cid_tags = {}
+        self._initTables()
+        self._initTablesSrc()
 
     def getCIDType(self):
         return self.cid_type
@@ -213,10 +253,11 @@ class BuildDoc(Synergy):
                 self.ihm.log('Search folder containing keyword: ' + list_filter)
         stdout = self._runFinduseQuery(release,project,type_items,enabled)
         #print "STDOUT",stdout
-        result = []
+
         if not stdout:
             if source:
                 print "FILTER/PROJECT",list_filter,project
+                result = []
                 if self._is_array(list_filter):
                     for keyword in list_filter:
                         self.getItemsInFolder(keyword,
@@ -226,6 +267,7 @@ class BuildDoc(Synergy):
                                                        only_name=True,
                                                        with_extension=True,
                                                        mute=True,
+                                                       recur=True,
                                                        converted_list=result)
                         if result:
                             break
@@ -237,15 +279,17 @@ class BuildDoc(Synergy):
                                                    only_name=True,
                                                    with_extension=True,
                                                    mute=True,
+                                                   recur=True,
                                                    converted_list=result)
                 if result:
                     table = result
             else:
                 index = 0
                 for list_filter in filters:
+                    result = []
                     if self._is_array(list_filter):
                         for keyword in list_filter:
-                            print "KEYWORD",keyword
+                            print ("KEYWORD:",index,keyword)
                             self.getItemsInFolder(keyword,
                                                            project,
                                                            baseline,
@@ -253,11 +297,12 @@ class BuildDoc(Synergy):
                                                            only_name=True,
                                                            with_extension=True,
                                                            mute=True,
+                                                           recur=True,
                                                            converted_list=result)
                             if result:
                                 table[index].extend(result)
-                        index += 1
                     else:
+                        print ("KEYWORD2:",list_filter)
                         self.getItemsInFolder(list_filter,
                                                        project,
                                                        baseline,
@@ -265,11 +310,12 @@ class BuildDoc(Synergy):
                                                        only_name=True,
                                                        with_extension=True,
                                                        mute=True,
+                                                       recur=True,
                                                        converted_list=result)
                         if result:
                             table[index] = result
-                        index += 1
-            #print "OLD TABLE",table
+                    index += 1
+            print "OLD TABLE",table
             return table
         else:
             if enabled:
@@ -381,7 +427,7 @@ class BuildDoc(Synergy):
         :param filename:
         :return:
         """
-        m = re.match(r"(.*)\.(bat|sh|log|gld|txt|exe)",filename)
+        m = re.match(r"(.*)\.(bat|sh|log|gld|txt|exe|gproc|ld|cpcmd)",filename)
         if m:
             output_file = filename
         else:
@@ -393,7 +439,7 @@ class BuildDoc(Synergy):
         return output_file
 
     def _getSwEOC(self,filename):
-        m = re.match(r"(.*)\.(hex)",filename)
+        m = re.match(r"(.*)\.(hex|srec)",filename)
         if m:
             output_file = filename
         else:
@@ -422,6 +468,61 @@ class BuildDoc(Synergy):
         if seek_file not in ("",None):
             self.tbl_synthesis_file.append([match.group(2),match.group(3),match.group(1)])
 
+    def _createTblUserDocument(self,
+                               m,
+                               list_tags):
+        '''
+            Add a "type_doc" document in table of "type_doc" if
+            - the name of the document match the name in user dictionary
+            - the type of the document is doc or pdf
+        '''
+        result = False
+        release_item = m.group(1)
+        document = m.group(2)
+        version = m.group(3)
+        task = m.group(4)
+        cr = m.group(5)
+        type = m.group(6)
+        project = m.group(7)
+        instance = m.group(8)
+        tbl_doc = None
+        if type in ('doc','pdf','xls'):
+            doc_name = self.getDocName(m)
+            #doc_name = re.sub(r"(.*)\.(.*)",r"\1",m.group(2))
+            for dico in list_tags:
+                tag         = dico["tag"]
+                key         = dico["keyword"]
+                description = dico["description"]
+                reference   = dico["ref"]
+                print ("KEY:",key,doc_name)
+                if key in doc_name:
+                    if self.getCIDType() not in ("SCI"):
+                        tbl_doc = [release_item + ":" + project,document,version,description,task]
+                    else:
+                        if reference == "":
+                            reference = self._getReference(document)
+                        if tag == u'PRR':
+                            tbl_doc = [document,version,release_item]
+                        #elif tag == u'CCB':
+                        #    tbl_doc = [description,doc_name,version,type,instance,release_item]
+                        #    self.tbl_ccb = [description,doc_name,version,type,instance,release_item]
+                        else:
+                            # Remove CR not in user list
+                            res_tbl = []
+                            all_tbl_cr = cr.split(",")
+                            res_tbl.extend(all_tbl_cr)
+                            Tool.removeCRs(res_tbl,self.list_only_include_cr)
+                            if len(res_tbl) > 1:
+                                list
+                                filter_cr = ",".join(res_tbl)
+                            else:
+                                filter_cr = "".join(res_tbl)
+                            tbl_doc = [description,reference,document,version,type,instance,release_item,filter_cr]
+                    result = tag
+                    #print "tbl_doc",result,tbl_doc
+                    break
+        return result,tbl_doc
+
     def _createTblSources(self,m):
         result = False
         release_item = m.group(1)
@@ -440,20 +541,22 @@ class BuildDoc(Synergy):
             result = True
         return result
 
-    def _createTblSourcesHistory(self,m,source_only=True):
+    def _createTblSourcesHistory(self,tbl_decod,source_only=True):
         result = False
-        document = m.group(1)
-        version = m.group(2)
-        task = m.group(3)
-        task_synopsis = m.group(4)
-        cr = m.group(5)
-        cr_synopsis = m.group(6)
-        type = m.group(7)
+        document = tbl_decod[0]
+        version = tbl_decod[1]
+        task = tbl_decod[2]
+        task_synopsis = tbl_decod[3]
+        cr = tbl_decod[4]
+        cr_synopsis = tbl_decod[5]
+        type = tbl_decod[6]
+        owner = tbl_decod[7]
         line = False
         if source_only:
-            condition = (type in self.list_type_src and self._isSourceFile(document))
+            list_type_src = self.getSrcType()
+            condition = (type in list_type_src and self._isSourceFile(document))
         else:
-            condition = True
+            condition = type not in ("folder","dir","task","project_grouping","process_rule","baseline")
         if condition:
 ##            if "SSCS" in document:
 ##                print "TASK",task
@@ -474,14 +577,15 @@ class BuildDoc(Synergy):
                     task_id_str = list_tasks[index]
                     task_id_int = int(task_id_str)
                     # Find CR linked if more than one task is linked to the item
-                    text_summoning = "find CRs"
+                    #text_summoning = "find CRs"
                     # if the command has already be executed  go get the cache instead
                     if task_id_str not in self.cache_array:
-                        query = "task -show change_request " + task_id_str
-                        self.ihm.log("ccm " + query)
-                        stdout,stderr = self.ccm_query(query,text_summoning)
+                        stdout,stderr = self.getCR_linked_to_Task(task_id_str)
+                        #query = "task -show change_request " + task_id_str
+                        #self.ihm.log("ccm " + query)
+                        #stdout,stderr = self.ccm_query(query,text_summoning)
                         # Set scrollbar at the bottom
-                        self.ihm.defill()
+                        #self.ihm.defill()
                         if stdout != "":
                             task_vs_cr_array = stdout.splitlines()
                             if len(task_vs_cr_array) > 1:
@@ -499,9 +603,9 @@ class BuildDoc(Synergy):
                         cr_linked_to_task = self.cache_array[task_id_str]
                 if cr_linked_to_task:
                     for index_cr in range(len(list_cr)):
-                        line.append(document + ";" + version + ";" + list_tasks[index] + ";" + list_task_synopsis[index] + ";" + list_cr[index_cr] + ";" + list_cr_synopsis[index_cr])
+                        line.append(document + ";" + version + ";" + list_tasks[index] + ";" + list_task_synopsis[index] + ";" + list_cr[index_cr] + ";" + list_cr_synopsis[index_cr] + ";" + owner)
                 else:
-                    line.append(document + ";" + version + ";" + list_tasks[index] + ";" + list_task_synopsis[index] + ";;")
+                    line.append(document + ";" + version + ";" + list_tasks[index] + ";" + list_task_synopsis[index] + ";;;" + owner)
 ##            self.tableau_items.append([document,version,task,task_synopsis,cr,cr_synopsis])
 ##            print "CACHE:",self.cache_array
             result = True
@@ -573,7 +677,8 @@ class BuildDoc(Synergy):
         instance = m.group(8)
         seek_file = self._getSwEOC(document)
         if seek_file not in ("",None):
-            readEOC(document,issue,type,instance)
+            #if self.getCIDType() == "SCI":
+            #    readEOC(document,issue,type,instance)
             self.tbl_sw_eoc.append([document,issue,type,instance,release_item])
 
     def _createTblConstraint(self,match):
@@ -710,9 +815,10 @@ class BuildDoc(Synergy):
         type = m.group(6)
         project = m.group(7)
         instance = m.group(8)
-        if type in ('doc','pdf'):
+        if type in ('doc','pdf','xls'):
             dico = {"CCB_Minutes":"CCB meeting report",
-                    "CCB":"CCB meeting report"}
+                    "CCB":"CCB meeting report",
+                    "CCB_Actions":"CCB Actions list"}
             # doc_name = re.sub(r"(.*)\.(.*)",r"\1",m.group(2))
             doc_name = self.getDocName(m)
             for key in dico:
@@ -762,6 +868,7 @@ class BuildDoc(Synergy):
                     result = True
                     break
         return result
+
     def _createTblSeci(self,m):
         '''
             Add a SECI document in table of SECI if
@@ -792,6 +899,38 @@ class BuildDoc(Synergy):
                     result = True
                     break
         return result
+
+    def _createTblScod(self,m):
+        '''
+            Add a SCOD document in table of SCOD if
+            - the name of the document match the name in SCOD dictionary
+            - the type of the document is doc or pdf
+        '''
+        result = False
+        description = ""
+        release_item = m.group(1)
+        document = m.group(2)
+        version = m.group(3)
+        task = m.group(4)
+        cr = m.group(5)
+        type = m.group(6)
+        project = m.group(7)
+        instance = m.group(8)
+        if type in ('doc','pdf'):
+            dico = {"SCOD":"Software Coding Output Document"}
+            doc_name = re.sub(r"(.*)\.(.*)",r"\1",m.group(2))
+            for key in dico:
+                if key in doc_name:
+                    description,reference = self._getDescriptionDoc(document)
+                    description = dico[key]
+                    if self.getCIDType() not in ("SCI"):
+                        self.tbl_scod.append([m.group(1) + ":" + m.group(7),m.group(2),m.group(3),description,m.group(4)])
+                    else:
+                        self.tbl_scod.append([description,reference,document,version,type,instance,release_item,cr])
+                    result = True
+                    break
+        return result
+
     def _createTblInspectionSheets(self,m):
         '''
             Add a review document in table of review if
@@ -811,7 +950,8 @@ class BuildDoc(Synergy):
         if type in ('xls',"doc"):
             dico = {"IS_":"Inspection Sheet",
                     "FDL":"Fiche de Lecture",
-                    "PRR":"Peer Review Register"}
+                    "PRR":"Peer Review Register",
+                    "Comment":"Peer Review"}
             doc_name = re.sub(r"(.*)\.(.*)",r"\1",m.group(2))
             for key in dico:
                 if key in doc_name:
@@ -1072,6 +1212,12 @@ class BuildDoc(Synergy):
 
         try:
             self.previous_baseline = tool.getOptions("Default","previous_baseline")
+            only_include_cr = tool.getOptions("Generation","only_include_cr")
+            for self.list_only_include_cr in csv.reader([only_include_cr]):
+                pass
+            self.list_only_include_cr = map((lambda x: str(x)),self.list_only_include_cr)
+            #print "list_only_include_cr",self.list_only_include_cr
+            #exit()
             self.finduse = tool.getOptions("Generation","finduse")
              # get generation directory
             self.gen_dir = tool.getOptions("Generation","dir")
@@ -1090,7 +1236,10 @@ class BuildDoc(Synergy):
                 self.ihm.check_cr_workflow_status.config(state=DISABLED)
                 self.ihm.type_cr_workflow = self.config_parser.get("Workflow","CR")
             else:
-                self.ihm.type_cr_workflow = "None"
+                try:
+                    self.ihm.type_cr_workflow = "None"
+                except:
+                    pass
                 # read object type
             type_doc = tool.config_parser.get("Objects","type_doc")
             for self.list_type_doc in csv.reader([type_doc]):
@@ -1158,11 +1307,17 @@ class BuildDoc(Synergy):
                 with open(file_descr_docs, 'rb') as file_csv_handler:
                     reader = csv.reader (self.CommentStripper (file_csv_handler))
                     for tag,description,reference in reader:
+                        #print "Y",description,reference
                         self.dico_descr_docs[tag] = description
                         self.dico_descr_docs_ref[tag] = reference
         except IOError as exception:
             self.ihm.log("Generation description_docs config reading failed: {:s}".format(file_descr_docs))
             read_config = False
+        except ValueError as exception:
+            try:
+                self.ihm.log("Error values in configuration file description_docs")
+            except:
+                pass
             # read dictionary of generic description for doc
             # 2 columns separated by comma
         try:
@@ -1207,7 +1362,7 @@ class BuildDoc(Synergy):
             self.ihm.log("Generation func_chg_filename config reading failed: {:s}".format(oper_chg_filename))
             read_config = False
 
-        self.ihm.defill()
+        #self.ihm.defill()
         return read_config
 
     def _setOuptutFilename(self,template_type):
@@ -1330,76 +1485,84 @@ class BuildDoc(Synergy):
                                   release,
                                   baseline,
                                   project,
-                                  False)
-        index_doc = 0
+                                  source=False,
+                                  recursive=True,
+                                  exclude=self.exclude_filter)
+        self._parseSynergyOutput(output)
+
+    def _parseSynergyOutput(self,output):
+        # patch temp
+        header = ["Title","Reference","Synergy Name","Version","Type","Instance","Release","CR"]
+        index_doc   = 0
+        index_user  = 0
         index_input = 0
-        index_plan = 0
-        index_std = 0
-        index_sas = 0
-        index_seci = 0
-        index_ccb = 0
-        index_is = 0
-        index_icd_protocol = 0
-        index_icd_data = 0
+        index_plan  = 0
+        index_std   = 0
+        index_sas   = 0
+        index_seci  = 0
+        index_scod  = 0
+        index_ccb   = 0
+        index_is    = 0
+        index_icd_protocol  = 0
+        index_icd_data      = 0
         link_id = 1
+
         for line in output:
             line = re.sub(r"<void>",r"",line)
             self.ihm.log("Found doc: " + line,display_gui=False)
+            # release;filename;tasks;?;type;project;instance
             m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)',line)
             if m:
-                # Look for IS first
-                result = self._createTblInspectionSheets(m)
+                # first inspection files
+                if "Reviews" in self.dico_own_user_cid_tags:
+                    list_tags = self.dico_own_user_cid_tags["Reviews"]
+                    result,tbl_doc_found = self._createTblUserDocument(m,
+                                                                       list_tags)
+                else:
+                    result = False
                 if result:
                     index_is +=1
+                    self.tbl_inspection_sheets.append(tbl_doc_found[:])
                 else:
-                    # Look for plans
-                    result = self._createTblPlans(m)
+                    # then plans
+                    if "Plans" in self.dico_own_user_cid_tags:
+                        list_tags = self.dico_own_user_cid_tags["Plans"]
+                        result,tbl_doc_found = self._createTblUserDocument(m,
+                                                                           list_tags)
+                    else:
+                        result = False
                     if result:
                         index_plan +=1
+                        self.tbl_plans.append(tbl_doc_found[:])
                     else:
-                        # Look for CCB minutes report
-                        result = self._createTblCcb(m,self.target_release)
-                        if result:
-                            index_ccb +=1
+                        # then other documents
+                        if "Documents" in self.dico_own_user_cid_tags:
+                            list_tags = self.dico_own_user_cid_tags["Documents"]
+                            tag,tbl_doc_found = self._createTblUserDocument(m,
+                                                                              list_tags)
+                            if tag:
+                                # User tag
+                                index_user += 1
+                                if tag not in self.tbl_user:
+                                    self.tbl_user[tag] = [header]
+                                self.tbl_user[tag].append(tbl_doc_found[:])
                         else:
-                            # Look for standards
-                            result = self._createTblStds(m)
+                            result = False
+                        if not result:
+                            if  self.protocol_interface in m.group(2):
+                                self.protocol_interface_index = m.group(3)
+                                index_icd_protocol +=1
+                            elif self.data_interface in m.group(2) :
+                                self.data_interface_index = m.group(3)
+                                index_icd_data +=1
+                            result = self._createTblDocuments(m,
+                                                              self.tableau_items,
+                                                              link_id,
+                                                              for_sci=True)
                             if result:
-                                index_std +=1
-                            else:
-                                # Look for Software Accomplishment Summary
-                                result = self._createTblSas(m)
-                                if result:
-                                    index_sas +=1
-                                else:
-                                    # Look for Software Environment Configuration Index
-                                    result = self._createTblSeci(m)
-                                    if result:
-                                        index_seci +=1
-                                    else:
-                                        # Look for interface
-                                        # m.group(2) is the filename
-                                        # m.group(3) is the Synergy version
-##                                        print "TEST",m.group(2),m.group(3),self.protocol_interface,self.data_interface_index
-                                        if  self.protocol_interface in m.group(2):
-                                            self.protocol_interface_index = m.group(3)
-                                            index_icd_protocol +=1
-                                        elif self.data_interface in m.group(2) :
-                                            self.data_interface_index = m.group(3)
-                                            index_icd_data +=1
-                                        # Then input data (meaning not included in release)
-                                        #if release not in ("",None,"All","None"):
-                                        #    result = self._createTblInputData(m,release)
-                                        #else:
-                                        #    result = False
-                                        #if result:
-                                        #    index_input +=1
-                                        #else:
-                                        # Then all => self.tableau_items
-                                        result = self._createTblDocuments(m,self.tableau_items,link_id,for_sci=True)
-                                        if result:
-                                            index_doc +=1
-        self.ihm.log("Amount of documents found: {:d}".format(index_doc) + str(index_doc),False)
+                                index_doc +=1
+        self.ihm.log("Amount of other documents found: {:d}".format(index_doc),False)
+        self.ihm.log("Amount of user data found: {:d}".format(index_user),False)
         self.ihm.log("Amount of input data found: {:d}".format(index_input),False)
         self.ihm.log("Amount of inspection sheets found: {:d}".format(index_is),False)
         self.ihm.log("Amount of plans found: {:d}".format(index_plan),False)
@@ -1407,6 +1570,7 @@ class BuildDoc(Synergy):
         self.ihm.log("Amount of CCB minutes found: {:d}".format(index_ccb),False)
         self.ihm.log("Amount of SAS found: {:d}".format(index_sas),False)
         self.ihm.log("Amount of SECI found: {:d}".format(index_seci),False)
+        self.ihm.log("Amount of SCOD found: {:d}".format(index_scod),False)
         self.ihm.log("Amount of protocol interface document found: {:d}".format(index_icd_protocol),False)
         self.ihm.log("Amount of data interface document found: {:d}".format(index_icd_data),False)
 
@@ -1414,11 +1578,16 @@ class BuildDoc(Synergy):
         '''
         Check baseline name for CODE keyword
         '''
-        tag_code_only = re.match(r'^CODE_(.*)',tag) or re.match(r'(.*)VHDL(.*)',tag)
-        if tag_code_only is None:
-            return False
+        #tag_code_only = re.match(r'^CODE_(.*)',tag) or re.match(r'(.*)VHDL(.*)',tag)
+        if "VHDL" in tag or "CODE" in tag:
+            tag_code_only = True
         else:
-            return True
+            tag_code_only = False
+        #if tag_code_only is None:
+        #    return False
+        #else:
+        #    return True
+        return tag_code_only
 
     def isBoardOnly(self,tag):
         '''
@@ -1460,7 +1629,7 @@ class BuildDoc(Synergy):
             header_soft_sources = ["File Name","Version","Type","Instance","Release","CR"]
             self.tbl_build = [header_soft_sources]
             header_input = ["Title","Reference","Synergy Name","Version","Type","Instance","Release"]
-            header_ccb_input = ["Title","Synergy Name","Version","Type","Instance","Release"]
+            header_ccb_input = ["Title","Reference","Synergy Name","Version","Type","Instance","Release"]
             header = ["Title","Reference","Synergy Name","Version","Type","Instance","Release","CR"]
             header_prr = ["Name","Version","Release"]
         # Header for delivery
@@ -1471,7 +1640,7 @@ class BuildDoc(Synergy):
         self.tbl_plans = []
         self.tbl_stds = [header]
         self.tbl_ccb = [header_ccb_input]
-        self.tbl_ccb.append(header_ccb_input)
+        #self.tbl_ccb.append(header_ccb_input)
         self.tableau_prog = []
         self.tbl_program_file = [self.tiny_header]
         self.tbl_synthesis_file = [self.tiny_header]
@@ -1480,20 +1649,12 @@ class BuildDoc(Synergy):
         self.tbl_inspection_sheets = []
         self.tbl_sas = [header]
         self.tbl_seci = [header]
+        self.tbl_scod = [header]
         # Split table of items with input data and peer reviews
         self.tbl_verif = [header]
         self.tbl_exclude = [header]
         self.tbl_peer_reviews = [header_prr]
-
-    def _removeDoublons(self,tbl_in):
-        '''
-        '''
-        tbl_out = []
-        if tbl_in is not None:
-            for elt in tbl_in:
-                if elt not in tbl_out:
-                    tbl_out.append(elt)
-        return tbl_out
+        self.tbl_user = {}
 
     def _initTablesSrc(self):
         '''
@@ -1522,7 +1683,7 @@ class BuildDoc(Synergy):
         # Specific Software
         self.tbl_sw_outputs = [header_delivery]
         self.tbl_sw_eoc = [header_delivery]
-##        return tbl_sources
+
     def getSrcType(self):
         # Get expected type of sources according to CID type
         if self.cid_type == "SCI":
@@ -1677,7 +1838,9 @@ class BuildDoc(Synergy):
         for doc in tbl_in:
             synergy_name = doc[index]
             synergy_name_suffix = re.sub(r"(.*)\.(.*)$", r"\1", synergy_name)
-            #print "",synergy_name_suffix
+            #if "MC21_ENMU" in synergy_name:
+            #    print "synergy_name",synergy_name
+            #    print "synergy_name_suffix",synergy_name_suffix
             if synergy_name_suffix not in dico:
                 if with_cr:
                     dico[synergy_name_suffix] = [doc[0:8]]
@@ -1687,8 +1850,9 @@ class BuildDoc(Synergy):
                 if with_cr:
                     dico[synergy_name_suffix].append(doc[0:8])
                 else:
-                    dico[synergy_name_suffix].append(doc[0:8])
-        #print "DICO",dico
+                    dico[synergy_name_suffix].append(doc[0:7])
+        #if "MC21_ENMU" in dico:
+        #    print "DICO",dico
         #tbl_in = sorted(tbl_in,key=lambda x: x[index])
         tbl_input_data_unsorted = []
         for name,doc in dico.iteritems():
@@ -1701,20 +1865,22 @@ class BuildDoc(Synergy):
             nb_version = len(doc)
             list_cr = []
             for object in doc:
+                type_obj = object[2]
                 if with_cr:
                     # Concatenate all applicable CRs for the last version of document
                     cr_implemented = object[index_cr]
                     #print "CR",cr_implemented
                     if cr_implemented != "":
                         list_cr.append(cr_implemented)
-                    if iter >= nb_version:
+
+                    if iter >= nb_version or (type_obj not in ("pdf","doc")):
                         # Remove redundant data
                         list_cr_str = ",".join(set(list_cr))
                         object[index_cr] = list_cr_str
                         tbl_input_data_unsorted.append(object)
 
                 else:
-                     if iter >= nb_version:
+                     if iter >= nb_version or (type_obj not in ("pdf","doc")):
                         tbl_input_data_unsorted.append(object)
                 iter += 1
         tbl_input_data_unsorted = sorted(tbl_input_data_unsorted,key=lambda x: x[index])
@@ -1944,8 +2110,8 @@ class BuildDoc(Synergy):
                         index_version,
                         with_cr=verif_with_cr,
                         line_empty=line_other_empty)
-
-    def setCellBorder(self,colw):
+    @staticmethod
+    def setCellBorder(colw):
         cell_borders = {'all': {'color': 'auto','space': 0,'sz': 6,'val': 'single'}}
         fmt =  {'heading': True,
                 'colw': colw,
@@ -1955,8 +2121,11 @@ class BuildDoc(Synergy):
                 'borders': cell_borders}
         return fmt
 
-    def getContext(self,list_projects,cid_type=False):
-        if cid_type not in ("SCI"):
+    def getContext(self,
+                   list_projects,
+                   cid_type=False):
+        print "getContext",cid_type
+        if cid_type not in ("SCI") or self.project == "":
             release_list = []
             baseline_list = []
             project_list = []
@@ -1977,8 +2146,30 @@ class BuildDoc(Synergy):
             project_text = self.project
         return release_text,baseline_text,project_text
 
+    def formatDocTable(self,tbl_output,tbl_input):
+        fmt = self.setCellBorder([700,2300,200,2000])
+        header = True
+        for line in tbl_input:
+            filename = line[1]
+            issue = line[2]
+            description = line[3]
+            if header:
+                header = False
+                reference = "Ref."
+            elif line[1] == "-":
+                reference = "-"
+            else:
+                reference = "[R{:d}] {:s}".format(self.ref_index,Tool._getReference(filename))
+                self.ref_index += 1
+            tbl_output.append((reference,filename,issue,description))
+        return fmt
+
     def createCID(self,
                   project_set_list=[],
+                  header_image=True,
+                  list_cr_type=[],
+                  list_cr_status=[],
+                  list_cr_doamin=[],
                   **kwargs):
         """
         This function creates the document based on the template
@@ -1998,25 +2189,35 @@ class BuildDoc(Synergy):
         self.list_type_src = self.getSrcType()
         # get CID template name
         template_name = self._getTemplate(self.cid_type)
+        # test presence of template
+        if not os.path.exists(template_name):
+            # warn user that template is not found
+            self.ihm.popup('Specified template in docid.ini configuration file does not exists.')
+            # abort cid generation
+            return "",None
+        self.ihm.log("Use template {:s}.".format(template_name))
         if self.cid_type in ("HCMR_PLD","HCMR_BOARD"):
             template_type = "HCMR"
         else:
             template_type = self.cid_type
         # Prepare output file
         docx_filename = self._setOuptutFilename(template_type)
+        eoc_filename = None
         #
         # Documentations
         #
         self.ihm.log("Items query in progress...")
-        self.ihm.defill()
+        #self.ihm.defill()
         self._initTables()
         self._initTablesSrc()
         # Header for documents
-        if self.getCIDType() not in ("SCI"):
+        cid_type = self.getCIDType()
+        if cid_type not in ("SCI"):
             cr_parent= True
             header = ["Release:Project","Document","Issue","Description","Tasks"]
             line_empty_input = ["--","--","--","--","--"]
             line_empty = ["--","--","--","--","--"]
+            line_cid_empty = ["--","--","--","--","--"]
             header_input = ["Release:Project","Document","Issue","Description","Tasks"]
             # Header for sources
             # FPGA
@@ -2029,10 +2230,11 @@ class BuildDoc(Synergy):
             tbl_build = [header]
             fmt = self.setCellBorder([1000,2300,200,1000,500,500,500])
             fmt_ccb = self.setCellBorder([1000,2300,200,1000,1500])
+            fmt_cid = self.setCellBorder([1000,2300,200,500,500])
             fmt_src = self.setCellBorder([2500,500,500,500,500,500])
             fmt_build = self.setCellBorder([3000,500,500,500,500])
             fmt_prr = self.setCellBorder([1000,2300,200,1000,500,500,500])
-            fmt_small = self.setCellBorder([500,2000,500,500,500,500,500])
+            fmt_small = self.setCellBorder([500,2000,500,500,500,500,500,500])
             fmt_tiny = self.setCellBorder([4000,500,500])
             fmt_tiny_sw = self.setCellBorder([3000,500,500,500,500])
         else:
@@ -2045,16 +2247,18 @@ class BuildDoc(Synergy):
             header_soft_sources = ["File Name","Version","Type","Instance","Release","CR"]
             header_prr = ["Name","Version","Release"]
             line_sw_eoc_empty = ["--","--","--","--","--"]
+            line_cid_empty = ["--","--","--","--","--"]
             line_src_empty = ["--","--","--","--","--","--"]
             line_ccb_empty = ["--","--","--","--","--","--","--"]
             line_other_empty = ["--","--","--","--","--","--","--","--"]
             tbl_build = [header_soft_sources]
             fmt = self.setCellBorder([1000,2300,200,500,500,500,500,500])
-            fmt_ccb = self.setCellBorder([1000,2300,200,500,500,500,500,500])
+            fmt_ccb = self.setCellBorder([1000,2300,200,500,500,500,500])
+            fmt_cid = self.setCellBorder([1000,2300,200,500,500])
             fmt_src = self.setCellBorder([2500,500,500,500,500,500])
             fmt_build = self.setCellBorder([2500,500,500,500,500,500])
             fmt_prr = self.setCellBorder([4000,500,500])
-            fmt_small = self.setCellBorder([500,2500,500,500,500,500])
+            fmt_small = self.setCellBorder([500,2500,500,500,500,500,500])
             fmt_tiny = self.setCellBorder([4000,500,500])
             fmt_tiny_sw = self.setCellBorder([3000,500,500,500,500])
         line_empty_three_columns = ["--","--","--"]
@@ -2074,14 +2278,14 @@ class BuildDoc(Synergy):
 
         # Document part
         include_code = False
-        cid_type = self.getCIDType()
         if project_set_list != []:
             # Projects are available in GUI
             self.ihm.log("Use project set list to create CID for documents",False)
             # Project set in GUI
-            list_projects = self.ihm.project_set_list
+            list_projects = project_set_list #self.ihm.project_set_list
             # List of projects from GUI
-            release_text,baseline_text,project_text = self.getContext(list_projects)
+            #release_text,baseline_text,project_text = self.getContext(list_projects,
+            #                                                          cid_type)
         else:
             project = self.project
             # [self.release,self.baseline,self.project]]
@@ -2098,13 +2302,17 @@ class BuildDoc(Synergy):
                     if project != sub_project:
                         self.ihm.log("Find sub project {:s}".format(sub_project))
             else:
-                list_projects = [[self.release,self.baseline,""]]
-            if not Tool.isAttributeValid(project) and not Tool.isAttributeValid(self.baseline):
-                # No project nor baseline
-                # Patch: Looking for only release
-                print "INCLUDE_CODE"
-                include_code = True
-            release_text,baseline_text,project_text = self.getContext(list_projects,cid_type)
+                #Valid baseline ?
+                if Tool.isAttributeValid(self.baseline):
+                    list_projects = self.getProjectsInBaseline(self.baseline)
+                else:
+                    list_projects = [[self.release,"",""]]
+                    # No project nor baseline
+                    # Patch: Looking for only release
+                    print "INCLUDE_CODE"
+                    include_code = True
+        release_text,baseline_text,project_text = self.getContext(list_projects,
+                                                                  cid_type)
 
         tbl_plans = [header]
         tbl_life_cycle_data = [header]
@@ -2178,6 +2386,13 @@ class BuildDoc(Synergy):
             # - _getAllDocuments (class BuildDoc)
             # -     _getArticles (class Synergy)
             #
+            table_life_cycle_data = []
+            for tag in ("INPUT_DATA","CODE","TEST","SPEC","CCB"):
+                if tag in self.dico_onw_user_cid_tags:
+                    table_life_cycle_data[tag] = self.dico_onw_user_cid_tags[tag]
+                else:
+                    print "X:",tag
+                    print "Y:",self.dico_onw_user_cid_tags
             for release,baseline,project in list_projects:
                 if  Tool.isAttributeValid(release) or Tool.isAttributeValid(baseline) or Tool.isAttributeValid(project):
                     self.ihm.log("Use release " + release,False)
@@ -2201,58 +2416,139 @@ class BuildDoc(Synergy):
                                                                                                                      False)
                         table_input_data.extend(l_table_input_data)
                         table_peer_reviews.extend(l_table_peer_reviews)
+                        #print "l_table_peer_reviews",l_table_peer_reviews
                         table_verif.extend(l_table_verif)
                         table_exclude.extend(l_table_exclude)
-                        # Get LLR
-                        design_keyword = "S[w|W]DD"
-                        self.ihm.log("Looking for Low Level requirement in SwDD folder ...")
-                        self.ihm.defill()
-                        self.getItemsInFolder(design_keyword,
-                                             project,
-                                             baseline,
-                                             release,
-                                             only_name=True,
-                                             exclude=["SwDD_"],
-                                             with_extension=True,
-                                             mute=True,
-                                             converted_list=list_llr_document)
+                        #print "l_table_exclude",l_table_exclude
+
+                        if cid_type in ("SCI"):
+                            #Input Data
+                            if self._is_array(table_life_cycle_data["INPUT_DATA"]["keyword"]):
+                                for keyword in table_life_cycle_data["INPUT_DATA"]["keyword"]:
+                                    self.getObjectsPerFolder(keyword=keyword,
+                                             project = project,
+                                             baseline = baseline,
+                                             release = release,
+                                             list_tbl = table_life_cycle_data["INPUT_DATA"]["table"]
+                                            )
+                            else:
+                                self.getObjectsPerFolder(keyword=table_life_cycle_data["INPUT_DATA"]["keyword"],
+                                         project = project,
+                                         baseline = baseline,
+                                         release = release,
+                                         list_tbl = table_life_cycle_data["INPUT_DATA"]["table"]
+                                        )
+                            #CCB Minutes
+                            if self._is_array(table_life_cycle_data["CCB"]["keyword"]):
+                                for keyword in table_life_cycle_data["CCB"]["keyword"]:
+                                    self.getObjectsPerFolder(keyword=keyword,
+                                             project = project,
+                                             baseline = baseline,
+                                             release = release,
+                                             list_tbl = table_life_cycle_data["CCB"]["table"])
+                            else:
+                                self.getObjectsPerFolder(keyword=table_life_cycle_data["CCB"]["keyword"],
+                                         project = project,
+                                         baseline = baseline,
+                                         release = release,
+                                         list_tbl = table_life_cycle_data["CCB"]["table"])
+                            # Specifications
+                            if self._is_array(table_life_cycle_data["SPEC"]["keyword"]):
+                                for keyword in table_life_cycle_data["SPEC"]["keyword"]:
+                                    print "keyword",keyword
+                                    self.getObjectsPerFolder(keyword=keyword,
+                                         project = project,
+                                         baseline = baseline,
+                                         release = release,
+                                         list_tbl = table_life_cycle_data["SPEC"]["table"],
+                                         header = ["Reference","Synergy Name","Version","Type","Instance","Release","CR"],
+                                         with_cr=True,
+                                         cr_included=self.list_only_include_cr
+                                        )
+                            else:
+                                self.getObjectsPerFolder(keyword=table_life_cycle_data["SPEC"]["keyword"],
+                                         project = project,
+                                         baseline = baseline,
+                                         release = release,
+                                         list_tbl = table_life_cycle_data["SPEC"]["table"],
+                                         header = ["Reference","Synergy Name","Version","Type","Instance","Release","CR"],
+                                         with_cr=True,
+                                         cr_included=self.list_only_include_cr
+                                        )
+                            # Get LLR
+                            design_keyword = "S[w|W]DD"
+                            self.ihm.log("Looking for Low Level requirement in SwDD folder ...")
+                            #self.ihm.defill()
+                            self.getItemsInFolder(design_keyword,
+                                                 project=project,
+                                                 baseline=baseline,
+                                                 release=release,
+                                                 only_name=True,
+                                                 #exclude=["SwDD_"],
+                                                 with_extension=True,
+                                                 mute=False,
+                                                 recur=True,
+                                                 converted_list=list_llr_document)
+
+
+
 
                     if baseline_code_only or project_code_only or include_code:
                         # Specific command for source code. TODO: To be optimized
                         self.display_attr = ' -f "%release;%name;%version;%task;%change_request;%type;%project;%instance"' # %task_synopsis
                         # self.display_attr is used in _getAllSources
                         # _getAllSources populates self.tableau_src
-                        self._getAllSources(release,
-                                            baseline,
-                                            project)
+                        # Source code
+                        if Tool.isAttributeValid(project) and cid_type in ("SCI"):
+                            self.getObjectsPerFolder(keyword=table_life_cycle_data["CODE"]["keyword"],
+                                     project = project,
+                                     baseline = baseline,
+                                     release = release,
+                                     list_tbl = table_life_cycle_data["CODE"]["table"],
+                                     header = ["Synergy Name","Version","Type","Instance","Release","CR"],
+                                     with_cr=True,
+                                     code=True,
+                                     cr_included=self.list_only_include_cr
+                                    )
+                            tableau_sources_finduse = table_life_cycle_data["CODE"]["table"]
+                        else:
+                            tableau_sources_finduse = []
+                            self._getAllSources(release,
+                                                baseline,
+                                                project)
+
                         # _getAllProg populates self.tableau_prog, self.tbl_sw_outputs and self.tbl_sw_eoc methods
                         self._getAllProg(release,
                                          baseline,
                                          project)
-                        # TODO: Replace with self.getSpecificBuild(release,baseline,project,filters=["BIN"])
-                        # Second chance to find sources in specific folder like SRC
-                        l_table_sources = self.getSpecificData(release,
-                                                               baseline,
-                                                               project,
-                                                               filters=items_filter_src,
-                                                               source=True)
-                        tableau_sources_finduse.extend(l_table_sources)
+                        if cid_type not in ("SCI"):
+                            # TODO: Replace with self.getSpecificBuild(release,baseline,project,filters=["BIN"])
+                            # Second chance to find sources in specific folder like SRC
+                            l_table_sources = self.getSpecificData(release,
+                                                                   baseline,
+                                                                   project,
+                                                                   filters=items_filter_src,
+                                                                   source=True)
+                            tableau_sources_finduse.extend(l_table_sources)
                         # For software get build script in specific folder BUILD
+                        list_found_build_items = []
                         l_tbl_program_file = self.getSpecificBuild(release,
                                                                    baseline,
-                                                                   project)
+                                                                   project,
+                                                                   filters=["BUILD"],
+                                                                   list_found_items=list_found_build_items)
                         tbl_build_finduse.extend(l_tbl_program_file)
+                        #print "tbl_build_finduse:",tbl_build_finduse
+                        #print "list_found_build_items",list_found_build_items
                         list_found_items = []
                         l_tbl_bin_file = self.getSpecificBuild(release,
                                                                   baseline,
                                                                   project,
-                                                                  filters=["BIN"],
+                                                                  filters=["BIN","EXE"],
                                                                   list_found_items=list_found_items)
 
-                        self.get_eoc_infos(list_found_items,dico_tags)
-                        self.ihm.displayEOC_Info((dico_tags["hw_sw_compatibility"],
-                                              dico_tags["part_number"],
-                                              dico_tags["checksum"]))
+                        eoc_filename = self.get_eoc_infos(list_found_items,dico_tags)
+
             if list_llr_document != []:
                 for llr in list_llr_document:
                     self.ihm.log("Found LLR: {:s}".format(llr),display_gui=False)
@@ -2280,7 +2576,6 @@ class BuildDoc(Synergy):
 
         # Manage Change Requests and Problem Reports
         self.ihm.log("Change Request query in progress...")
-        self.ihm.defill()
         ccb = CCB(self.ihm)
 
         dico_tableau_pr = {"all":[],
@@ -2288,13 +2583,17 @@ class BuildDoc(Synergy):
                            "closed":[]}
 
         ccb.getPR(dico_tableau_pr,
-                  self.detect,
-                  self.target_release,
-                  self.cr_type,
-                  cr_with_parent=cr_parent)
+                  #self.detect, # derprecated
+                  #self.target_release, # derprecated
+                  #self.cr_type, # derprecated
+                  cr_with_parent=cr_parent,
+                  list_cr_type=list_cr_type,
+                  list_cr_status=list_cr_status,
+                  list_cr_doamin=list_cr_doamin)
 
         self.tbl_sas = self._removeDoublons(self.tbl_sas)
         self.tbl_seci = self._removeDoublons(self.tbl_seci)
+        self.tbl_scod = self._removeDoublons(self.tbl_scod)
         self.tbl_sw_eoc = self._removeDoublons(self.tbl_sw_eoc)
         self.tbl_sw_outputs = self._removeDoublons(self.tbl_sw_outputs)
         self.tableau_prog = self._removeDoublons(self.tableau_prog)
@@ -2302,6 +2601,7 @@ class BuildDoc(Synergy):
         self.tbl_ccb = self._removeDoublons(self.tbl_ccb)
         self.tbl_program_file = self._removeDoublons(self.tbl_program_file)
         self.tbl_synthesis_file = self._removeDoublons(self.tbl_synthesis_file)
+
         if len(self.tbl_program_file) == 1:
                  self.tbl_program_file.append(line_empty_three_columns)
         if len(self.tbl_synthesis_file) == 1:
@@ -2312,6 +2612,8 @@ class BuildDoc(Synergy):
             self.tbl_sas.append(line_other_empty)
         if len(self.tbl_seci) == 1:
             self.tbl_seci.append(line_other_empty)
+        if len(self.tbl_scod) == 1:
+            self.tbl_scod.append(line_other_empty)
         if len(self.tableau_prog) == 1:
             self.tableau_prog.append(line_empty)
         if len(self.tableau_src) == 1:
@@ -2340,7 +2642,7 @@ class BuildDoc(Synergy):
         if len(self.tbl_items_filtered) == 1:
             self.tbl_items_filtered.append(line_empty)
         if len(self.tbl_cid) == 1:
-            self.tbl_cid.append(line_empty)
+            self.tbl_cid.append(line_cid_empty)
 
         # Prepare information to put instead of tags
         title,subject = self.getSubject(self.system,
@@ -2358,15 +2660,124 @@ class BuildDoc(Synergy):
             version = "1"
         else:
             version = self.revision
+        # Patch new ECMR template
+        tbl_input_data_new = []
+        tbl_life_cycle_data_new = []
+        tbl_verif_new = []
+        tbl_plans_new = []
+        tbl_peer_reviews_new = []
 
-        list_tags = {
+        if cid_type == "HCMR_BOARD" or cid_type == "CID":
+            fmt_life_cycle_data = self.formatDocTable(tbl_life_cycle_data_new,
+                                tbl_life_cycle_data)
+            fmt_input_data = self.formatDocTable(tbl_input_data_new,
+                                tbl_input_data)
+            fmt_verif = self.formatDocTable(tbl_verif_new,
+                                tbl_verif)
+            fmt_plans = self.formatDocTable(tbl_plans_new,
+                                tbl_plans)
+            fmt_prr = self.formatDocTable(tbl_peer_reviews_new,
+                                tbl_peer_reviews)
+
+            list_tags = {
+                        'TABLEITEMS':{'type':'tab','text':tbl_life_cycle_data_new,'fmt':fmt_life_cycle_data},
+                        'TABLEINPUTDATA':{'type':'tab','text':tbl_input_data_new,'fmt':fmt_input_data},
+                        'TABLEPEERREVIEWS':{'type':'tab','text':tbl_peer_reviews_new,'fmt':fmt_prr},
+                        'TABLESOURCE':{'type':'tab','text':tbl_src,'fmt':fmt_src},
+                        'TABLEBUILD':{'type':'tab','text':tbl_build,'fmt':fmt_build},
+                        'TABLEEOC':{'type':'tab','text':self.tbl_sw_eoc,'fmt':fmt_tiny_sw},
+                        'TABLEEOCID':{'type':'tab','text':self.tbl_sw_eoc,'fmt':fmt_tiny_sw},
+                        'TABLEOUPUTS':{'type':'tab','text':self.tbl_sw_outputs,'fmt':fmt_tiny_sw},
+                        'TABLEVERIF':{'type':'tab','text':tbl_verif_new,'fmt':fmt_verif},
+                        'TABLEPLAN':{'type':'tab','text':tbl_plans_new,'fmt':fmt_plans},
+                        #'TABLESTD':{'type':'tab','text':self.tbl_stds,'fmt':fmt},
+                        #'TABLECCB':{'type':'tab','text':self.tbl_ccb,'fmt':fmt_ccb},
+                        #'TABLESAS':{'type':'tab','text':self.tbl_sas,'fmt':fmt},
+                        #'TABLESECI':{'type':'tab','text':self.tbl_seci,'fmt':fmt},
+                        #'TABLESCOD':{'type':'tab','text':self.tbl_scod,'fmt':fmt},
+                        'TABLECID':{'type':'tab','text':self.tbl_cid,'fmt':fmt_cid},
+                        'TABLEPRS':{'type':'tab','text':dico_tableau_pr["all"],'fmt':fmt_small},
+                        'TABLECLOSEPRS':{'type':'tab','text':dico_tableau_pr["closed"],'fmt':fmt_small},
+                        'TABLEOPR':{'type':'tab','text':dico_tableau_pr["open"],'fmt':fmt_small},
+                        'PROGRAMING_FILE':{'type':'tab','text':self.tbl_program_file,'fmt':fmt_tiny},
+                        'SYNTHESIS_FILES':{'type':'tab','text':self.tbl_synthesis_file,'fmt':fmt_tiny},
+                        'CONSTRAINT_FILES':{'type':'tab','text':self.tbl_constraint_file,'fmt':fmt_tiny}
+                        }
+        else:
+            # Software
+            tbl_life_cycle_data_new =  self._removeDoublons(tbl_life_cycle_data)
+            tbl_input_data_new = self._removeDoublons(tbl_input_data)
+            tbl_verif_new =  self._removeDoublons(tbl_verif)
+            tbl_plans_new = self._removeDoublons(tbl_plans)
+            tbl_peer_reviews_new = self._removeDoublons(tbl_peer_reviews)
+            fmt_input_data = fmt
+            fmt_life_cycle_data = fmt
+            fmt_verif = fmt
+            fmt_plans = fmt
+
+            list_tags = {
+                        'TABLEPEERREVIEWS':{'type':'tab','text':tbl_peer_reviews_new,'fmt':fmt_prr},
+                        'TABLEBUILD':{'type':'tab','text':tbl_build,'fmt':fmt_build},
+                        'TABLEEOC':{'type':'tab','text':self.tbl_sw_eoc,'fmt':fmt_tiny_sw},
+                        'TABLEEOCID':{'type':'tab','text':self.tbl_sw_eoc,'fmt':fmt_tiny_sw},
+                        'TABLEOUPUTS':{'type':'tab','text':self.tbl_sw_outputs,'fmt':fmt_tiny_sw},
+                        'TABLEVERIF':{'type':'list','text':table_life_cycle_data["TEST"]["table"],'fmt':fmt_verif},
+                        'TABLEPLAN':{'type':'tab','text':tbl_plans_new,'fmt':fmt_plans},
+                        #'TABLESTD':{'type':'tab','text':self.tbl_stds,'fmt':fmt},
+                        #'TABLESAS':{'type':'tab','text':self.tbl_sas,'fmt':fmt},
+                        #'TABLESECI':{'type':'tab','text':self.tbl_seci,'fmt':fmt},
+                        #'TABLESCOD':{'type':'tab','text':self.tbl_scod,'fmt':fmt},
+                        'TABLECID':{'type':'tab','text':self.tbl_cid,'fmt':fmt_cid},
+                        'TABLEPRS':{'type':'tab','text':dico_tableau_pr["all"],'fmt':fmt_small},
+                        'TABLECLOSEPRS':{'type':'tab','text':dico_tableau_pr["closed"],'fmt':fmt_small},
+                        'TABLEOPR':{'type':'tab','text':dico_tableau_pr["open"],'fmt':fmt_small},
+                        'PROGRAMING_FILE':{'type':'tab','text':self.tbl_program_file,'fmt':fmt_tiny},
+                        'SYNTHESIS_FILES':{'type':'tab','text':self.tbl_synthesis_file,'fmt':fmt_tiny},
+                        'CONSTRAINT_FILES':{'type':'tab','text':self.tbl_constraint_file,'fmt':fmt_tiny}
+                        }
+            if table_life_cycle_data["INPUT_DATA"]["table"] != []:
+                list_tags.update({'TABLEINPUTDATA':{'type':'list','text':table_life_cycle_data["INPUT_DATA"]["table"],'fmt':fmt_input_data}})
+            else:
+                list_tags.update({'TABLEINPUTDATA':{'type':'tab','text':tbl_input_data_new,'fmt':fmt_input_data}})
+            if table_life_cycle_data["SPEC"]["table"] != []:
+                list_tags.update({'TABLEITEMS':{'type':'list','text':table_life_cycle_data["SPEC"]["table"],'fmt':fmt_life_cycle_data}})
+            else:
+                list_tags.update({'TABLEITEMS':{'type':'tab','text':tbl_life_cycle_data_new,'fmt':fmt_life_cycle_data}})
+            if table_life_cycle_data["CCB"]["table"] != []:
+                list_tags.update({'CCB':{'type':'list','text':table_life_cycle_data["CCB"]["table"],'fmt':fmt_ccb}})
+            else:
+                list_tags.update({'CCB':{'type':'tab','text':self.tbl_ccb,'fmt':fmt_ccb}})
+            if table_life_cycle_data["CODE"]["table"] != []:
+                list_tags.update({'TABLESOURCE':{'type':'list','text':table_life_cycle_data["CODE"]["table"],'fmt':fmt_src}})
+            else:
+                list_tags.update({'TABLESOURCE':{'type':'tab','text':tbl_src,'fmt':fmt_src}})
+            #print "TEST1",self.tbl_ccb
+            #print 'TEST2',fmt_ccb
+        if eoc_filename is not None:
+            self.ihm.displayEOC_Info((dico_tags["hw_sw_compatibility"],
+                                  dico_tags["part_number"],
+                                  dico_tags["checksum"],dico_tags["failed"]))
+            if dico_tags["part_number"] == self.part_number:
+                self.ihm.log("PN found in the {:s} EOC matches the PN given.".format(eoc_filename),color="white")
+            else:
+                self.ihm.log("Warning: PN found in the {:s} EOC mismatches the given PN.".format(eoc_filename),color="red")
+            if dico_tags["checksum"] == self.checksum:
+                self.ihm.log("Checksum found in the {:s} EOC matches the given checksum.".format(eoc_filename),color="white")
+            else:
+                self.ihm.log("Warning: Checksum found in the {:s} EOC mismatches the given checksum.".format(eoc_filename),color="red")
+        #if self.part_number != "":
+        #    dico_tags["part_number"] = self.part_number
+        #if self.checksum != "":
+        #    dico_tags["checksum"] = self.checksum # Ex: 0x6b62
+        list_tags.update({
+                    'SYSTEM':{'type':'str','text':self.system,'fmt':{}},
                     'SUBJECT':{'type':'str','text':subject,'fmt':{}},
                     'DOCID':{'type':'str','text':"Generated by doCID version {:s}".format(VERSION),'fmt':{}},
                     'TYPE':{'type':'str','text':doc_type,'fmt':{}},
                     'TITLE':{'type':'str','text':title,'fmt':{}},
                     'CI_ID':{'type':'str','text':ci_identification,'fmt':{}},
                     'REFERENCE':{'type':'str','text':self.reference,'fmt':{}},
-                    'ISSUE':{'type':'str','text':revision,'fmt':{}},
+                    'ISSUE':{'type':'str','text':version,'fmt':{}},
                     'ITEM':{'type':'str','text':item,'fmt':{}},
                     'COMPONENT':{'type':'str','text':self.component,'fmt':{}},
                     'ITEM_DESCRIPTION':{'type':'str','text':item_description,'fmt':{}},
@@ -2389,35 +2800,29 @@ class BuildDoc(Synergy):
                     'PROTOCOL_COMPAT':{'type':'str','text':self.protocol_interface_index,'fmt':{}},
                     'DATA_COMPAT':{'type':'str','text':self.data_interface_index,'fmt':{}},
                     'HW_COMPAT':{'type':'str','text':dico_tags["hw_sw_compatibility"],'fmt':{}},
-                    'TOP_PLD_PRJ':{'type':'str','text':"",'fmt':{}},
-                    'TABLEITEMS':{'type':'tab','text':tbl_life_cycle_data,'fmt':fmt},
-                    'TABLEINPUTDATA':{'type':'tab','text':tbl_input_data,'fmt':fmt},
-                    'TABLEPEERREVIEWS':{'type':'tab','text':tbl_peer_reviews,'fmt':fmt_prr},
-                    'TABLESOURCE':{'type':'tab','text':tbl_src,'fmt':fmt_src},
-                    'TABLEBUILD':{'type':'tab','text':tbl_build,'fmt':fmt_build},
-                    'TABLEEOC':{'type':'tab','text':self.tbl_sw_eoc,'fmt':fmt_tiny_sw},
-                    'TABLEEOCID':{'type':'tab','text':self.tbl_sw_eoc,'fmt':fmt_tiny_sw},
-                    'TABLEOUPUTS':{'type':'tab','text':self.tbl_sw_outputs,'fmt':fmt_tiny_sw},
-                    'TABLEVERIF':{'type':'tab','text':tbl_verif,'fmt':fmt},
-                    'TABLEPLAN':{'type':'tab','text':tbl_plans,'fmt':fmt},
-                    'TABLESTD':{'type':'tab','text':self.tbl_stds,'fmt':fmt},
-                    'TABLECCB':{'type':'tab','text':self.tbl_ccb,'fmt':fmt_ccb},
-                    'TABLESAS':{'type':'tab','text':self.tbl_sas,'fmt':fmt},
-                    'TABLESECI':{'type':'tab','text':self.tbl_seci,'fmt':fmt_ccb},
-                    'TABLECID':{'type':'tab','text':self.tbl_cid,'fmt':fmt_ccb},
-                    'TABLEPRS':{'type':'tab','text':dico_tableau_pr["all"],'fmt':fmt_small},
-                    'TABLECLOSEPRS':{'type':'tab','text':dico_tableau_pr["closed"],'fmt':fmt_small},
-                    'TABLEOPR':{'type':'tab','text':dico_tableau_pr["open"],'fmt':fmt_small},
-                    'PROGRAMING_FILE':{'type':'tab','text':self.tbl_program_file,'fmt':fmt_tiny},
-                    'SYNTHESIS_FILES':{'type':'tab','text':self.tbl_synthesis_file,'fmt':fmt_tiny},
-                    'CONSTRAINT_FILES':{'type':'tab','text':self.tbl_constraint_file,'fmt':fmt_tiny}
-                    }
-        image_name = self.get_image(self.aircraft)
+                    'TOP_PLD_PRJ':{'type':'str','text':"",'fmt':{}}})
+        for dico in self.dico_own_user_cid_tags["Documents"]:
+            #print "X:",dico
+            tag = dico["tag"]
+            if tag in self.tbl_user:
+                #tbl_cleanup = self._removeDoublons(self.tbl_user[tag])
+                list_tags.update({tag:{'type':'tab','text':self.tbl_user[tag],'fmt':fmt}})
+        for x,y in self.tbl_user.iteritems():
+            print "C:",x,y
+        if u'SAS' not in self.tbl_user:
+            list_tags.update({'SAS':{'type':'tab','text':self.tbl_sas,'fmt':fmt}})
+        if header_image:
+            image_name = self.get_image(self.aircraft)
+        else:
+            image_name = None
         self.ihm.docx_filename = docx_filename
+        for x,y in list_tags.iteritems():
+            print "TAG:",x,y
         self.docx_filename,exception = self._createDico2Word(list_tags,
                                                              template_name,
                                                              docx_filename,
                                                              image_name)
+
         dico_timestamp["end_script"] = datetime.now()
         duree_execution_script = dico_timestamp["end_script"] - dico_timestamp["begin_script"]
         self.ihm.log("Execution time for script: {:d} seconds".format(duree_execution_script.seconds))
@@ -2435,25 +2840,24 @@ class BuildDoc(Synergy):
         return is_doc_tbl
 
 if __name__ == '__main__':
-    def _removeDoublons_test(tbl_in):
-        '''
-        '''
-        tbl_out = []
-        for elt in tbl_in:
-            if elt not in tbl_out:
-                print "ELT:",elt
-                tbl_out.append(elt)
-            else:
-                print "DISCARD",elt
-        return tbl_out
-    classe = BuildDoc()
-    result = classe.isCodeOnly("PLD_TIE_VHDL-5.1")
-    print "Code yes",result
-    result = classe.isCodeOnly("CODE_SW_ENM-4.1")
-    print "Code yes",result
-    result = classe.isCodeOnly("SW_PLAN_PDS_SDS-1.3")
-    print "Code no",result
-    tbl = [['Title', 'Reference', 'Synergy Name', 'Version', 'Type', 'Instance', 'Release'], [' SMS ESSNESS Supplier Specific Component Specification (SSCS)', 'ET2788-S', 'SSCS_ESSNESS_ET2788_S', '6', 'pdf', '4', 'BOARD_ESSNESS/01'], [' SMS EPDS ESSNESS SPI Annex (ICD Data)', 'ET3547-S', 'SMS_EPDS_ESSNESS_SPI_Annex_ET3547_S', '3D2', 'xls', '1', 'BOARD_ESSNESS/01'], [' SMS ESSNESS Supplier Specific Component Specification (SSCS)', 'ET2788-S', 'SSCS_ESSNESS_ET2788_S', '7D4', 'doc', '2', 'BOARD_ESSNESS/01'], [' SMS ESSNESS FUNC HSID (HSID)', 'ET2717-E', 'SMS_ESNESS_FUNC_HSID_ET2717_E', '1D7', 'doc', '1', 'BOARD_ESSNESS/01'], [' SMS EPDS SPI ICD (ICD Protocol)', 'ET3252-S', 'SMS_EPDS_SPI_ICD_ET3532_S', '3', 'doc', '4', 'SMS_EPDS/01'], [' SMS EPDS SPI ICD (ICD Protocol)', 'ET3252-S', 'SMS_EPDS_SPI_ICD_ET3532_S', '3', 'pdf', '4', 'SMS_EPDS/01'], ['EASA Certification Review Item', '', 'CRI_F_01_Appendix', '1', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_04_Data_Buses', '1', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_05_Aeronautical_data_bases', '1', 'pdf', '1', 'SW_PLAN/01'], [' DAL assignment document', 'GS3134', 'SMS_EPDS_DAL_GS3134', '3', 'pdf', '1', 'SW_PLAN/01'], ['', '', 'IP SW_3', '1', 'pdf', '1', 'SW_PLAN/01'], ['FAA Issue Paper', '', 'IP_SW_1', '1', 'pdf', '1', 'SW_PLAN/01'], ['FAA Issue Paper', '', 'IP_SW_2', '1', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_01_Software_Aspects_of_Certification', '2', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_03_Non_operational_embedded_Software', '2', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_01_Appendix', '1', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_04_Data_Buses', '1', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_05_Aeronautical_data_bases', '1', 'pdf', '1', 'SW_PLAN/01'], [' DAL assignment document', 'GS3134', 'SMS_EPDS_DAL_GS3134', '3', 'pdf', '1', 'SW_PLAN/01'], ['', '', 'IP SW_3', '1', 'pdf', '1', 'SW_PLAN/01'], ['FAA Issue Paper', '', 'IP_SW_1', '1', 'pdf', '1', 'SW_PLAN/01'], ['FAA Issue Paper', '', 'IP_SW_2', '1', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_01_Software_Aspects_of_Certification', '2', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_03_Non_operational_embedded_Software', '2', 'pdf', '1', 'SW_PLAN/01'], [' Voltage Detector', 'SLVS392A', 'VoltageDetector_tps3803.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Digital temperature sensor and thermal watchdog', 'LM75B5', 'TempSensor_LM75B.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['16-Bit I/O Expander with Serial Interface', 'DS21952B', 'IOexpander_MCP23S17.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['3-Line to 8-Line Decoders/Demultiplexers', 'SCLS171E', 'Decoder_sn54hct138.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['High-Speed CMOS Logic Decade Counter/Divider with 10 Decoded Outputs', 'SCHS200D', 'Counter_cd74hc4017.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['16-bit Digital Signal Controllers (up to 256 KB Flash and 30 KB SRAM) with Advanced Analog', '70593D', '70593D_General.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 20. Data Converter Interface', '70288C', '70288C_DCI.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 13. Output Compare', '70209A', '70209A_OutputCompare.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 18. Serial Peripheral Interface', '70206D', '70206D_SPI.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 11. Timers', '70205D', '70205D_Timers.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 2. CPU', '70204C', '70204C_CPU.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 4. Program Memory', '70203D', '70203D_ProgramMemory.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 3. Data Memory ', '70202C', '70202C_DataMemory.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 12. Input Capture', '70198D', '70198D_InputCapture.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 19. Inter-Integrated Circuit', '70195E', '70195E_I2C.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 25. Device Configuration', '70194F', '70194F_DeviceConfiguration.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 10. I/O Ports', '70193D', '70193D_IOport.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 8. Reset', '70192C', '70192C_Reset.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 5. Flash Programming', '70191E', '70191E_FlashProg.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 17. UART', '70188E', '70188E_UART.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 7. Oscillator', '70186E', '70186E_Oscillator.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 21. ECAN', '70185C', '70185C_ECAN.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 6. Interrupts', '70184C', '70184C_Interrupt.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 16. Analog-to-Digital Converter (ADC)', '70183D', '70183D_ADC.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Section 22. Direct Memory Access (DMA)', '70182C', '70182C_DMA.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['dsPIC33FJ256GPX06A/X08A/X10A Family Silicon Errata and Data Sheet Clarification', '80483G', '80483G_Errata.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], [' MPLAB\xae C COMPILER FOR PIC24 MCUs AND dsPIC\xae DSCs USER\x92S GUIDE', '51284H', '51284H_MPLAB_Compiler.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], [' MPLAB\xae ASSEMBLER LINKER AND UTILITIES FOR PIC24 MCUs AND dsPIC\xae DSCs USER.S GUIDE', '51317G', '51317G_Link_Asm.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ["16-bit MCU and DSC Programmer's Reference Manual ", '70157F', '70157F_Programmer_ref_guide.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['ARINC 429 Receiver with SPI Interface', 'DS3588G', 'A429_RX_hi3588.pdf', '1.0', 'pdf', '1', 'SW_ENM/01'], ['Comparator', '74HC_HCT85', 'Comparator_74HC_HCT85.pdf', '3.0', 'pdf', '1', 'SW_ENM/03'], ['Shift Register', '74HC_HCT4094', 'Shift_Register_74HC_HCT4094.pdf', '3.0', 'pdf', '1', 'SW_ENM/03'], ['EASA Certification Review Item', '', 'CRI_F_01_Appendix.pdf', '1', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_04_Data_Buses.pdf', '1', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_05_Aeronautical_data_bases.pdf', '1', 'pdf', '1', 'SW_PLAN/01'], ['', '', 'IP SW_3.pdf', '1', 'pdf', '1', 'SW_PLAN/01'], ['FAA Issue Paper', '', 'IP_SW_1.pdf', '1', 'pdf', '1', 'SW_PLAN/01'], ['FAA Issue Paper', '', 'IP_SW_2.pdf', '1', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_01_Software_Aspects_of_Certification.pdf', '2', 'pdf', '1', 'SW_PLAN/01'], ['EASA Certification Review Item', '', 'CRI_F_03_Non_operational_embedded_Software.pdf', '2', 'pdf', '1', 'SW_PLAN/01']]
-    res_tbl = _removeDoublons_test(tbl)
-    for line in res_tbl:
-        print line
+    classe = BuildDoc(session_started=True)
+    output = ["SW_PLAN/01;ECE_BD700_DT3349_PSSA.pdf;3;135;<void>;pdf;SW_PLAN;1",
+              "SW_ACENM/01;SCOD_ACENM_ET3314.pdf;1.1;5724;<void>;pdf;SW_ACENM;1"]
+    classe._parseSynergyOutput(output)
+    exit()
+    tbl_doc_found=[]
+    for line in output:
+            line = re.sub(r"<void>",r"",line)
+            print "Found doc: ",line
+            # release;filename;tasks;?;type;project;instance
+            m = re.match(r'(.*);(.*);(.*);(.*);(.*);(.*);(.*);(.*)',line)
+            if m:
+                for dico in classe.dico_own_user_cid_tags["Documents"]:
+                    keyword = dico["keyword"]
+                    description = dico["description"]
+                    result = classe._createTblUserDocument(m,keyword,description,tbl_doc_found)
+    print "tbl_doc_found",tbl_doc_found
+    exit()
+    print "TEST",classe.dico_onw_user_cid_tags
+    for x in classe.dico_onw_user_cid_tags:
+        print "X",x
