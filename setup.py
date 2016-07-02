@@ -64,7 +64,6 @@ def main():
                     ("doc", glob(r'doc\*.*')),
                     "ico_sys_desktop.ico",
                     "README.txt",
-                    "CHANGE_LOG.txt",
 					"explain.txt",
                     "docid.db3",
                     "ig.db3"]

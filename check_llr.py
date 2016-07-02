@@ -51,8 +51,10 @@ try:
     import win32com.client as win32
     import pythoncom
     from win32com.client import constants
-except ImportError,e:
-    print e
+except ImportError as e:
+    warnings.warn(str(e))
+
+import pkgutil
 
 class checkMatrix(Tool):
     @staticmethod
@@ -560,8 +562,7 @@ class CheckLLR(Tool,Conf):
         :param component: came form IHM
         :return:
         """
-        print "extract:dirname",dirname
-        print "extract:type",type
+        # TODO: Create xlsx file instead of csv file
         if log_handler is not None:
             self.log_handler = log_handler
         #print "TYPE:",type
@@ -606,26 +607,7 @@ class CheckLLR(Tool,Conf):
         self.log("Found {:d} {:s} {:s} in document body.".format(self.nb_derived_req,derived,type_tag),gui_display=True)
         self.log("Found {:d} deleted {:s} in document body.".format(self.nb_deleted_req,type_tag),gui_display=True)
         self.log("Found {:d} {:s} requirements in document body.".format(nb_upper_req,verify),gui_display=True)
-        if 0==1:
-            nb_matrix_upper_req,nb_matrix_upper_req_not_covered,nb_matrix_req,nb_matrix_derived_req,nb_matrix_tbd,nb_matrix_tbc,nb_matrix_deleted = self.check_matrix.result()
-            # Compare list of high requirements found in body versus matrix
-            nb_matrix_req_not_deleted = nb_matrix_req - nb_matrix_deleted
-            #print "NB REQ CMP",nb_matrix_req_not_deleted,self.nb_reqs
-            if self.nb_reqs != nb_matrix_req_not_deleted:
-                # Discard deleted requirements for comparison
-                self.dico_debug["miscelleanous","S_10",self.current_folder,"","Bottom up matrix"] = ["Found {:d} requirements in matrix versus {:d} requirements in body.".format(nb_matrix_req_not_deleted,self.nb_reqs)]
-                tbl_bottom_up_not_deleted_matrix = set(self.check_matrix.tbl_bottom_up_matrix) - set(self.check_matrix.tbl_deletion_matrix)
-                checkMatrix.cmpList(self.check_matrix.tbl_bottom_up_matrix,self.tbl_list_llr,"Bottom up matrix","Document body")
-            # Compare list of upper requirements found in body versus matrix
-            nb_matrix_covered_upper_req = nb_matrix_upper_req - nb_matrix_upper_req_not_covered
-            if nb_matrix_covered_upper_req != nb_upper_req:
-                # Discard not covered upper requirements for comparison
-                self.dico_debug["miscelleanous","S_11",self.current_folder,"","Top bottom matrix"] = ["Found {:d} upper requirements in matrix versus {:d} upper requirements reference in body.".format(nb_matrix_covered_upper_req,nb_upper_req)]
-                tbl_top_bottom_covered_matrix = set(self.check_matrix.tbl_top_bottom_matrix) - set(self.check_matrix.tbl_top_bottom_not_covered_matrix)
-                checkMatrix.cmpList(tbl_top_bottom_covered_matrix,self.list_upper_req,"Top bottom matrix","Document body")
-            self.log("{:d} errors found in document.".format(len(self.dico_errors)),gui_display=True)
-            len_bottom_up_derived_matrix = len(self.check_matrix.tbl_bottom_up_derived_matrix)
-            print "Nb derived in bottom up matrix",len_bottom_up_derived_matrix
+
         for list,error in self.dico_errors.iteritems():
             rule_tag = list[1]
             self.log("ERROR: {:s}: {:s}".format(rule_tag,error[0]),gui_display=True)
@@ -650,34 +632,35 @@ class CheckLLR(Tool,Conf):
                 #    of.write("   " + reqs + "\n")
 
         with open(join("result",llr_attr_check_filename), 'w') as of:
-            #type_doc = self.getType(filename=filename,tbl_type=type)
             if "SHLVCP" in type:
                 of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format("File","Req tag","Verifies","Rationale","Forward","Issue","Status"))
+                # get all test cases from self.tbl_list_llr
                 for req,value in self.tbl_list_llr.iteritems():
-                    #print "TEST with open llr_attr_check_filename:",req,value
+                    list_verify,list_constraints = self.getLLR_Trace(value,keyword="verify")
                     # File,Req,Refer_to,Constraint,Derived,Rationale,Additional
                     req_txt = str(req)
                     if req_txt in self.list_llr_vs_file:
                         file = self.list_llr_vs_file[req_txt][0]
                     else:
                         file = "None"
-                    verify = self.getAtribute(value,"verify")
+
                     rationale = self.getAtribute(value,"rationale")
                     forward = self.getAtribute(value,"forward")
                     issue = self.getAtribute(value,"issue")
                     status = self.getAtribute(value,"status")
-                    of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format(file,
-                                                            req,
-                                                            verify,
-                                                            rationale,
-                                                            forward,
-                                                            issue,
-                                                            status
-                                                            ))
+                    verify = self.getAtribute(value,"verify")
+                    for verify in list_verify:
+                        of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format(file,
+                                                                                req,
+                                                                                verify,
+                                                                                rationale,
+                                                                                forward,
+                                                                                issue,
+                                                                                status
+                                                                                ))
             else:
                 of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format("Dir","File","Req tag","Refer","Constraint","Derived","Rationale","Additional","Issue","Status","Safety","Terminal","Allocation","Source code"))
                 for req,value in self.tbl_list_llr.iteritems():
-                    #print "TEST with open llr_attr_check_filename:",req,value
                     # File,Req,Refer_to,Constraint,Derived,Rationale,Additional
                     req_txt = str(req)
                     if req_txt in self.list_llr_vs_file:
@@ -745,20 +728,17 @@ class CheckLLR(Tool,Conf):
                                                                 ))
         return llr_attr_check_filename,llr_file_check_filename
 
-    def getLLR_Trace(self,value):
-        str_refer = self.getAtribute(value,"refer")
-        #list_refer = []
-        #print "refer:",refer
+    def getLLR_Trace(self,value,keyword="refer"):
+        str_refer = self.getAtribute(value,keyword)
         list_refer = self.getSplitRefer(str_refer,type="[A-Z]*_[\w-]*") #"SWRD_[\w-]*"
-        #print "list_refer",list_refer
-        str_constraints = self.getAtribute(value,"constraint")
-        #print "str_constraints in extract",str_constraints
-        #list_constraints = []
-        #str_constraints_cleaned = re.sub(r"(.*)\xa7(.*)", r"\1Y\2",str_constraints)
-        str_constraints_cleaned = Tool.removeNonAscii(str_constraints)
-        str_constraints_cleaned_wo_dot = re.sub(r"\.", r"_",str_constraints_cleaned)
-        #print "str_constraints_cleaned",str_constraints_cleaned
-        list_constraints = self.getSplitRefer(str_constraints_cleaned_wo_dot,type="[^\[^\].]*")
+        if keyword == "refer":
+            str_constraints = self.getAtribute(value,"constraint")
+            str_constraints_cleaned = Tool.removeNonAscii(str_constraints)
+            assert isinstance(str_constraints_cleaned, object)
+            str_constraints_cleaned_wo_dot = re.sub(r"\.", r"_",str_constraints_cleaned)
+            list_constraints = self.getSplitRefer(str_constraints_cleaned_wo_dot,type="[^\[^\].]*")
+        else:
+            list_constraints = dict()
         return list_refer,list_constraints
 
     def checkHLR(self):
@@ -1955,7 +1935,7 @@ class CheckLLR(Tool,Conf):
         try:
             found = self.find(myRange,
                               style='Titre 5')
-        except pythoncom.com_error,e:
+        except pythoncom.com_error as e:
             print e
             found = False
 
@@ -2000,7 +1980,7 @@ class CheckLLR(Tool,Conf):
         try:
             found = self.find(myRange,
                               style='REQ_Id')
-        except pythoncom.com_error,e:
+        except pythoncom.com_error as e:
             print e
             found = False
 
@@ -2133,7 +2113,7 @@ class CheckLLR(Tool,Conf):
                                                                                          text),
                                      gui_display=True)
                         list_attributes[key] = text
-        except pythoncom.com_error,e:
+        except pythoncom.com_error as e:
             print e
 
     def testStatusDeleted(self,start_delimiter,list_attributes):
@@ -2431,7 +2411,8 @@ class CheckLLR(Tool,Conf):
                     if doc_version:
                         self.doc_version = doc_version
                         self.log("Major version found: {:s}".format(self.doc_version),gui_display=True)
-                    new_concat_dirname = re.sub(r'\/',r'\\',new_concat_dirname)
+                    if sys.platform.startswith('win32'):
+                        new_concat_dirname = re.sub(r'\/',r'\\',new_concat_dirname)
                     filename = join(new_concat_dirname,found_dir)
                     print "DOC NAME:",filename
                     unexpected_start_delimiter = False
@@ -2445,9 +2426,10 @@ class CheckLLR(Tool,Conf):
                     self.toc_parag = False
                     self.begin_req_parag = False
                     tbl_body = []
-                    #print "use_full_win32com:",self.use_full_win32com
-                    #exit()
-                    if self.use_full_win32com:
+
+                    pythoncom_loader = pkgutil.find_loader('pythoncom')
+                    found_pythoncom = pythoncom_loader is not None
+                    if self.use_full_win32com and found_pythoncom:
                         print "use_full_win32com:",self.use_full_win32com
                         try :
                             doc = self.word.Documents.Open(filename)
@@ -2503,7 +2485,7 @@ class CheckLLR(Tool,Conf):
                         except pythoncom.com_error,e:
                             print "Error in closing Word document:",e
                     else:
-                        if self.use_partial_win32com:
+                        if self.use_partial_win32com and found_pythoncom:
                             # open Word document
                             try :
                                 doc = self.word.Documents.Open(filename,
@@ -2588,9 +2570,18 @@ class CheckLLR(Tool,Conf):
                             # TODO: Not good, need to use Word types
                             if type in self.dico_specifications:
                                 self.check_matrix = checkMatrix(self.dico_specifications[type],self.log)
-                                modification_tag  = self.dico_specifications[type]["modifications"]
-                                toc_tag  = self.dico_specifications[type]["toc"]
-                                requirement_tag = self.dico_specifications[type]["requirement"]
+                                if "modifications" in self.dico_specifications[type]:
+                                    modification_tag  = self.dico_specifications[type]["modifications"]
+                                else:
+                                    modification_tag = ""
+                                if "toc" in self.dico_specifications[type]:
+                                    toc_tag  = self.dico_specifications[type]["toc"]
+                                else:
+                                    toc_tag = ""
+                                if "requirement" in self.dico_specifications[type]:
+                                    requirement_tag = self.dico_specifications[type]["requirement"]
+                                else:
+                                    requirement_tag = ""
                                 if "tag_req" in self.dico_specifications[type]:
                                     tag_req = self.dico_specifications[type]["tag_req"]
                                 else:
