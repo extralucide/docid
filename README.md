@@ -6,6 +6,7 @@ doCID
 
 Description
 -----------
+
 Generates Configuration Index Document and more from IBM Rational Synergy Version Management System tool
 
 CID/HCMR/SCI generator
@@ -21,7 +22,7 @@ Outre les fichiers:
 > docid.py  
 > docid.ini  
 
-- le programme n&eacute;cessite la base de donn?e SQLite docid.db3 (Si elle n'existe pas le programme en cr&eacute;&eacute; une vierge.)  
+- le programme n&eacute;cessite la base de donn&eacute;e SQLite docid.db3 (Si elle n'existe pas le programme en cr&eacute;&eacute; une vierge.)  
 - Le r&eacute;pertoire img qui contient les images:  
 > doc.gif  
 > earhart12_240x116.gif  
