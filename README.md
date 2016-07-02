@@ -1,5 +1,6 @@
 doCID
 -----
+
 ![Alt text][id]
 [id]: img/SMS.jpg  "F5X aircraft"
 
@@ -157,7 +158,7 @@ Le mod&egrave;le de document doit &ecirc;tre au format docx peut contenir les ta
 <pre>
 {{SUBJECT}}             Titre dans l'ent&ecirc;te du document
 {{TABLELISTMODIFS}}     Log des modifications gard? dans la base SQLite
-{{CI_ID}                }Num?ro d'identification (A295, etc.)
+{{CI_ID}}               Num&eacute;ro d'identification (A295, etc.)
 {{REFERENCE}}           R&eacute;f&eacute;rence du document
 {{ISSUE}}               Version du document
 {{TITLE}}               Titre de la premi&egrave;re page
@@ -176,7 +177,8 @@ Le mod&egrave;le de document doit &ecirc;tre au format docx peut contenir les ta
 
 HCMR carte
 ----------
-{{DATABASE}}			Nomm de la base synergy (ex: db_sms_pds)
+
+{{DATABASE}}			Nom de la base synergy (ex: db_sms_pds)
 {{REFERENCE}}           R&eacute;f&eacute;rence du document
 {{ISSUE}}               Version du document
 {{TITLE}}               Contient le nom du syst&egrave;me (ex: Dassalt F5X PDS) suivi de l'abbr&eacute;viation de la carte (ex: ESSNESS) suivi de HCMR
@@ -192,10 +194,10 @@ HCMR carte
 {{MAIN\_BOARD\_PART_NUMBER}}	Pas impl&eacute;ment&eacute;
 {{MEZA\_BOARD\_PART_NUMBER}}	Pas impl&eacute;ment&eacute;
 {{TABLEPEERREVIEWS}}	Liste des fichiers de relectures contenant les mots clef PRR, IS FDL_ au format Word ou Excel
-{{TABLEVERIF}}			Liste des documents dans le répertoire ATP
+{{TABLEVERIF}}			Liste des documents dans le rï¿½pertoire ATP
 {{TABLECCB}}			Liste des compte-rendus de CCB contenant le mot-clef dans le nom dont la release asscoi&eacute; correspond au champs "CR_implemented_for"
-{{TABLEINPUTDATA}}		Liste des documents contenu dans les répertoires INTPUT_DATA,INPUT_DATA,Input_Data ou Input Data
-{{TABLEINPUTDATA}}		Liste des documents contenu dans les répertoires INTPUT_DATA,INPUT_DATA,Input_Data ou Input Data
+{{TABLEINPUTDATA}}		Liste des documents contenu dans les rï¿½pertoires INTPUT_DATA,INPUT_DATA,Input_Data ou Input Data
+{{TABLEINPUTDATA}}		Liste des documents contenu dans les rï¿½pertoires INTPUT_DATA,INPUT_DATA,Input_Data ou Input Data
 {{TABLEITEMS}}			Liste de tous les autres documents pr&eacute;sents dans la baseline
 
 See my [About](/about/) page for details.   
