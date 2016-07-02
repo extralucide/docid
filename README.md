@@ -48,6 +48,8 @@ Il utilise &eacute;galement:
 - openpyxl
 - sphynx
 - tkintertable
+- matplotlib
+- funcparserlib
 
 Pour g&eacuten&eacuterer l'ex?cutable il faut lancer la commande: python setup.py py2exe
 Il faut de plus cr?er le r&eacutepertoire *Microsoft.VC90.CRT* avec les fichiers suivant:
