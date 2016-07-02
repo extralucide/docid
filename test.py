@@ -11,7 +11,7 @@ class TestDoCID(TestCase):
     def test_FunctionCallTree(self):
         current_dir = os.getcwd()
         test = Stack() #ThreadQuery()
-        test.compiler="cc"
+        test.compiler="gcc"
         test.root_user_dir = join(current_dir,"qualification/SET_G7000_ACENM")
         test.src_user_dir  = "Software/SW_ACENM_CODE/SRC"
         test.build_user_dir  = "Software/SW_ACENM_CODE/BUILD"

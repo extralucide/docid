@@ -878,7 +878,7 @@ class ThreadQuery(threading.Thread,Synergy):
                     self.send_cmd_thread = threading.Thread(None,self._buildVHDL,None,("ACEM",))
                     self.send_cmd_thread.start()
                 elif action == "EXPORT_FUNC_CALL_TREE":
-                    stack = Stack()
+                    stack = Stack(master=self.master_ihm.log)
                     self.send_cmd_thread = threading.Thread(None,stack._stackAnalysis,None)
                     self.send_cmd_thread.start()
                 else:

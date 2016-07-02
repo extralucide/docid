@@ -203,6 +203,19 @@ class Stack():
 
 
     def _getStackFromAsm(self):
+        # py2
+        import codecs
+        import warnings
+        def open(file, mode='r', buffering=-1, encoding=None,
+                 errors=None, newline=None, closefd=True, opener=None):
+            if newline is not None:
+                warnings.warn('newline is not supported in py2')
+            if not closefd:
+                warnings.warn('closefd is not supported in py2')
+            if opener is not None:
+                warnings.warn('opener is not supported in py2')
+            return codecs.open(filename=file, mode=mode, encoding=encoding,
+                        errors=errors, buffering=buffering)
         code_dir = join(self.root_user_dir,self.build_user_dir)
         self.reset_basename(code_dir)
         self.listDir()
@@ -212,7 +225,7 @@ class Stack():
         for filename in self.list_code:
             index += 1
             print ("File reading:",filename)
-            with open(filename, 'r',encoding='utf') as of:
+            with open(filename, 'r',encoding='utf-8') as of:
                 function_found = False
                 try:
                     for line in of:
@@ -256,7 +269,7 @@ class Stack():
                     ast = parse_file(filename,
                                      use_cpp=True,
                                      cpp_path=self.compiler,
-                                     cpp_args=['-E ', r'-I{:s}'.format(include)])
+                                     cpp_args=[r'-E ', r'-I{:s}'.format(include)])
 
                     # List of called functions and where
                     list_func_def    = []

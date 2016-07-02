@@ -94,11 +94,11 @@ from openpyxl.styles.borders import BORDER_THIN,BORDER_MEDIUM
 try:
     from openpyxl.drawing.image import Image
 except ImportError as e:
-    warnings.warn(e)
+    warnings.warn(str(e))
 try:
     from openpyxl.utils import get_column_letter,range_boundaries
 except ImportError as e:
-    warnings.warn(e)
+    warnings.warn(str(e))
 
 # Abstract Syntax Tree
 #try:
@@ -551,10 +551,18 @@ class Tool():
         if self.config_parser.has_option("Generation","glossary"):
             file_descr_docs = self.config_parser.get("Generation","glossary")
             file_descr_docs = join("conf",file_descr_docs)
-            with open(file_descr_docs, 'rt', encoding='utf') as file_csv_handler:
-                reader = csv.reader(self.CommentStripper (file_csv_handler))
-                for tag,description in reader:
-                    self.dico_descr_docs_default[tag] = description
+            if sys.version_info[0] > 2:
+                # Python 3
+                with open(file_descr_docs, 'rt', encoding='utf-8') as file_csv_handler:
+                    reader = csv.reader(self.CommentStripper (file_csv_handler))
+                    for tag,description in reader:
+                        self.dico_descr_docs_default[tag] = description
+            else:
+                 # Python 2
+                with open(file_descr_docs, 'rb') as file_csv_handler:
+                    reader = csv.reader(self.CommentStripper (file_csv_handler))
+                    for tag,description in reader:
+                        self.dico_descr_docs_default[tag] = description
 
     def ccb_minutes(self):
         pass
@@ -1242,6 +1250,7 @@ class Tool():
         except lite.Error as e:
             print ("Error %s:" % e.args[0])
             result = None
+            con = False
         finally:
             if con:
                 con.close()
