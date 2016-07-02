@@ -9,8 +9,8 @@ from Tkinter import *
 try:
     import Pmw
 except ImportError:
-    print "DoCID requires the Python MegaWidgets for Python. " \
-          "See http://sourceforge.net/projects/pmw/"
+    print ("DoCID requires the Python MegaWidgets for Python. " \
+          "See http://sourceforge.net/projects/pmw/")
 import Queue
 from check_is import CheckIS
 from check_llr import CheckLLR
@@ -22,8 +22,8 @@ sys.path.append("python-docx")
 try:
     import docx
 except ImportError:
-    print "DoCID requires the python-docx library for Python. " \
-            "See https://github.com/mikemaccana/python-docx/"
+    print ("DoCID requires the python-docx library for Python. " \
+            "See https://github.com/mikemaccana/python-docx/")
                 #    raise ImportError, "DoCID requires the python-docx library
 from tool import Tool,BProc_HTMLParser
 import re
@@ -43,8 +43,8 @@ import coverage
 from get_ig_jquery import easyIG,getQA,exportIS_HTML
 try:
     import win32com.client as win32
-except ImportError,e:
-    print e
+except ImportError as e:
+    print (e)
 from stack import Stack
 import json
 
@@ -228,7 +228,11 @@ class StubIHM():
         return condition, detect_attribut
 
 from threading import Thread
-import pythoncom
+try:
+    import pythoncom
+except ImportError as exception:
+    warnings.warn(exception)
+
 class monThread(Thread):
 
     def __init__(self,filename):
@@ -2297,10 +2301,10 @@ Arrow to identify the functional data flows between the current CSCI and others 
                            hlr_selected=False,
                            skip_change_synergy_var=True)
 
-    def _test_check_shlvcp(self):
+    def test_check_shlvcp(self):
         ihm = StubIHM()
         thread = ThreadQuery(master=ihm)
-        dirname = self.setUp(case=2)
+        dirname = self.setUp(case=3)
         thread._checkSHLVCP(dirname)
 
     def _test_export_is_llr(self):
@@ -2850,6 +2854,8 @@ Arrow to identify the functional data flows between the current CSCI and others 
             self.filename_is = "C:/Users/olivier.appere/Documents/ENM/SW_ENM/SwDD/IS_SwDD_ENM_ET3136_S.xlsm"
         elif case == 2:
             dirname = join(current_dir,"qualification/SET_F5X_ENM/SHLVCP")
+        elif case == 3:
+            dirname = join(current_dir,"qualification/SET_G7000_ACENM/SHLVCP/SHLVCP")
         else:
             self.dirname_upper = join(current_dir,"qualification/SET_F5X_ENM/UPPER")
             self.dirname_req = join(current_dir,"qualification/SET_F5X_ENM/SWRD")

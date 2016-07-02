@@ -32,7 +32,7 @@ Outre les fichiers:
 - Le r&eacute;pertoire template avec les fichiers au format open xml  
 
 D&eacute;veloppement
--------------
+--------------------
 
 Il est &eacute;crit en Python et est compatible avec la version 2.7.3.2.
 Il utilise &eacute;galement:
@@ -179,8 +179,9 @@ Le mod&egrave;le de document doit &ecirc;tre au format docx peut contenir les ta
 HCMR carte
 ----------
 
+<pre>
 {{DATABASE}}			Nom de la base synergy (ex: db_sms_pds)
-{{REFERENCE}}           R&eacute;f&eacute;rence du document
+{{REFERENCE}}           R&eacute;frdrence du document
 {{ISSUE}}               Version du document
 {{TITLE}}               Contient le nom du syst&egrave;me (ex: Dassalt F5X PDS) suivi de l'abbr&eacute;viation de la carte (ex: ESSNESS) suivi de HCMR
 {{ITEM}}                Abbr&eacute;viation de la carte
@@ -200,6 +201,8 @@ HCMR carte
 {{TABLEINPUTDATA}}		Liste des documents contenu dans les r�pertoires INTPUT_DATA,INPUT_DATA,Input_Data ou Input Data
 {{TABLEINPUTDATA}}		Liste des documents contenu dans les r�pertoires INTPUT_DATA,INPUT_DATA,Input_Data ou Input Data
 {{TABLEITEMS}}			Liste de tous les autres documents pr&eacute;sents dans la baseline
+</pre>
+
 
 See my [About](/about/) page for details.   
 

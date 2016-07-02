@@ -1,7 +1,11 @@
 #!/usr/bin/env python 2.7.3
 ## -*- coding: latin-1 -*-
 # -*- coding: utf-8 -*-
-from Tkinter import END
+import warnings
+try:
+    from Tkinter import END
+except ImportError as exception:
+    from tkinter import END
 #from Tkinter import Canvas
 #import platform
 import time
@@ -9,7 +13,10 @@ import time
 import csv
 import sqlite3 as lite
 import subprocess
-from ConfigParser import ConfigParser
+try:
+    from ConfigParser import ConfigParser
+except ImportError as exception:
+    from configparser import ConfigParser
 import sys
 import os
 import re # For regular expressions
@@ -26,8 +33,7 @@ sys.path.append("pycparser")
 try:
     import docx
 except ImportError:
-    print ("DoCID requires the python-docx library for Python. " \
-            "See https://github.com/mikemaccana/python-docx/")
+    print ("DoCID requires the python-docx library for Python. See https://github.com/mikemaccana/python-docx/")
                 #    raise ImportError, "DoCID requires the python-docx library
 from os.path import join
 import zipfile
@@ -57,14 +63,21 @@ except ImportError:
         except ImportError:
           print("Failed to import ElementTree from any known place")
 import urllib
-import urllib2
+
+try:
+    import urllib2
+except ImportError as exception:
+    warnings.warn(str(exception))
 import sys
 try:
     from intelhex import IntelHex,IntelHex16bit
 except ImportError as e:
     print (e)
 from math import floor
-from HTMLParser import HTMLParser
+try:
+    from HTMLParser import HTMLParser
+except ImportError:
+    from html.parser import HTMLParser
 try:
     from html import add_html
 except ImportError as e:
@@ -80,17 +93,18 @@ from openpyxl.styles import Font,PatternFill,Border,Side,Alignment
 from openpyxl.styles.borders import BORDER_THIN,BORDER_MEDIUM
 try:
     from openpyxl.drawing.image import Image
-except ImportError,e:
-    print e
+except ImportError as e:
+    warnings.warn(e)
 try:
     from openpyxl.utils import get_column_letter,range_boundaries
-except ImportError,e:
-    print e
-# Abstract Syntax Tree
-try:
-    from pycparser import c_parser, c_ast,parse_file
 except ImportError as e:
-    print (e)
+    warnings.warn(e)
+
+# Abstract Syntax Tree
+#try:
+#    from pycparser import c_parser, c_ast,parse_file
+#except ImportError as e:
+#    warnings.warn(e)
 
 class Style:
     def __init__(self,
@@ -215,6 +229,7 @@ class Tool():
                                 "Under Verification":"Modified",
                                 "Postponed":"Postpone",
                                 "Fixed":"Verified"}
+
     def getStatementBlock(self,line,keyword="Statement blocks"):
         m = re.match(r'^\s*'+keyword+'\s*\.*\s*([0-9]{1,3}\.[0-9])%\s\(([0-9]{1,3}\/[0-9]{1,3})\)',line)
         if m:
@@ -244,32 +259,20 @@ class Tool():
                 new_concat_dirname = "{:s}\\".format(new_concat_dirname)
             else:
                 new_concat_dirname = "{:s}/".format(new_concat_dirname)
-        #print "new_concat_dirname",new_concat_dirname
-        concat_dirname = join(self.basename,dirname)
-        if sys.platform.startswith('win32'):
-            concat_dirname = "{:s}\\".format(concat_dirname)
-        else:
-            concat_dirname = "{:s}/".format(concat_dirname)
-        #print "concat_dirname",concat_dirname
-        #try:
-        #    WindowsError
-        #except NameError,e:
-        #    print e
-        #    WindowsError = None
+
         try:
-            print "new_concat_dirname",new_concat_dirname
-            list_dir = os.listdir(new_concat_dirname)
-        except WindowsError,e:
-            #self.log("{:s}".format(e))
-            list_dir = []
-        except OSError,e:
-            #self.log("{:s}".format(e))
-            list_dir = []
-       # del(self.tbl_dico_modifs[:])
-        #self.list_tbl_tables_begin = {}
-        #self.nb_tables = 0
-        #use_full_win32com = True
-        #self.doc_version = ""
+            try:
+                list_dir = os.listdir(new_concat_dirname)
+            except WindowsError as e:
+                self.log("{:s}".format(e))
+                list_dir = []
+            except OSError as e:
+                self.log("{:s}".format(e))
+                list_dir = []
+        except NameError as exception:
+                self.log("{:s}".format(exception))
+                list_dir = []
+
         for found_dir in list_dir:
             path_dir = os.path.join(new_concat_dirname, found_dir)
             isdir = os.path.isdir(path_dir)
@@ -283,7 +286,7 @@ class Tool():
                 extension = re.sub(r"(.*)\.(.*)",r"\2",found_dir)
                 new_concat_dirname = re.sub(r'\/',r'\\',new_concat_dirname)
                 filename = join(new_concat_dirname,found_dir)
-                print "1) DOC NAME:",filename
+                print ("1) DOC NAME:",filename)
                 fin = open(filename)
                 input = fin.read()
                 output = input.splitlines()
@@ -298,9 +301,6 @@ class Tool():
                         if percentage:
                             found =True
                             tbl_stats[keyword] = percentage
-                            #print keyword
-                            #print "percentage:",percentage
-                            #print "range:",range
                 if found:
                     self.list_coverage[found_dir] = tbl_stats
 
@@ -344,11 +344,11 @@ class Tool():
         url = self.getOptions("Default","update_server")
         url_proxy = self.getOptions("Default","proxy")
         try:
-            print "Try update version reading without proxy"
+            print ("Try update version reading without proxy")
             updateSource = urllib.urlopen("{:s}/version.txt".format(url))
             updateContents = updateSource.read()
-        except IOError,e:
-            print "Try update version reading with proxy"
+        except IOError as e:
+            print ("Try update version reading with proxy")
             proxy_support = urllib2.ProxyHandler({"http":url_proxy})
             opener = urllib2.build_opener(proxy_support)
             urllib2.install_opener(opener)
@@ -524,7 +524,7 @@ class Tool():
                     code_ri_2 = getAscii(m.group(3))
                     pn.append(code_ri_2)
                     break;
-        print "PN:",pn
+        print ("PN:",pn)
         str_pn = "".join(pn)
         return str_pn
 
@@ -551,8 +551,8 @@ class Tool():
         if self.config_parser.has_option("Generation","glossary"):
             file_descr_docs = self.config_parser.get("Generation","glossary")
             file_descr_docs = join("conf",file_descr_docs)
-            with open(file_descr_docs, 'rb') as file_csv_handler:
-                reader = csv.reader (self.CommentStripper (file_csv_handler))
+            with open(file_descr_docs, 'rt', encoding='utf') as file_csv_handler:
+                reader = csv.reader(self.CommentStripper (file_csv_handler))
                 for tag,description in reader:
                     self.dico_descr_docs_default[tag] = description
 
@@ -564,12 +564,12 @@ class Tool():
         pass
 
     def scrollEvent(self,event):
-        print event.delta
+        print (event.delta)
         if event.delta >0:
-            print 'move up'
+            print ('move up')
             self.help_text.yview_scroll(-2,'units')
         else:
-            print 'move down'
+            print ('move down')
             self.help_text.yview_scroll(2,'units')
 
     def populate_listbox(self,
@@ -690,7 +690,7 @@ class Tool():
                                                             LEFT OUTER JOIN systems ON systems.id = link_systems_items.system_id \
                                                             WHERE systems.name LIKE \'' + system + '\'  ORDER BY components.name ASC'
         else:
-            print "TROIS"
+            print ("TROIS")
             query = 'SELECT components.name FROM components LEFT OUTER JOIN link_items_components ON components.id = link_items_components.component_id \
                                                              ORDER BY components.name ASC'
         result_query = self.populate_listbox(query,listbox,"None")
@@ -729,7 +729,7 @@ class Tool():
         else:
             cr_type = result[0][0]
             cr_domain = result[0][1]
-        print "CR_TYPE",cr_type
+        print ("CR_TYPE",cr_type)
         return cr_type,cr_domain
 
     def _getItemCRType(self,item="",system=""):
@@ -741,7 +741,7 @@ class Tool():
                 LEFT OUTER JOIN link_systems_items ON items.id = link_systems_items.item_id \
                 LEFT OUTER JOIN systems ON systems.id = link_systems_items.system_id \
                 WHERE systems.name LIKE \'' + system + '\' AND items.name LIKE \'' + item + '\'  ORDER BY items.name ASC'
-        print "_getItemCRType:",query
+        print ("_getItemCRType:",query)
         result = self.sqlite_query(query)
         if result in (None,[]):
             cr_type = None
@@ -823,12 +823,12 @@ class Tool():
             result = self.sqlite_query(query)
             if result in (None,[]):
                 infos = default
-                print "No match in SQLite database, default author's name used."
+                print ("No match in SQLite database, default author's name used.")
             else:
                 infos = result[0]
         else:
             infos = default
-            print "Login empty, default author's name used."
+            print ("Login empty, default author's name used.")
         return infos
 
     def get_writers_vs_systems(self,system):
@@ -854,11 +854,11 @@ class Tool():
                     m = re.search(r'%version:([0-9\.]*) %',line)
                     if m:
                         source_code_version = m.group(1)
-                        print "found version",source_code_version
+                        print ("found version",source_code_version)
                         break
-        except IOError,e:
+        except IOError as e:
             source_code_version = "No such file"
-            print e
+            print (e)
         return source_code_version
 
     def get_ci_identification(self,item):
@@ -915,7 +915,7 @@ class Tool():
         return item
 
     def sqlite_save_projects(self,projects_set,config_id=1):
-        print "sqlite_save_projects",projects_set
+        print ("sqlite_save_projects",projects_set)
         try:
             con = lite.connect('docid.db3')
             cur = con.cursor()
@@ -925,8 +925,8 @@ class Tool():
             cur.executemany("INSERT INTO gen_save VALUES(?, ?, ?, ?)", projects_set)
             con.commit()
 ##            print time.strftime("%H:%M:%S", time.localtime()) + " Generation set saved."
-        except lite.Error, e:
-            print "Error %s:" % e.args[0]
+        except lite.Error as e:
+            print ("Error %s:" % e.args[0])
             sys.exit(1)
         finally:
             if con:
@@ -939,13 +939,13 @@ class Tool():
         :return:
         """
         query = "SELECT release,baseline,project FROM gen_save WHERE conf_id LIKE '{:d}'".format(config_id)
-        print "QUERY",query
+        print ("QUERY",query)
         result = self.sqlite_query(query)
-        print "RESULT",result
+        print ("RESULT",result)
         return result
 
     def sqlite_save_parameters(self,data,dico,config_id=1):
-        print "DATA",data
+        print ("DATA",data)
         try:
             con = lite.connect('docid.db3')
             cur = con.cursor()
@@ -957,15 +957,15 @@ class Tool():
                 update_data = data
                 update_data.append(config_id)
                 param = tuple(update_data)
-                print "PARAM",param
+                print ("PARAM",param)
                 # parameterized queries
                 #This format is more robust but require a dictionary !
                 parameterized_query = "UPDATE parameters SET author=:author, reference=:reference, issue=:issue, pn=:pn, board_pn=:board_pn, " \
                                        "checksum=:checksum, dal=:dal,  previous_bas=:previous_bas, release=:release, baseline=:baseline," \
                                        "project=:project, detect=:detect, implemented=:implemented, item=:item, component=:component, system=:system, cr_type=:cr_type , cr_domain=:cr_domain WHERE conf_id=:conf_id"
-                print "DICO",dico
+                print ("DICO",dico)
                 dico["conf_id"]=config_id
-                print "UPDATE QUERY",parameterized_query
+                print ("UPDATE QUERY",parameterized_query)
                 # cur.execute(parameterized_query, dico)
 
                 # Marche pas avec le tuple
@@ -973,7 +973,7 @@ class Tool():
                                       "checksum=?, dal=?,  previous_bas=?, release=?, baseline=?," \
                                       "project=?, detect=?, implemented=?, item=?, component=?, system=?, cr_type=?, cr_domain=? WHERE conf_id=?"
 
-                print "UPDATE QUERY",parameterized_query
+                print ("UPDATE QUERY",parameterized_query)
                 cur.execute(parameterized_query, param)
                 #cur.execute("UPDATE parameters SET database=?,reference=?,revision=?,project=?,release=?,baseline=?,input_date=? WHERE id= ?",(self.database,self.reference,self.revision,project,release,baseline,now,id))
             else:
@@ -984,8 +984,8 @@ class Tool():
                 cur.executemany("INSERT INTO parameters VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [insert_data])
             con.commit()
 ##            print time.strftime("%H:%M:%S", time.localtime()) + " Generation set saved."
-        except lite.Error, e:
-            print "Error %s:" % e.args[0]
+        except lite.Error as e:
+            print ("Error %s:" % e.args[0])
             sys.exit(1)
         finally:
             if con:
@@ -996,13 +996,13 @@ class Tool():
             y="{:s}".format(x)
             return y
         query = "SELECT author, reference, issue, pn, board_pn, checksum, dal,  previous_bas, release, baseline, project, detect, implemented, item, component, system, cr_type, cr_domain FROM parameters WHERE conf_id = '{:d}'".format(config_id)
-        print "QUERY",query
+        print ("QUERY",query)
         result = self.sqlite_query(query)
-        print "RESULT",result
+        print ("RESULT",result)
         if result not in (None,[]):
-            print "RESULT sqlite_restore_parameters",result
+            print ("RESULT sqlite_restore_parameters",result)
             values = result[0]
-            print "BEFORE",values
+            print ("BEFORE",values)
             #values = map(convert_values,values)
         else:
             values = False
@@ -1161,9 +1161,9 @@ class Tool():
                                 COMMIT;
                 """)
             con.commit()
-            print 'New SQLite database created.'
-        except lite.Error, e:
-            print "Error %s:" % e.args[0]
+            print ('New SQLite database created.')
+        except lite.Error as e:
+            print ("Error %s:" % e.args[0])
             sys.exit(1)
         finally:
             if con:
@@ -1195,8 +1195,8 @@ class Tool():
             # Keep only the 4 last input
             cur.execute("DELETE FROM last_query WHERE id NOT IN ( SELECT id FROM ( SELECT id FROM last_query ORDER BY input_date DESC LIMIT 4) x )")
             lid = cur.lastrowid
-        except lite.Error, e:
-            print "Error %s:" % e.args[0]
+        except lite.Error as e:
+            print ("Error %s:" % e.args[0])
         finally:
             if con:
                 con.close()
@@ -1223,8 +1223,8 @@ class Tool():
                 con = lite.connect(database, isolation_level=None)
                 cur = con.cursor()
                 cur.execute("UPDATE config SET name=? WHERE id= ?",(txt,str(id)))
-            except lite.Error, e:
-                print "Error %s:" % e.args[0]
+            except lite.Error as e:
+                print ("Error %s:" % e.args[0])
                 sys.exit(1)
             finally:
                 if con:
@@ -1239,8 +1239,8 @@ class Tool():
             result = cur.fetchall()
             if con:
                 con.close()
-        except lite.Error, e:
-            print "Error %s:" % e.args[0]
+        except lite.Error as e:
+            print ("Error %s:" % e.args[0])
             result = None
         finally:
             if con:
@@ -1256,8 +1256,8 @@ class Tool():
             result = cur.fetchone()
             if con:
                 con.close()
-        except lite.Error, e:
-            print "Error %s:" % e.args[0]
+        except lite.Error as e:
+            print ("Error %s:" % e.args[0])
             result = None
         #finally:
         #    if con:
@@ -1278,22 +1278,22 @@ class Tool():
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = subprocess.SW_HIDE
         # default config
-        print time.strftime("%H:%M:%S", time.localtime()) + " httpd.exe -f " + config
+        print (time.strftime("%H:%M:%S", time.localtime()) + " httpd.exe -f " + config)
         proc_httpd = subprocess.Popen(httpd_dir + "httpd.exe -f " + config, stdout=subprocess.PIPE, stderr=subprocess.PIPE,startupinfo=startupinfo)
-        print time.strftime("%H:%M:%S", time.localtime()) + " mysqld --defaults-file=mysql\\bin\\my.ini --standalone --console"
+        print (time.strftime("%H:%M:%S", time.localtime()) + " mysqld --defaults-file=mysql\\bin\\my.ini --standalone --console")
         proc_mysql = subprocess.Popen(mysql_dir + "mysqld --defaults-file=mysql\\bin\\my.ini --standalone --console", stdout=subprocess.PIPE, stderr=subprocess.PIPE,startupinfo=startupinfo)
         stdout_httpd, stderr_httpd = proc_httpd.communicate()
         stdout_mysql, stderr_mysql = proc_mysql.communicate()
         ##    print time.strftime("%H:%M:%S", time.localtime()) + " " + stdout
         if stderr_httpd:
-            print "Error while executing httpd command: " + stderr_httpd
+            print ("Error while executing httpd command: " + stderr_httpd)
         elif stderr_mysql:
-            print "Error while executing mysql command: " + stderr_mysql
+            print ("Error while executing mysql command: " + stderr_mysql)
         time.sleep(1)
         return_code_httpd = proc_httpd.wait()
         return_code_mysql = proc_mysql.wait()
-        print stdout_httpd
-        print stdout_mysql
+        print (stdout_httpd)
+        print (stdout_mysql())
 
     #Srecord
     def srec_to_intelhex(self,filename,output):
@@ -1308,25 +1308,25 @@ class Tool():
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = subprocess.SW_HIDE
         except AttributeError:
-            print "ccm_query works on Windows only."
+            warnings.warn("ccm_query works on Windows only.")
             return "",""
         try:
             #name = Tool.getFileName(filename)
-            print "bin\\srec_cat {:s} -o result\\{:s}.hex -intel".format(filename,output)
+            print ("bin\\srec_cat {:s} -o result\\{:s}.hex -intel".format(filename,output))
             proc = subprocess.Popen("bin\\srec_cat {:s} -o result\\{:s}.hex -intel".format(filename,output),
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
                                     startupinfo=startupinfo)
             stdout, stderr = proc.communicate()
             if stderr:
-                print "Error while executing srec_cat command: " + stderr
+                print ("Error while executing srec_cat command: " + stderr)
             time.sleep(1)
             return_code = proc.wait()
         except UnicodeEncodeError as exception:
-            print "Character not supported:", exception
+            print ("Character not supported:", exception)
             stderr = "Character not supported: {:s}".format(exception)
         except WindowsError as exception:
-            print "Wrong path for srec_cat:", exception
+            print ("Wrong path for srec_cat:", exception)
             stderr = "Wrong path for srec_cat"
         return stdout,stderr
 
@@ -1343,20 +1343,20 @@ class Tool():
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = subprocess.SW_HIDE
         except AttributeError:
-            print "ccm_query works on Windows only."
+            warnings.warn("ccm_query works on Windows only.")
             return "",""
         try:
             proc = subprocess.Popen(self.ccm_exe + " " + query, stdout=subprocess.PIPE, stderr=subprocess.PIPE,startupinfo=startupinfo)
             stdout, stderr = proc.communicate()
             if stderr:
-                print "Error while executing " + cmd_name + " command: " + stderr
+                print ("Error while executing " + cmd_name + " command: " + stderr)
             time.sleep(1)
             return_code = proc.wait()
         except UnicodeEncodeError as exception:
-            print "Character not supported:", exception
+            print ("Character not supported:", exception)
             stderr = "Character not supported: {:s}".format(exception)
         except WindowsError as exception:
-            print "Wrong path for ccm.exe:", exception
+            print ("Wrong path for ccm.exe:", exception)
             stderr = "Wrong path for ccm.exe"
         return stdout,stderr
 
@@ -1391,7 +1391,7 @@ class Tool():
     @staticmethod
     def getSRTS_Rule(id):
         table = "rules"
-        print "rule id:",id
+        print ("rule id:",id)
         query = "SELECT description FROM {:s} WHERE id LIKE '{:s}'".format(table,id)
         result = Tool.sqlite_query_one(query,database="db/srts_rules.db3")
         if result is None:
@@ -1404,7 +1404,7 @@ class Tool():
     @staticmethod
     def getSDTS_Rule(id):
         table = "rules"
-        print "rule id:",id
+        print ("rule id:",id)
         query = "SELECT description FROM {:s} WHERE id LIKE '{:s}'".format(table,id)
         result = Tool.sqlite_query_one(query,database="db/sdts_rules.db3")
         if result is None:
@@ -1417,7 +1417,7 @@ class Tool():
     @staticmethod
     def getAll_SDTS_Rule_by_req(by_req=True):
         table = "rules"
-        print "rule id:",id
+        print ("rule id:",id)
         if by_req:
             query = "SELECT id,description FROM {:s} WHERE by_req LIKE '1'".format(table)
         else:
@@ -1597,7 +1597,7 @@ class Tool():
     def getComponentID(self,item):
         if not self._is_array(item):
             query = "SELECT ci_id FROM components WHERE name LIKE '%{:s}%'".format(item)
-            print "getComponentID",query
+            print ("getComponentID",query)
             result = self.sqlite_query_one(query)
         else:
             result = None
@@ -1931,11 +1931,11 @@ class Tool():
 ##                    unicode_paragraph = unicode(element, errors='ignore')
 ##                    unicode_paragraph.append( map(lambda i: unicode(i, errors='ignore'), element) )
             except TypeError as exception:
-                print "Execution failed:", exception
+                print ("Execution failed:", exception)
                 unicode_paragraph.append(element)
 ##                    print element
             except UnicodeDecodeError as exception:
-                print "Execution failed:", exception
+                print ("Execution failed:", exception)
                 unicode_paragraph.append(element)
             if not len(unicode_paragraph):
                 # Empty paragraph
@@ -1947,8 +1947,8 @@ class Tool():
                 try:
                     repl = docx.paragraph(unicode_paragraph,style=style)
                 except ValueError as exception:
-                    print "unicode_paragraph",unicode_paragraph
-                    print "TXT",txt
+                    print ("unicode_paragraph",unicode_paragraph)
+                    print ("TXT",txt)
         return repl
 
     def _table(self,array,fmt):
@@ -1959,11 +1959,11 @@ class Tool():
                 # Unicodize
                 unicode_table.append( map(lambda i: unicode(i, errors='ignore'), element) )
             except TypeError as exception:
-                print "Execution failed:", exception
+                print ("Execution failed:", exception)
                 unicode_table.append(element)
 ##                    print element
             except UnicodeDecodeError as exception:
-                print "Execution failed:", exception
+                print ("Execution failed:", exception)
                 unicode_table.append(element)
         if not len(unicode_table):
             # Empty table
@@ -2014,11 +2014,11 @@ class Tool():
             try:
                 repl = unicode(replace[1], errors='ignore')
             except TypeError as exception:
-                print "Execution failed:", exception
+                print ("Execution failed:", exception)
                 repl = replace[1]
 ##                print repl
             except UnicodeDecodeError as exception:
-                print "Execution failed:", exception
+                print ("Execution failed:", exception)
 ##                print replace[1]
         elif replace[0] == 'par':
             # Will make a paragraph
@@ -2099,8 +2099,8 @@ class Tool():
                 if 0==1:
                     if cr_status in self.dico_status_flow:
                         if cr_id in dico["timeline"]:
-                            print "CR_STATUS",cr_status
-                            print "TEST TIMELINE",dico["timeline"][cr_id]
+                            print ("CR_STATUS",cr_status)
+                            print ("TEST TIMELINE",dico["timeline"][cr_id])
                             final_cr_status = dico["timeline"][cr_id]["current"]
                             #cr_next_state = [("CR Transition to state: \"{:s}\"".format(final_cr_status),'')]
                             if final_cr_status in self.dico_get_transition_flow:
@@ -2122,7 +2122,7 @@ class Tool():
                 else:
                     if cr_status in self.dico_status_flow:
                         if cr_id in dico["timeline"]:
-                            print "TEST TIMELINE",dico["timeline"][cr_id]
+                            print ("TEST TIMELINE",dico["timeline"][cr_id])
                             current_cr_status = dico["timeline"][cr_id]["current"]
                             former_cr_status = dico["timeline"][cr_id]["former"]
                             if former_cr_status in self.dico_status_flow:
@@ -2148,20 +2148,20 @@ class Tool():
                 if num > num_end:
                     prefix += "a"
                     num = num_begin
-                print "HEADER:",header
+                print ("HEADER:",header)
                 elt = self._par(header,style="Titre2")
                 repl.append(elt)
-                print "VALUE:",value
+                print ("VALUE:",value)
                 elt = self._table(value,fmt)
                 repl.append(elt)
-                print "TRANSITION:",cr_transition
+                print ("TRANSITION:",cr_transition)
                 elt = self._par(cr_transition)
                 repl.append(elt)
-                print "STATE:",cr_next_state
+                print ("STATE:",cr_next_state)
                 elt = self._par(cr_next_state)
                 repl.append(elt)
         else:
-            raise NotImplementedError, "Unsupported " + replace[0] + " tag type!"
+            raise NotImplementedError("Unsupported " + replace[0] + " tag type!")
         # Replace tag with 'lxml.etree._Element' objects
         result = docx.advReplace(doc, '\{\{'+re.escape(tag)+'\}\}', repl,6)
 ##        result = docx.advReplace_new(doc, '\{\{'+re.escape(tag)+'\}\}', repl,6)
@@ -2309,7 +2309,7 @@ class Tool():
         txt = ""
         try:
             txt = "".join(filter(lambda x: ord(x)<128, s))
-        except TypeError,e:
+        except TypeError as e:
             #print "TypeError",e
             #print "TXT:",s
             s = str(s)
@@ -2353,8 +2353,8 @@ class Tool():
         try:
             for before, after in char.iteritems():
                 text = re.sub(before,after,text)
-        except TypeError,e:
-            print e
+        except TypeError as e:
+            print (e)
         try:
             from unidecode import unidecode
             text = unidecode(text)
@@ -2457,7 +2457,7 @@ class Tool():
         def dico(keyword,rel):
             txt = "({:s}='{:s}')".format(keyword,rel)
             return txt
-        print "_createImpl",keyword,release
+        print ("_createImpl",keyword,release)
         if release != [] and release != ['']:
             if not cls._is_array(release):
                 # Split string with comma as separator
@@ -2490,7 +2490,7 @@ class Tool():
         return parser.tbl
 
     def _filterASCII(self,transi_log):
-        print "transi_log",transi_log
+        print ("transi_log",transi_log)
         # Remove ASCII control characters
         # Replace FS and RS characters
 ##        char = {r'\x1e':'',r'\x1c':'',r'\x0d':'<br/>'}
@@ -2596,14 +2596,14 @@ class Tool():
             try:
                 filtered_after = filtered_after.encode("utf-8")
                 input = re.sub(before,filtered_after,input)
-            except UnicodeDecodeError,exception:
+            except UnicodeDecodeError as exception:
                 # Vieux patch
-                print exception," ",before," ",filtered_after
+                print (exception," ",before," ",filtered_after)
                 # Remove span
                 char = {r'<span style =  ?".*" >':'','<br>':''}
                 for before_char, after_char in char.iteritems():
                     filtered_after = re.sub(before_char,after_char,filtered_after)
-                print "PATCH",filtered_after
+                print ("PATCH",filtered_after)
                 filtered_after = filtered_after.encode("utf-8")
                 input = re.sub(before,filtered_after,input)
 
@@ -2680,14 +2680,14 @@ class Tool():
             try:
                 filtered_after = filtered_after.encode("utf-8")
                 input = re.sub(before,filtered_after,input)
-            except UnicodeDecodeError,exception:
+            except UnicodeDecodeError as exception:
                 # Vieux patch
-                print exception," ",before," ",filtered_after
+                print (exception," ",before," ",filtered_after)
                 # Remove span
                 char = {r'<span style =  ?".*" >':'','<br>':''}
                 for before_char, after_char in char.iteritems():
                     filtered_after = re.sub(before_char,after_char,filtered_after)
-                print "PATCH",filtered_after
+                print ("PATCH",filtered_after)
                 filtered_after = filtered_after.encode("utf-8")
                 input = re.sub(before,filtered_after,input)
 
@@ -2702,13 +2702,13 @@ class Tool():
             template_name = self.getOptions("Template",template_type)
             if template_name:
                 template = join(template_dir, template_name)
-                print "{:s} template applied.".format(template_name)
+                print ("{:s} template applied.".format(template_name))
             else:
-                print "Default {:s} template applied.".format(template_default_name)
+                print ("Default {:s} template applied.".format(template_default_name))
                 template = join(template_dir, template_default_name)
         except IOError as exception:
-            print "Execution failed:", exception
-            print "Default {:s} template applied.".format(template_default_name)
+            print ("Execution failed:", exception)
+            print ("Default {:s} template applied.".format(template_default_name))
             template = join(template_dir, template_default_name)
         #except NoOptionError as exception:
         #    print "Execution failed:", exception
@@ -2733,16 +2733,16 @@ class Tool():
             template = zipfile.ZipFile(template_name,mode='r')
             template_found = True
         except IOError as exception:
-            print "Execution failed:", exception
+            print ("Execution failed:", exception)
             docx_filename = False
             try:
                 template_dir = join(os.path.dirname("."), 'template')
                 template_default_name = join(template_dir, "review_template.docx")
                 template = zipfile.ZipFile(template_default_name,mode='r')
                 template_found = True
-                print "TAKE DEFAULT TEMPLATE"
+                print ("TAKE DEFAULT TEMPLATE")
             except IOError as exception:
-                print "Execution failed:", exception
+                print ("Execution failed:", exception)
                 docx_filename = False
         if template.testzip() or not template_found:
             raise Exception('File is corrupted!')
@@ -2787,7 +2787,7 @@ class Tool():
             # Prepare output file
             docx_filename = filename
             try:
-                print "GEN_DIR",self.gen_dir
+                print ("GEN_DIR",self.gen_dir)
                 target = join(self.gen_dir,docx_filename)
                 outfile = zipfile.ZipFile(target,mode='w',compression=zipfile.ZIP_DEFLATED)
                 # Replace image if image exists in SQLite database
@@ -3052,7 +3052,7 @@ class Tool():
                     description,reference = self._getDescriptionDoc(document)
                     description = dico[key]
                     self.dico_found[key,type_doc] = doc_name + " issue " + version
-                    print "DICO_FOUND",self.dico_found
+                    print ("DICO_FOUND",self.dico_found)
                     result = True
                     break
         return result
@@ -3231,7 +3231,7 @@ class MyHTMLParser(HTMLParser):
         elif self.foundCell:
             try:
                 self.text += self._createBeacon(tag,attrs)
-            except UnicodeDecodeError,exception:
+            except UnicodeDecodeError as exception:
                 pass
             #self.text += "<" + tag + ">"
     def handle_endtag(self, tag):
@@ -3283,8 +3283,8 @@ class BProc_HTMLParser(HTMLParser):
             self.attr = attr[1]
         try:
             self.text += self._createBeacon(tag,attrs)
-        except UnicodeDecodeError,exception:
-            print exception
+        except UnicodeDecodeError as exception:
+            print (exception)
 
     def handle_endtag(self, tag):
 ##            print "Encountered an end tag :", tag

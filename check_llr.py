@@ -419,22 +419,25 @@ class CheckLLR(Tool,Conf):
         self.nb_tables = 0
         self.list_tbl_tables_begin = {}
         self.nb_pages = 0
-        pythoncom.CoInitialize()
-        if "nogencache" not in self.__dict__:
-            print "gencache"
-            # from http://www.py2exe.org/index.cgi/UsingEnsureDispatch
-            if win32.gencache.is_readonly == True:
-                #allow gencache to create the cached wrapper objects
-                win32.gencache.is_readonly = False
-                # under p2exe the call in gencache to __init__() does not happen
-                # so we use Rebuild() to force the creation of the gen_py folder
-                win32.gencache.Rebuild()
-                # NB You must ensure that the python...\win32com.client.gen_py dir does not exist
-                # to allow creation of the cache in %temp%
-        else:
-            print "no gencache"
-        self.word = win32.gencache.EnsureDispatch('Word.Application')
-        self.word.Visible = False
+        try:
+            pythoncom.CoInitialize()
+            if "nogencache" not in self.__dict__:
+                # from http://www.py2exe.org/index.cgi/UsingEnsureDispatch
+                if win32.gencache.is_readonly == True:
+                    #allow gencache to create the cached wrapper objects
+                    win32.gencache.is_readonly = False
+                    # under p2exe the call in gencache to __init__() does not happen
+                    # so we use Rebuild() to force the creation of the gen_py folder
+                    win32.gencache.Rebuild()
+                    # NB You must ensure that the python...\win32com.client.gen_py dir does not exist
+                    # to allow creation of the cache in %temp%
+            else:
+                print "no gencache"
+            self.word = win32.gencache.EnsureDispatch('Word.Application')
+            self.word.Visible = False
+        except NameError as exception:
+            self.word = None
+            warnings.warn(str(exception))
 
     def __del__(self):
         #self.Word.Quit()
@@ -2384,13 +2387,17 @@ class CheckLLR(Tool,Conf):
         #    print e
         #    WindowsError = None
         try:
-            print "new_concat_dirname",new_concat_dirname
-            list_dir = os.listdir(new_concat_dirname)
-        except WindowsError,e:
-            self.log("{:s}".format(e))
-            list_dir = []
-        except OSError,e:
-            self.log("{:s}".format(e))
+            try:
+                print "new_concat_dirname",new_concat_dirname
+                list_dir = os.listdir(new_concat_dirname)
+            except WindowsError as e:
+                self.log("{:s}".format(e))
+                list_dir = []
+            except OSError as e:
+                self.log("{:s}".format(e))
+                list_dir = []
+        except NameError as exception:
+            self.log("{:s}".format(exception))
             list_dir = []
         del(self.tbl_dico_modifs[:])
         self.list_tbl_tables_begin = {}

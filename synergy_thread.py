@@ -33,16 +33,20 @@ import xml.etree.ElementTree as ET
 try:
     import win32com.client as win32
     import pythoncom
-except ImportError,e:
+except ImportError as e:
     print e
-from blockdiag import parser, builder, drawer
-from blockdiag.imagedraw import png
-from blockdiag.noderenderer import box
+try:
+    from blockdiag import parser, builder, drawer
+    from blockdiag.imagedraw import png
+    from blockdiag.noderenderer import box
+except ImportError as e:
+    print e
 
 # Abstract Syntax Tree
 sys.path.append("pycparser")
 from pycparser import c_parser, c_ast,parse_file
 from pycparser.plyparser import ParseError
+from stack import Stack
 
 __author__ = 'olivier'
 class FuncCallVisitor(c_ast.NodeVisitor):
@@ -161,15 +165,15 @@ class ThreadQuery(threading.Thread,Synergy):
         if self.master_ihm is not None:
             self.component = self.master_ihm.component
             # Display system name
-            self.master_ihm.log("System: {:s}".format(self.system),False)
+            self.master_ihm.log("System: {:s}".format(self.system), False)
             # Display item name
-            self.master_ihm.log("Item: {:s}".format(self.item),False)
+            self.master_ihm.log("Item: {:s}".format(self.item), False)
             # Display configuration item ID
             #ci_id = self.get_ci_sys_item_identification(self.system,self.item)
             if ci_id is not None:
-                self.master_ihm.log("CI ID: {:s}".format(ci_id),False)
+                self.master_ihm.log("CI ID: {:s}".format(ci_id), False)
             else:
-                self.master_ihm.log("CI ID: Unknown",False)
+                self.master_ihm.log("CI ID: Unknown", False)
         if self.database is None:
             self.database,self.aircraft = self.get_sys_database()
         self.author = ""
@@ -227,11 +231,11 @@ class ThreadQuery(threading.Thread,Synergy):
             if stdout != "":
                 # remove \r
                 text = re.sub(r"\r\n",r"\n",stdout)
-                self.master_ihm.log(text,False)
+                self.master_ihm.log(text, False)
             if stderr:
                  # remove \r
                 text = re.sub(r"\r\n",r"\n",stderr)
-                self.master_ihm.log(text,False)
+                self.master_ihm.log(text, False)
 
     def processIncoming(self):
         """
@@ -619,7 +623,7 @@ class ThreadQuery(threading.Thread,Synergy):
                     if self.session_started:
                         stdout = self.queue.get(1)
                         if stdout != "":
-                            self.master_ihm.baselinelistbox.configure(bg="white")
+                            self.master_ihm.baselinelistbox.configure(text="white")
                             self.master_ihm.log("Available baseline found:")
                             output = stdout.splitlines()
                             self.master_ihm.baselinelistbox.delete(0, END)
@@ -633,12 +637,12 @@ class ThreadQuery(threading.Thread,Synergy):
                                 self.master_ihm.baselinelistbox_2.insert(END, line)
                                 self.master_ihm.log(line)
                             self.master_ihm.releaselistbox.selection_set(first=0)
-                            self.master_ihm.baselinelistbox.configure(bg="white")
+                            self.master_ihm.baselinelistbox.configure(text="white")
                         else:
                             self.master_ihm.resetBaselineListbox()
                             self.master_ihm.log(" No available baselines found.")
                         #self.resetProjectListbox()
-                        self.master_ihm.baselinelistbox.configure(state=NORMAL)
+                        self.master_ihm.baselinelistbox.configure(text=NORMAL)
                         # Set scrollbar at the bottom
                         self.master_ihm.defill()
                 elif action == "RELOAD_RELEASEBOX":
@@ -708,7 +712,7 @@ class ThreadQuery(threading.Thread,Synergy):
                             list_cr = self.queue.get(1)
                             # Update list of project of GUI
                             crlistbox = self.master_ihm.crlistbox
-                            crlistbox.configure(state=NORMAL)
+                            crlistbox.configure(text=NORMAL)
                             crlistbox.delete(0, END)
                             inter = 0
                             for cr_description in list_cr:
@@ -718,7 +722,7 @@ class ThreadQuery(threading.Thread,Synergy):
                                 else:
                                     crlistbox.itemconfig(inter,{'bg':'lightgrey','fg':'black'})
                                 inter += 1
-                            crlistbox.configure(bg="white")
+                            crlistbox.configure(text="white")
                         except AttributeError:
                             pass
                 elif action == "CHECK_LLR":
@@ -874,7 +878,8 @@ class ThreadQuery(threading.Thread,Synergy):
                     self.send_cmd_thread = threading.Thread(None,self._buildVHDL,None,("ACEM",))
                     self.send_cmd_thread.start()
                 elif action == "EXPORT_FUNC_CALL_TREE":
-                    self.send_cmd_thread = threading.Thread(None,self._stackAnalysis,None)
+                    stack = Stack()
+                    self.send_cmd_thread = threading.Thread(None,stack._stackAnalysis,None)
                     self.send_cmd_thread.start()
                 else:
                     pass
@@ -918,18 +923,18 @@ class ThreadQuery(threading.Thread,Synergy):
 
     def _setRelease(self):
         self.master_ihm.release = self.previous_release
-        self.master_ihm.button_list_items.configure(state=NORMAL)
-        self.master_ihm.button_list_tasks.configure(state=NORMAL)
-        self.master_ihm.button_set_baselines.configure(state=NORMAL)
+        self.master_ihm.button_list_items.configure(text=NORMAL)
+        self.master_ihm.button_list_tasks.configure(text=NORMAL)
+        self.master_ihm.button_set_baselines.configure(text=NORMAL)
         self.master_ihm.setBaseline(self.master_ihm.release)
 
     def _setBaseline(self):
         self.master_ihm.baseline = self.previous_baseline
         self.master_ihm.setBaselineSynergy(self.master_ihm.baseline)
-        self.master_ihm.projectlistbox.configure(state=NORMAL)
-        self.master_ihm.button_find_projects.configure(state=NORMAL)
-        self.master_ihm.button_list_items.configure(state=NORMAL)
-        self.master_ihm.button_list_tasks.configure(state=NORMAL)
+        self.master_ihm.projectlistbox.configure(text=NORMAL)
+        self.master_ihm.button_find_projects.configure(text=NORMAL)
+        self.master_ihm.button_list_items.configure(text=NORMAL)
+        self.master_ihm.button_list_tasks.configure(text=NORMAL)
         executed = self._sendCmd("GET_RELEASE_VS_BASELINE","",self.master_ihm.baseline)
         if executed:
             pass
@@ -939,10 +944,10 @@ class ThreadQuery(threading.Thread,Synergy):
 
     def _setProject(self):
         self.master_ihm.project = self.previous_project
-        self.master_ihm.button_select.configure(state=NORMAL)
-        self.master_ihm.button_create_delivery_sheet.configure(state=NORMAL)
-        self.master_ihm.button_list_items.configure(state=NORMAL)
-        self.master_ihm.button_list_tasks.configure(state=NORMAL)
+        self.master_ihm.button_select.configure(text=NORMAL)
+        self.master_ihm.button_create_delivery_sheet.configure(text=NORMAL)
+        self.master_ihm.button_list_items.configure(text=NORMAL)
+        self.master_ihm.button_list_tasks.configure(text=NORMAL)
         self.master_ihm.setProject(self.master_ihm.project)
 
     def _add(self, action):
@@ -1094,7 +1099,7 @@ class ThreadQuery(threading.Thread,Synergy):
                 res_parent_cr = self._getParentInfo(parent_cr_id)
                 if res_parent_cr:
                     parent_cr += res_parent_cr
-                    self.master_ihm.log("{:s} CR: {:s}".format(type_cr,res_parent_cr))
+                    self.master_ihm.log("{:s} CR: {:s}".format(type_cr, res_parent_cr))
                 #else:
                 #    self.master_ihm.log("No result for _getParentInfo (twice).")
         else:
@@ -1950,7 +1955,7 @@ class ThreadQuery(threading.Thread,Synergy):
                                                          dico_tags["baseline"])
         if list_projects_set != []:
             # Projects are available in GUI
-            self.master_ihm.log("Use project set list to create CID for documents",False)
+            self.master_ihm.log("Use project set list to create CID for documents", False)
             # Project set in GUI
             list_projects = self.master_ihm.project_set_list
             # List of projects from GUI
@@ -2214,7 +2219,7 @@ class ThreadQuery(threading.Thread,Synergy):
                          callback=self.master_ihm.log)
         spec.openLog("TEST")
         spec.use_full_win32com = True
-        self.master_ihm.log(text="",color="white")
+        self.master_ihm.log(text="", color="white")
         spec.listDir(tbl_type=("SWRD",))
         print "Extract result"
         print "Found {:d} tables at the beginning".format(spec.nb_tables)
@@ -2558,13 +2563,14 @@ class ThreadQuery(threading.Thread,Synergy):
                     else:
                         text = "functions"
                     if self.master_ihm is not None:
-                        self.master_ihm.log("Find {:s} ({:} {:s} called)".format(short_filename,v.nb_func_called,text))
+                        self.master_ihm.log(
+                            "Find {:s} ({:} {:s} called)".format(short_filename, v.nb_func_called, text))
                     else:
                         print "Find {:s} ({:} {:s} called)".format(short_filename,v.nb_func_called,text)
                 except ParseError,e:
                     short_filename = Tool.getFileName(filename)
                     if self.master_ihm is not None:
-                        self.master_ihm.log("Find {:s} (AST failed: {:s})".format(short_filename,str(e)))
+                        self.master_ihm.log("Find {:s} (AST failed: {:s})".format(short_filename, str(e)))
                     else:
                         print "Find {:s} (AST failed: {:s})".format(short_filename,str(e))
                     print e
@@ -3183,7 +3189,7 @@ class ThreadQuery(threading.Thread,Synergy):
         hlr = Derived(dirname,
                       hlr_selected=False,
                       general_output_txt = self.master_ihm.general_output_txt)
-        self.master_ihm.log(text="",color="white")
+        self.master_ihm.log(text="", color="white")
         hlr.listDir(dirname,tbl_type)
         hlr.invert()
         hlr.countDerived()
@@ -3204,7 +3210,7 @@ class ThreadQuery(threading.Thread,Synergy):
         hlr = Derived(dirname,
                       hlr_selected=True,
                       general_output_txt = self.master_ihm.general_output_txt)
-        self.master_ihm.log(text="",color="white")
+        self.master_ihm.log(text="", color="white")
         hlr.listDir(dirname,tbl_type)
         hlr.invert()
         if "SWRD" in tbl_type:
