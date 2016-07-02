@@ -41,6 +41,13 @@ Il utilise &eacute;galement:
 - SQLite v3.x
 - PMW version 1.3.3a (&agrave; installer dans les librairies de Python),
 - Python-docx version 0.2 (copier le r&eacute;pertoire python-docx &agrave; la racine du projet dans le r&eacute;pertoire)
+- blockdiag
+- pycparser (avec un patch pour supprimer *interrupt* devant les prototypes des fonctions)
+- django
+- intelhex
+- openpyxl
+- sphynx
+- tkintertable
 
 Pour g&eacuten&eacuterer l'ex?cutable il faut lancer la commande: python setup.py py2exe
 Il faut de plus cr?er le r&eacutepertoire *Microsoft.VC90.CRT* avec les fichiers suivant:

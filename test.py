@@ -12,9 +12,13 @@ class TestDoCID(TestCase):
         current_dir = os.getcwd()
         test = Stack() #ThreadQuery()
         test.compiler="gcc"
-        test.root_user_dir = join(current_dir,"qualification/SET_G7000_ACENM")
-        test.src_user_dir  = "Software/SW_ACENM_CODE/SRC"
-        test.build_user_dir  = "Software/SW_ACENM_CODE/BUILD"
+        test.root_user_dir = join(current_dir,"qualification")
+        test.root_user_dir = join(test.root_user_dir,"SET_G7000_ACENM")
+        test.src_user_dir  = "Software"
+        test.src_user_dir = join(test.src_user_dir,"SW_ACENM_CODE")
+        test.build_user_dir  = test.src_user_dir
+        test.src_user_dir = join(test.src_user_dir,"SRC")
+        test.build_user_dir = join(test.build_user_dir,"BUILD")
         dico_function_vs_stack_size = test._getStackFromAsm()
         print ("dico_function_vs_stack_size",dico_function_vs_stack_size)
         print (len(dico_function_vs_stack_size))
@@ -26,8 +30,8 @@ class TestDoCID(TestCase):
         test._computeLeaves()
         for x in test.leaves:
             print ("X:",x)
-        if len(test.leaves) > 2:
-            assert(test.leaves[1]==['CtlSchd_G_Manager', 'CtlSchd_P_Init', 'CtlSchd_P_InitManagePowerCut', 'CmpWdg_G_Refresh', '', '', '', '', '', '', '', ''])
+        if len(test.leaves) > 4:
+            assert(test.leaves[4]==['CtlSchd_G_Manager', 'CtlSchd_P_Init', 'CtlSchd_P_InitManagePowerCut', 'CmpWdg_G_Refresh', '', '', '', '', '', '', '', ''])
         else:
             print("Test failed")
 

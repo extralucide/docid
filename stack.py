@@ -265,11 +265,10 @@ class Stack():
             index += 1
             if self._isSourceFile(filename):
                 try:
-                    print ("FILENAME:",filename)
                     ast = parse_file(filename,
                                      use_cpp=True,
                                      cpp_path=self.compiler,
-                                     cpp_args=[r'-E ', r'-I{:s}'.format(include)])
+                                     cpp_args=[r'-E', r'-I{:s}'.format(include)])
 
                     # List of called functions and where
                     list_func_def    = []
