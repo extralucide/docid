@@ -22,6 +22,8 @@ MAKE = make
 PYTHON = python
 PYTHON_3 = C:\WinPython-64bit-3.4.4.2\python-3.4.4.amd64\python
 PYINSTALLER = C:\WinPython-64bit-3.4.4.2\python-3.4.4.amd64\Scripts\pyinstaller
+CX_FREEZE = C:\WinPython-64bit-3.4.4.2\python-3.4.4.amd64\Scripts\cxfreeze
+
 MAKENSIS = makensis.exe
 ZIP2EXE = Contrib\zip2exe
 OUTPUT = 
@@ -52,7 +54,7 @@ default: nsis copy_docs copy copy_wrk_area
 
 install: copy_docs copy copy_wrk_area
 
-dummy:
+stack_pyinstaller:
 	@echo ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
 	@echo º            stack windows mode executable generation ...             º
 	@echo ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼
@@ -60,8 +62,17 @@ dummy:
 	@rm -f -r -v $(DIST)/result/*.*
 	@touch $(DIST)/result/empty.txt
 	@cp conf/docid_empty.ini $(DIST)/conf/docid.ini
-
-stack:
+	
+stack_cxfreeze:
+	@echo ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
+	@echo º            stack windows mode executable generation ...             º
+	@echo ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼
+	@$(PYTHON_3) setup_cxfreeze.py build
+	@rm -f -r -v $(DIST)/result/*.*
+	@touch $(DIST)/result/empty.txt
+	@cp conf/docid_empty.ini $(DIST)/conf/docid.ini
+	
+stack_py2exe:
 	@echo ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
 	@echo º            stack windows mode executable generation ...             º
 	@echo ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼

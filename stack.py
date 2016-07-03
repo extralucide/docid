@@ -250,7 +250,10 @@ class Stack():
         try:
             list_dir = os.listdir(new_concat_dirname)
         except OSError as e:
-            self.log("{:s}".format(str(e)))
+            try:
+                self.log("{:s}".format(str(e)))
+            except UnicodeEncodeError as exception:
+                pass
             list_dir = []
 
         for found_dir in list_dir:
@@ -274,7 +277,7 @@ class Stack():
                     text = "Unexpected format for {:s}, only ('c','s','asm','vhd') accepted".format(found_dir)
                     self.log(text)
         self.depth -= 1
-        print ("DEPTH:",self.depth)
+        #print ("DEPTH:",self.depth)
 
     def log(self,text,gui_display=True):
         print(text)
@@ -297,8 +300,8 @@ class Stack():
                     tbl[self.depth_func_call + 1] = sub_function
                     sub_result = self._reccurFoundCalling(sub_function,tbl)
                     if not sub_result:
-                        print ("TBL",tbl[:])
-                        print ("self.depth_func_call",self.depth_func_call)
+                        #print ("TBL",tbl[:])
+                        #print ("self.depth_func_call",self.depth_func_call)
                         copy_tbl = tbl[0:self.depth_func_call+2]
                         while len(copy_tbl) < 12:
                             copy_tbl.append("")

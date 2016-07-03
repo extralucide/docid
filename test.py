@@ -26,14 +26,9 @@ class TestDoCID(TestCase):
         compute_stack = test._computeStackSize(one_leaf,
                                                dico_function_vs_stack_size)
         assert(compute_stack==208)
-        result = test._stackAnalysis()
+        max_stack_size,max_function_call_tree = test._stackAnalysis()
         test._computeLeaves()
-        for x in test.leaves:
-            print ("X:",x)
-        if len(test.leaves) > 4:
-            assert(test.leaves[4]==['CtlSchd_G_Manager', 'CtlSchd_P_Init', 'CtlSchd_P_InitManagePowerCut', 'CmpWdg_G_Refresh', '', '', '', '', '', '', '', ''])
-        else:
-            print("Test failed")
+        assert(max_stack_size==208)
 
     def setUp(self,case=0):
         #print("Setting up Test cases")
