@@ -7,7 +7,7 @@
 # Date: 07th of July 2014
 #
 ifndef VERSION
-VERSION=3_9_2
+VERSION=3_9_3
 endif
 	
 DIST = dist
@@ -20,6 +20,8 @@ MAKE = make
 # Configuration:
 #
 PYTHON = python
+PYTHON_3 = C:\WinPython-64bit-3.4.4.2\python-3.4.4.amd64\python
+PYINSTALLER = C:\WinPython-64bit-3.4.4.2\python-3.4.4.amd64\Scripts\pyinstaller
 MAKENSIS = makensis.exe
 ZIP2EXE = Contrib\zip2exe
 OUTPUT = 
@@ -49,6 +51,24 @@ quick: nsis
 default: nsis copy_docs copy copy_wrk_area
 
 install: copy_docs copy copy_wrk_area
+
+dummy:
+	@echo ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
+	@echo º            stack windows mode executable generation ...             º
+	@echo ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼
+	@$(PYINSTALLER) -onefile --windowed stack.py
+	@rm -f -r -v $(DIST)/result/*.*
+	@touch $(DIST)/result/empty.txt
+	@cp conf/docid_empty.ini $(DIST)/conf/docid.ini
+
+stack:
+	@echo ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
+	@echo º            stack windows mode executable generation ...             º
+	@echo ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼
+	@$(PYTHON_3) setup_dummy.py py2exe
+	@rm -f -r -v $(DIST)/result/*.*
+	@touch $(DIST)/result/empty.txt
+	@cp conf/docid_empty.ini $(DIST)/conf/docid.ini
 
 gui:
 	@echo ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»

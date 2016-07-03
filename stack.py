@@ -1,8 +1,10 @@
+#!/usr/bin/env python 3.4.4
+# -*- coding: utf-8 -*-
 __author__ = 'Olive'
 import re # For regular expressions
 from os.path import join
 import warnings
-from tool import Tool,Style
+#from tool import Tool,Style
 import sys
 import os
 import time
@@ -16,6 +18,149 @@ from pycparser.plyparser import ParseError
 from openpyxl import Workbook
 from openpyxl.compat import range
 from openpyxl.styles import PatternFill
+
+# For tool
+try:
+    from ConfigParser import ConfigParser
+except ImportError as exception:
+    from configparser import ConfigParser
+
+class Tool():
+    def __init__(self,config_filename="docid.ini"):
+        '''
+            get in file .ini information to access synergy server
+            '''
+        # Get config
+        self.stack = []
+        self.list_coverage = {}
+        self.found_config = False
+        self.config_parser = ConfigParser()
+        config_file = join("conf",config_filename)
+        result = self.config_parser.read(config_file)
+
+    def getOptions(self,key,tag):
+        if self.config_parser.has_option(key,tag):
+            value = self.config_parser.get(key,tag)
+        else:
+            value = ""
+        return value
+
+    @staticmethod
+    def getCoord(txt):
+        coord = re.sub(r"^[\w\\_\.:]*:([0-9]*)$",r"\1",str(txt))
+        return coord
+
+    @staticmethod
+    def getFileName(filename):
+        #doc_name = re.sub(r"^(.*)(\/|\\)([A-Za-z ]*)\.(.*)$",r"\3",filename)
+        doc_name = re.sub(r"^.*(\/|\\)(.*)\.([a-zA-Z]){1,6}$", r"\2", filename)
+        return doc_name
+
+# For  Style
+from openpyxl.styles import Font,PatternFill,Border,Side,Alignment
+from openpyxl.styles.borders import BORDER_THIN,BORDER_MEDIUM
+try:
+    from openpyxl.drawing.image import Image
+except ImportError as e:
+    warnings.warn(str(e))
+try:
+    from openpyxl.utils import get_column_letter,range_boundaries
+except ImportError as e:
+    warnings.warn(str(e))
+class Style:
+    def __init__(self,
+                 border=None,
+                 alignment=None,
+                 fill=None,
+                 font=None):
+        self.border=border
+        self.alignment=alignment
+        self.font=font
+        self.fill=fill
+
+    @staticmethod
+    def putLogo(ws,image="small_logo_zodiac.jpeg"):
+        try:
+            img = Image("img/{:s}".format(image))
+            img.drawing.top = 1
+            img.drawing.left = 20
+            ws.add_image(img)
+        except ImportError:
+            pass
+
+    @staticmethod
+    def set_border(ws,
+                   cell_range,
+                   font = Font(name='Arial',size=12,bold=True),
+                   border_style=BORDER_MEDIUM,
+                   alignment_horizontal="center"):
+        #font = Font(name='Arial',size=12,bold=True)
+        border=Border(left=Side(border_style=border_style),
+                                                top=Side(border_style=border_style),
+                                                bottom=Side(border_style=border_style))
+        alignment=Alignment(horizontal=alignment_horizontal,vertical='center',wrap_text=True)
+        style_border_left = Style(border,alignment)
+        border=Border(right=Side(border_style=border_style),
+                                                top=Side(border_style=border_style),
+                                                bottom=Side(border_style=border_style))
+        alignment=Alignment(horizontal=alignment_horizontal,vertical='center',wrap_text=True)
+        style_border_right = Style(border,alignment)
+        border=Border(top=Side(border_style=border_style),
+                                                bottom=Side(border_style=border_style))
+        alignment=Alignment(horizontal=alignment_horizontal,vertical='center',wrap_text=True)
+        style_border_middle = Style(border,alignment)
+        #row = ws.iter_rows(cell_range)
+        min_col, min_row, max_col, max_row = range_boundaries(cell_range.upper())
+        #print "TEST:",min_col, min_row, max_col, max_row
+        for index_row, rows in enumerate(ws.iter_rows(cell_range)):
+        #for row in rows:
+            index_column = 0
+            for row in rows:
+                #print "ROW:",index_row,index_column,row
+                if index_column == 0:
+                    Style.setStyleRow(row,style_border_left)
+                elif index_column == max_col - min_col:
+                    Style.setStyleRow(row,style_border_right)
+                else:
+                    Style.setStyleRow(row,style_border_middle)
+                index_column +=1
+    @staticmethod
+    def setStyleRow(row,style):
+        row.border = style.border
+        row.alignment = style.alignment
+
+    @staticmethod
+    def setStyle(cell,style):
+        cell.border = style.border
+        cell.alignment = style.alignment
+
+    @staticmethod
+    def setCell(ws,line,row,col_idx,style=None,number_format=None):
+        column = get_column_letter(col_idx)
+        current_cell = ws['%s%s'%(column, row)]
+        if col_idx > 0:
+            current_cell.value = '%s' % (line[col_idx - 1])
+        else:
+            current_cell.value = '%s' % (line)
+        if style:
+            if style.border is not None:
+                current_cell.border = style.border
+            if style.alignment is not None:
+                current_cell.alignment = style.alignment
+            if style.font is not None:
+                current_cell.font = style.font
+            if style.fill is not None:
+                current_cell.fill = style.fill
+        if number_format is not None:
+            current_cell.number_format=number_format
+
+    @staticmethod
+    def setHyperlink(ws,row,col_idx,hyperlink):
+        column = get_column_letter(col_idx)
+        current_cell = ws.cell('%s%s'%(column, row))
+        #current_cell.value = '%s' % (line[col_idx - 1])
+        current_cell.hyperlink = hyperlink
+        current_cell.font = Font(color="0000BB",underline="single")
 
 class FuncCallVisitor(c_ast.NodeVisitor):
     def __init__(self,dico_func_called,list_func_def):
@@ -56,14 +201,15 @@ class Stack():
 
     def __init__(self,
                  master=None,
-                 basename=""):
+                 basename="",
+                 config_file='docid.ini'):
         # Stack analysis
         self.master_ihm = master
         self.basename = basename
         self.depth = 0
         self.stack = []
         self.list_code = []
-        tool = Tool(config_filename="docid.ini")
+        tool = Tool(config_filename=config_file)
         self.root_user_dir  = tool.getOptions("Lifecycle","root")
         self.src_user_dir   = tool.getOptions("Lifecycle","src")
         self.build_user_dir = tool.getOptions("Lifecycle","build")
@@ -256,11 +402,14 @@ class Stack():
         return compute_stack
 
     def _stackAnalysis(self):
-        code_dir = join(self.root_user_dir,self.src_user_dir)
+        code_dir = join(self.root_user_dir,
+                        self.src_user_dir)
         include=join(code_dir,"INCLUDE")
         self.reset_basename(code_dir)
         self.listDir()
         index=0
+        max_stack_size = 0
+        max_function_call_tree = ""
         for filename in self.list_code:
             index += 1
             if self._isSourceFile(filename):
@@ -338,6 +487,9 @@ class Stack():
                 for line in self.leaves:
                     index += 1
                     compute_stack = self._computeStackSize(line,dico_function_vs_stack_size)
+                    if max_stack_size < compute_stack:
+                        max_stack_size = compute_stack
+                        max_function_call_tree = " => ".join(line)
                     line.insert(0,compute_stack)
                     for col_idx in range(1,13):
                         if col_idx == 1:
@@ -361,7 +513,10 @@ class Stack():
                     self.master_ihm.resultGenerateCID(filename,
                                                 False,
                                                 text="FUNCTIONS CALL TREE GENERATION")
+        return max_stack_size,max_function_call_tree
+
 if __name__ == '__main__':
-    test = Stack()
-    result = test._stackAnalysis()
-    print ("RESULT",result)
+    test = Stack(config_file='stack.ini')
+    max_stack_size,max_function_call_tree = test._stackAnalysis()
+    print ("Max stack depth found",max_stack_size)
+    print ("Functions call tree",max_function_call_tree)
