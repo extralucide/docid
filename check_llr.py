@@ -4,7 +4,8 @@
 import os
 from os.path import join
 import re
-from tool import Tool,Style
+from tool import Tool
+from excel import Style
 import sys
 sys.path.append("python-docx")
 try:
@@ -32,6 +33,7 @@ from openpyxl.drawing.image import Image
 from openpyxl.styles import Font,PatternFill,Border,Side,Alignment
 from openpyxl.styles.colors import RED,YELLOW
 from openpyxl.styles.borders import BORDER_THIN,BORDER_MEDIUM
+from excel import Excel
 #from docid import __version__
 from conf.check_conf import Conf
 #from openpyxl.charts import PieChart, BarChart, Reference, Series
@@ -283,7 +285,8 @@ class checkMatrix(Tool):
         nb_deleted = len(self.tbl_deletion_matrix)
         self.log("Found {:d} high requirements deleted in {:s} matrix.".format(nb_deleted,self.tag["deletion_matrix"]),gui_display=True)
         return (nb_upper_req,nb_upper_req_not_covered,nb_req,nb_derived_req,nb_tbd,nb_tbc,nb_deleted)
-class CheckLLR(Tool,Conf):
+
+class CheckLLR(Tool,Conf,Excel):
 
     def openLog(self,type="specification"):
         self.log_filename = "check_{:s}_{:d}.txt".format(type,int(floor(time.time())))
@@ -514,10 +517,10 @@ class CheckLLR(Tool,Conf):
                     print "DEBUG: check_is:L188",self.current_folder,req
                 nb_error += 1
         else:
-            match = False
-            nb_error += 1
-            for item in exclusion:
-                self.log("Source code {:s} not trace to {:s} as expected in PLDDD.".format(cmp_one,item),gui_display=True)
+            if cmp_one == "plddd from src":
+                nb_error += 1
+                for item in exclusion:
+                    self.log("Source code {:s} not traced to {:s} as expected in PLDDD.".format(cmp_one,item),gui_display=True)
             print "Unexpected items",exclusion
         return nb_error
 
@@ -532,22 +535,6 @@ class CheckLLR(Tool,Conf):
             self.debug("CONSTRAINT from HSID: {:s}".format(req))
             self.tbl_req_from_hsid.append(req)
         hsid.closeLog()
-    def loadWorkbook(self,filename,**kwargs):
-        """
-        Load an excel workbook
-        :param filename_is:
-        :return:
-        """
-        #for key in kwargs:
-        #    print "another keyword arg: %s: %s" % (key, kwargs[key])
-        try:
-            wb = load_workbook(filename = filename,**kwargs)
-            if wb is not None:
-                self.debug("Workbook {:s}.".format(filename))
-        except: # InvalidFileException:
-            self.log("File {:s} opening error.".format(filename),gui_display=True)
-            return False
-        return wb
 
     def extract(self,
                 dirname="",
@@ -591,17 +578,15 @@ class CheckLLR(Tool,Conf):
             nb_req_from_hsid = len(self.tbl_req_from_hsid)
             print "HSID link from LLR ",nb_list_hsid
             print "Requirement from HSID ",nb_req_from_hsid
-            self.cmpList(list_hsid,self.tbl_req_from_hsid,cmp_one="HSID",cmp_two="LLR")
+            self.cmpList(list_hsid,
+                         self.tbl_req_from_hsid,
+                         cmp_one="HSID",
+                         cmp_two="LLR")
             self.log("Nb constraints found: {:d} with {:d} link toward HSID".format(nb_list_constraints,nb_list_hsid),gui_display=True)
         # Summary
-        if "SHLVCP" in type:
-            type_tag = "test cases"
-            derived = "forward"
-            verify = "verified"
-        else:
-            type_tag = "requirements"
-            derived = "derived"
-            verify = "upper"
+        type_tag    = "requirements"
+        derived     = "derived"
+        verify      = "upper"
         self.log("Found {:d} {:s} in document body.".format(self.nb_reqs,type_tag),gui_display=True)
         self.log("Found {:d} {:s} modified in document body.".format(self.nb_reqs_modified,type_tag),gui_display=True)
         self.log("Found {:d} {:s} {:s} in document body.".format(self.nb_derived_req,derived,type_tag),gui_display=True)
@@ -615,9 +600,18 @@ class CheckLLR(Tool,Conf):
         for list,error in self.dico_warnings.iteritems():
             rule_tag = list[1]
             self.log("WARNING: {:s}: {:s}".format(rule_tag,error[0]),gui_display=True)
-        llr_file_check_filename = "requirements_file_check_%d.csv" % floor(time.time())
-        llr_attr_check_filename = "requirements_attr_check_%d.csv" % floor(time.time())
-        with open(join("result",llr_file_check_filename), 'w') as of:
+        if "SWDD" in type:
+            ws,wb = self.createWorkBook("SwDD",["Module","Requirements","Nb links"])
+            filename = "llr_stats_%d.xlsx" % floor(time.time())
+            file_check_filename = "low_level_requirements_file_check_%d.csv" % floor(time.time())
+            attr_check_filename = "low_level_requirements_attr_check_%d.csv" % floor(time.time())
+        else:
+            ws,wb = self.createWorkBook("SwRD",["Module","Requirements","Nb links"])
+            filename = "hlr_stats_%d.xlsx" % floor(time.time())
+            file_check_filename = "high_level_requirements_file_check_%d.csv" % floor(time.time())
+            attr_check_filename = "high_level_requirements_attr_check_%d.csv" % floor(time.time())
+
+        with open(join("result",file_check_filename), 'w') as of:
             of.write("{:s};{:s};{:s};{:s}\n".format("Dir","LLR file","nb reqs","pages"))
             for file in self.tbl_file_llr:
                 # dir not sorted here !
@@ -628,105 +622,74 @@ class CheckLLR(Tool,Conf):
                                                    self.tbl_file_nb_pages[file]                           # nb pages
                                                   )
                         )
-                #for reqs in llr.tbl_file_llr[file]:
-                #    of.write("   " + reqs + "\n")
 
-        with open(join("result",llr_attr_check_filename), 'w') as of:
-            if "SHLVCP" in type:
-                of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format("File","Req tag","Verifies","Rationale","Forward","Issue","Status"))
-                # get all test cases from self.tbl_list_llr
-                for req,value in self.tbl_list_llr.iteritems():
-                    list_verify,list_constraints = self.getLLR_Trace(value,keyword="verify")
-                    # File,Req,Refer_to,Constraint,Derived,Rationale,Additional
-                    req_txt = str(req)
-                    if req_txt in self.list_llr_vs_file:
-                        file = self.list_llr_vs_file[req_txt][0]
-                    else:
-                        file = "None"
+        with open(join("result",attr_check_filename), 'w') as of:
+            of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format("Dir","File","Req tag","Refer","Constraint","Derived","Rationale","Additional","Issue","Status","Safety","Terminal","Allocation","Source code"))
+            row = 10
+            for req,value in self.tbl_list_llr.iteritems():
+                # File,Req,Refer_to,Constraint,Derived,Rationale,Additional
+                req_txt = str(req)
+                if req_txt in self.list_llr_vs_file:
+                    file = self.list_llr_vs_file[req_txt][0]
+                    dir = self.tbl_file_dir[file]
+                else:
+                    file = "None"
+                    dir = "None"
+                str_refer = self.getAtribute(value,"refer")
+                list_refer = self.getSplitRefer(str_refer,type="[A-Z]*_[\w-]*") #"SWRD_[\w-]*"
 
-                    rationale = self.getAtribute(value,"rationale")
-                    forward = self.getAtribute(value,"forward")
-                    issue = self.getAtribute(value,"issue")
-                    status = self.getAtribute(value,"status")
-                    verify = self.getAtribute(value,"verify")
-                    for verify in list_verify:
-                        of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format(file,
-                                                                                req,
-                                                                                verify,
-                                                                                rationale,
-                                                                                forward,
-                                                                                issue,
-                                                                                status
-                                                                                ))
-            else:
-                of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format("Dir","File","Req tag","Refer","Constraint","Derived","Rationale","Additional","Issue","Status","Safety","Terminal","Allocation","Source code"))
-                for req,value in self.tbl_list_llr.iteritems():
-                    # File,Req,Refer_to,Constraint,Derived,Rationale,Additional
-                    req_txt = str(req)
-                    if req_txt in self.list_llr_vs_file:
-                        file = self.list_llr_vs_file[req_txt][0]
-                        #print "self.tbl_file_dir:",self.tbl_file_dir
-                        #print "file",file
-                        dir = self.tbl_file_dir[file]
-                    else:
-                        file = "None"
-                        #print "ERREUR:list_llr_vs_file",self.list_llr_vs_file
-                        dir = "None"
-                    str_refer = self.getAtribute(value,"refer")
-                    #list_refer = []
-                    #print "refer:",refer
-                    list_refer = self.getSplitRefer(str_refer,type="[A-Z]*_[\w-]*") #"SWRD_[\w-]*"
-                    #print "list_refer",list_refer
-                    str_constraints = self.getAtribute(value,"constraint")
-                    #print "str_constraints in extract",str_constraints
-                    #list_constraints = []
-                    #str_constraints_cleaned = re.sub(r"(.*)\xa7(.*)", r"\1Y\2",str_constraints)
-                    str_constraints_cleaned = Tool.removeNonAscii(str_constraints)
-                    str_constraints_cleaned_wo_dot = re.sub(r"\.", r"_",str_constraints_cleaned)
-                    #print "str_constraints_cleaned",str_constraints_cleaned
-                    list_constraints = self.getSplitRefer(str_constraints_cleaned_wo_dot,type="[^\[^\].]*")
-                    #print "list_constraints",list_constraints
-                    #if nb_constraints > 0:
-                    #    print "str_constraints:",str_constraints
-                    derived = self.getAtribute(value,"derived")
-                    rationale = self.getAtribute(value,"rationale")
-                    additional = self.getAtribute(value,"additional")
-                    issue = self.getAtribute(value,"issue")
-                    status = self.getAtribute(value,"status")
-                    safety = self.getAtribute(value,"safety")
-                    terminal = self.getAtribute(value,"terminal")
-                    allocation = self.getAtribute(value,"allocation")
-                    source_code = self.getAtribute(value,"source_code")
-                    for refer in list_refer:
-                        of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format(dir,file,
-                                                                req,
-                                                                refer,
-                                                                "",
-                                                                derived,
-                                                                rationale,
-                                                                additional,
-                                                                issue,
-                                                                status,
-                                                                safety,
-                                                                terminal,
-                                                                allocation,
-                                                                source_code
-                                                                ))
-                    for constraint in list_constraints:
-                        of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format(dir,file,
-                                                                req,
-                                                                "",
-                                                                constraint,
-                                                                derived,
-                                                                rationale,
-                                                                additional,
-                                                                issue,
-                                                                status,
-                                                                safety,
-                                                                terminal,
-                                                                allocation
-                                                                ))
-        return llr_attr_check_filename,llr_file_check_filename
+                str_constraints = self.getAtribute(value,"constraint")
+                str_constraints_cleaned = Tool.removeNonAscii(str_constraints)
+                str_constraints_cleaned_wo_dot = re.sub(r"\.", r"_",str_constraints_cleaned)
+                list_constraints = self.getSplitRefer(str_constraints_cleaned_wo_dot,type="[^\[^\].]*")
+
+                derived = self.getAtribute(value,"derived")
+                rationale = self.getAtribute(value,"rationale")
+                additional = self.getAtribute(value,"additional")
+                issue = self.getAtribute(value,"issue")
+                status = self.getAtribute(value,"status")
+                safety = self.getAtribute(value,"safety")
+                terminal = self.getAtribute(value,"terminal")
+                allocation = self.getAtribute(value,"allocation")
+                source_code = self.getAtribute(value,"source_code")
+                if not re.search(r'DELETED',status):
+                    nb_link = len(list_refer)
+                    line = (file,req_txt,nb_link)
+                    for col_idx in range(1,len(line)+1):
+                        Style.setCell(ws,line,row,col_idx)
+                    row += 1
+                for refer in list_refer:
+                    of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format(dir,
+                                                                                                              file,
+                                                                                                                req,
+                                                                                                                refer,
+                                                                                                                "",
+                                                                                                                derived,
+                                                                                                                rationale,
+                                                                                                                additional,
+                                                                                                                issue,
+                                                                                                                status,
+                                                                                                                safety,
+                                                                                                                terminal,
+                                                                                                                allocation,
+                                                                                                                source_code
+                                                                                                                ))
+                for constraint in list_constraints:
+                    of.write("{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s};{:s}\n".format(dir,file,
+                                                            req,
+                                                            "",
+                                                            constraint,
+                                                            derived,
+                                                            rationale,
+                                                            additional,
+                                                            issue,
+                                                            status,
+                                                            safety,
+                                                            terminal,
+                                                            allocation
+                                                            ))
+            wb.save(join("result",filename))
+        return attr_check_filename,file_check_filename
 
     def getLLR_Trace(self,value,keyword="refer"):
         str_refer = self.getAtribute(value,keyword)
@@ -1022,11 +985,11 @@ class CheckLLR(Tool,Conf):
             result = False
         return result
 
-    def matchEndLLR(self,data):
+    def matchEndLLR(self,data,key="end"):
         error_attributes = []
         warning_attributes = []
         debug_attributes = []
-        attrs = self.dico_attributes["end"]
+        attrs = self.dico_attributes[key]
         if Tool._is_array(attrs):
             for attr in attrs:
                 attr_value_found = self.matchAttribute(data,
@@ -1041,7 +1004,7 @@ class CheckLLR(Tool,Conf):
                                                    error_attributes,
                                                    warning_attributes,
                                                    debug_attributes)
-        m = re.match(r'^\s*\[(End Requirement)\]', data)
+        #m = re.match(r'^\s*\[(End Requirement)\]', data)
         if attr_value_found:
             end_delimiter =attr_value_found
             self.debug("End delimiter found:{:s}".format(Tool.removeNonAscii(end_delimiter)))
@@ -1707,45 +1670,6 @@ class CheckLLR(Tool,Conf):
                         self.nb_error += 1
         return result
 
-    def getType(self,
-                filename,
-                tbl_type,
-                default_type="\w*"):
-        """
-        Define type of the document according to keyword in filename
-        :return:
-        """
-        filename = filename.upper()
-        if 0==1:
-            if ("SWDD" in tbl_type or  "SwDD" in tbl_type) and len(tbl_type) == 1:
-                # SWDD
-                type_found = tbl_type[0]
-            elif "SWRD" in tbl_type:
-                type_found = "SWRD"
-            elif "SHLVCP" in tbl_type:
-                type_found = "SHLVCP"
-            else:
-                pass
-        type_found = default_type
-        for type in tbl_type:
-            if type in filename:
-                #print "if type in filename"
-                return type.upper()
-            else:
-                keywords = type.split("_")
-                nb_keywords = len(keywords)
-                #print "nb_keywords",nb_keywords
-                #print "KEYWORDS",keywords
-                counter_keywords = 0
-                for keyword in keywords:
-                    #print "KEYWORD",keyword
-                    if keyword in filename:
-                        counter_keywords += 1
-                        print "counter_keywords",counter_keywords
-                if counter_keywords == nb_keywords:
-                    type_found = type.upper()
-        return type_found
-
     def parseExcel(self,
                    wb,
                    range='A1:F50',
@@ -1908,11 +1832,18 @@ class CheckLLR(Tool,Conf):
     def set_style(self,style):
         self.current_find.Style = style
 
+    def find_set(self,sel,style=""):
+        self.current_find = sel.Find
+        self.current_find.ClearFormatting()
+        #self.current_find.Wrap = constants.wdFindContinue
+        self.current_find.Style = style
+        self.current_find.Forward = True
+
     def find_execute(self):
         try:
             self.current_find.Execute()
             found = self.current_find.Found
-        except Exception,e:
+        except Exception as e:
             found = False
             print e
         return found
@@ -1977,12 +1908,15 @@ class CheckLLR(Tool,Conf):
         save_start_pointer = myRange.Start
         sel = self.doc.Application.Selection
         # Looking for the first requirement
-        try:
-            found = self.find(myRange,
-                              style='REQ_Id')
-        except pythoncom.com_error as e:
-            print e
-            found = False
+        for style in self.list_req_id:
+            try:
+                found = self.find(myRange,
+                                  style=style)
+                if found:
+                    break
+            except pythoncom.com_error as e:
+                print e
+                found = False
 
         start_first_req_part =  myRange.Start
         if found:
@@ -2002,24 +1936,44 @@ class CheckLLR(Tool,Conf):
             print "Start:",myRange.Start
             print "End:",myRange.End
         # First requirement is found
+        abort = False
         while found:
             txt = myRange.Text
             #print 'TXT',txt
-            m = re.match(r'^\s*\[(S[HW][LRD][VD]C?P?_.*)\]', txt)
-            m_pld = re.match(r'^\s*\[(PLD[R|D]D_.*)\]', txt)
-            if m or m_pld:
+            for attr in self.dico_attributes["req_id"]:
+                m = re.match(r'^\s*\[({:s}.*)\]'.format(attr), txt)
                 if m:
                     txt = m.group(1)
-                else:
-                    txt = m_pld.group(1)
-                #print "Found REQ_body:",txt
-                start = myRange.Start  # start REQ ID tag"
-                end = myRange.End # end REQ ID tag
-                tbl_req.append([txt,start,end])
-                if self.active_dbg:
-                    self.log("Requirement {:s} found.".format(txt),gui_display=True)
-            #print "TXT:",txt
-            found = self.find_execute()
+                    start = myRange.Start  # start REQ ID tag"
+                    end = myRange.End # end REQ ID tag
+                    print "Found REQ:",txt,start,end
+                    if [txt,start,end] not in tbl_req:
+                        tbl_req.append([txt,start,end])
+                    else:
+                        print "Word is stuck. Table may be be ..."
+                        # Abort
+                        abort = True
+                        end_doc = self.doc.Application.ActiveDocument.Content.End-1
+                        print "END:",end_doc
+                        range = self.doc.Range(end,end_doc)
+                        nb_tables = range.Tables.Count
+                        print "nb_tables",nb_tables
+                        if nb_tables > 0:
+                            tbl = range.Tables(1)
+                            print "Start",sel.Start,sel.End
+                            range = self.doc.Range(sel.End,end_doc)
+                            #print "TBL",tbl
+                            self.find_set(range,style=style)
+                        #list_tbl_tables = []
+                        #self.parseTable(end,end_doc,list_tbl_tables)
+                        #exit()
+                    if self.active_dbg:
+                        self.log("Requirement {:s} found.".format(txt),gui_display=True)
+                    break
+            if not abort:
+                found = self.find_execute()
+            else:
+                break
         end_req_part = myRange.End
         return start_first_req_part
 
@@ -2039,7 +1993,8 @@ class CheckLLR(Tool,Conf):
         while found:
             error = False
             txt = myRange.Text
-            m = re.match(r'^\s*\[End Requirement\]',txt)
+            m = self.matchEndLLR(txt)
+            #m = re.match(r'^\s*\[End Requirement\]',txt)
             if m:
                 # Style is coherent with tag text
                 #print "Found REQ_end:",txt
@@ -2066,7 +2021,8 @@ class CheckLLR(Tool,Conf):
                         start_delimiter,    # Requirement ID
                         start,              # Range.Start
                         end,                # Range.End
-                        list_attributes = {}):
+                        list_attributes = {},
+                        type="SWRD"):
         """
 
         :param start_delimiter:
@@ -2078,43 +2034,47 @@ class CheckLLR(Tool,Conf):
         error_attributes = []
         warning_attributes = []
         debug_attributes = []
-        try:
-            sel = self.doc.Application.Selection
-            for style,key in self.dico_styles.iteritems():
+        sel = self.doc.Application.Selection
+        for style,key in self.dico_styles.iteritems():
+            print "style/key/type",key,style,type
+            if (key in self.dico_types["SWRD"] and type == "SWRD") or \
+                    (key in self.dico_types["SWDD"] and type == "SWDD") or \
+                    (key in self.dico_types["HSID"] and type == "HSID"):
                 range = self.doc.Range(start,end)
-                #print "STYLE:",style
-                found = self.find(range,style=style)
-                #print "FOUND",found
-                if found:
-                    line = range.Text
-                    if key == "body":
-                        attr_value_found = line
-                    else:
-                        attrs = self.dico_attributes[key]
-                        if Tool._is_array(attrs):
-                            for attr in attrs:
+                try:
+                    print "Loooking for style:",style
+                    found = self.find(range,style=style)
+                    #print "FOUND",found
+                    if found:
+                        line = range.Text
+                        if key == "body":
+                            attr_value_found = line
+                        else:
+                            attrs = self.dico_attributes[key]
+                            if Tool._is_array(attrs):
+                                for attr in attrs:
+                                    attr_value_found = self.matchAttribute(line,
+                                                                           attr,
+                                                                           error_attributes,
+                                                                           warning_attributes)
+                                    if attr_value_found:
+                                        break
+                            else:
                                 attr_value_found = self.matchAttribute(line,
-                                                                       attr,
+                                                                       attrs,
                                                                        error_attributes,
                                                                        warning_attributes)
-                                if attr_value_found:
-                                    break
-                        else:
-                            attr_value_found = self.matchAttribute(line,
-                                                                   attrs,
-                                                                   error_attributes,
-                                                                   warning_attributes)
-                    # Remove carriage return
-                    if attr_value_found:
-                        text = Tool.replaceNonASCII(attr_value_found,html=True)
-                        if self.active_dbg:
-                            self.log("Requirement {:s}: Found attribute {:s}:{:s}".format(start_delimiter,
-                                                                                         style,
-                                                                                         text),
-                                     gui_display=True)
-                        list_attributes[key] = text
-        except pythoncom.com_error as e:
-            print e
+                        # Remove carriage return
+                        if attr_value_found:
+                            text = Tool.replaceNonASCII(attr_value_found,html=True)
+                            if self.active_dbg:
+                                self.log("Requirement {:s}: Found attribute {:s}:{:s}".format(start_delimiter,
+                                                                                             style,
+                                                                                             text),
+                                         gui_display=True)
+                            list_attributes[key] = text
+                except pythoncom.com_error as e:
+                    print e
 
     def testStatusDeleted(self,start_delimiter,list_attributes):
         # Test status attribute
@@ -2132,10 +2092,20 @@ class CheckLLR(Tool,Conf):
                 self.nb_reqs_in_file +=1
                 return False
         else:
-            print "Missing status"
-            return  False
+            print "Missing status for {:} requirement".format(start_delimiter)
+            return False
 
     def extractReqType(self,start_delimiter):
+        type = ""
+        tag_req = ""
+        list_req_tag=("S[w|W]RD","S[w|W]RD","SHLVCP","SLLVCP","CAN-IRD","HSID","ICD")
+        for req_tag in list_req_tag:
+            m = re.match(r'^({:s}).*',start_delimiter)
+            if m:
+                type = m.group(1)
+                tag_req = type + "_"
+                break
+        return type,tag_req
         m = re.match(r'^(S[w|W|H|S][R|D|L|C][D|V|S][CP]*)_.*', start_delimiter)
         if m:
             type = m.group(1)
@@ -2199,7 +2169,7 @@ class CheckLLR(Tool,Conf):
                     tbl_tables.append(line)
                 #list_attributes["table"] = tbl_tables
                 #print "inside tbl",tbl_tables
-                # TODO: rendre applicable qunad plus d'un document est parsé
+                # TODO: rendre applicable quand plus d'un document est parsé
                 if tables_counter in list_tbl_tables:
                     # Already exists
                     list_tbl_tables[tables_counter].extend(tbl_tables[:])
@@ -2223,27 +2193,28 @@ class CheckLLR(Tool,Conf):
                     type=("SWRD",),
                     tbl_req_tag=[],
                     tbl_req_tag_wo_del=[],
-                    table_enabled=False):
-        print "Call getReqInfos"
+                    table_enabled=False,
+                    found_dir=""):
+        print "Call getReqInfos: type",type
         # Looking for "Title 4" for SwRD
         tbl_req = []
         tbl_section = []
         tbl_output = []
         if "SWRD" in type:
             start_section = self.parse_section(tbl_section)
-        for x in tbl_section:
-            self.log("Section found: {:s}".format(x),gui_display=True)
+            for section,xa,xb in tbl_section:
+                self.log("Section found: {:s}".format(section),gui_display=True)
         #exit()
         # get list of all requirements tag with start and end of tag
         start_area_req = self.parse_req(tbl_req,
-                               type="SWRD")
+                                        type=type)
         #self.start_req_area = start
         # start is the beginning of requirements zone
         if table_enabled:
             self.nb_tables += self.parseTable(0,start_area_req,self.list_tbl_tables_begin)
             print "nb_tables",self.nb_tables
 
-        # Find end f requirement
+        # Find end of requirement
         end_area_req = self.parse_end_req(tbl_req,
                                           tbl_output)
 
@@ -2277,11 +2248,12 @@ class CheckLLR(Tool,Conf):
                     #print(win32api.FormatMessage(e.excepinfo[5]))
                     print "Treat:",start_delimiter,start,end
                     list_attributes["table"] = None
+            type,tag_req = self.extractReqType(start_delimiter)
             self.parse_body_attr(start_delimiter,
                                  start,
                                  end,
-                                 list_attributes)
-            type,tag_req = self.extractReqType(start_delimiter)
+                                 list_attributes,
+                                 type=type)
             #m = re.match(r'^(S[w|W][R|D]D)_.*', start_delimiter)
             #if m:
             #    type = m.group(1)
@@ -2299,7 +2271,7 @@ class CheckLLR(Tool,Conf):
                                          found_dir,
                                          start_delimiter)
             else:
-                print "Missing refer or derived attribute"
+                print "Missing refer or derived attribute for {:s} requirement".format(start_delimiter)
                 result = False
 
             if result:
@@ -2342,11 +2314,7 @@ class CheckLLR(Tool,Conf):
         print "tbl_type:",tbl_type
         #TODO: Add doc and xls treatment with pywin32 as only openxml files are taken into account so far.
         self.depth += 1
-        color = "white"
         nb_pages = 0
-        #if "general_output_txt" in self.__dict__:
-        #    self.general_output_txt.tag_configure("color", foreground=color)
-        #print "depth",self.depth
         new_concat_dirname = self.basename
         for dir in self.stack:
             new_concat_dirname = join(new_concat_dirname,dir)
@@ -2354,37 +2322,25 @@ class CheckLLR(Tool,Conf):
                 new_concat_dirname = "{:s}\\".format(new_concat_dirname)
             else:
                 new_concat_dirname = "{:s}/".format(new_concat_dirname)
-        #print "new_concat_dirname",new_concat_dirname
-        concat_dirname = join(self.basename,dirname)
-        if sys.platform.startswith('win32'):
-            concat_dirname = "{:s}\\".format(concat_dirname)
-        else:
-            concat_dirname = "{:s}/".format(concat_dirname)
-        #print "concat_dirname",concat_dirname
-        #try:
-        #    WindowsError
-        #except NameError,e:
-        #    print e
-        #    WindowsError = None
+
         try:
-            try:
-                print "new_concat_dirname",new_concat_dirname
+            isdir = os.path.isdir(new_concat_dirname)
+            if isdir:
                 list_dir = os.listdir(new_concat_dirname)
-            except WindowsError as e:
-                self.log("{:s}".format(e))
-                list_dir = []
-            except OSError as e:
-                self.log("{:s}".format(e))
-                list_dir = []
-        except NameError as exception:
-            self.log("{:s}".format(exception))
+            else:
+                list_dir = [new_concat_dirname]
+        except OSError as e:
+            try:
+                self.log("{:s}".format(str(e)))
+            except UnicodeEncodeError as exception:
+                pass
             list_dir = []
         del(self.tbl_dico_modifs[:])
         self.list_tbl_tables_begin = {}
         self.nb_tables = 0
         #use_full_win32com = True
         self.doc_version = ""
-        print "LIST DIR:",list_dir
+        #print "LIST DIR:",list_dir
         for found_dir in list_dir:
             path_dir = os.path.join(new_concat_dirname, found_dir)
             isdir = os.path.isdir(path_dir)
@@ -2397,8 +2353,9 @@ class CheckLLR(Tool,Conf):
                 void = re.sub(r"(~\$)(.*)\.(.*)",r"\1",found_dir)
                 name = re.sub(r"(.*)\.(.*)",r"\1",found_dir)
                 extension = re.sub(r"(.*)\.(.*)",r"\2",found_dir)
-                type = self.getType(name,
+                type = Tool.getType(name,
                                     tbl_type)
+                #print "Type found:",type
                 start_delimiter = False
                 tbl_req_tag = []
                 tbl_req_tag_wo_del = []
@@ -2443,6 +2400,9 @@ class CheckLLR(Tool,Conf):
                             doc.TrackMoves = False
                             doc.TrackRevisions = False
                             doc.ScreenUpdating  = False
+                            self.word.ActiveWindow.View.RevisionsView = constants.wdRevisionsViewFinal
+                            self.word.ActiveWindow.View.ShowRevisionsAndComments = False
+                            self.word.ActiveWindow.View.ShowInsertionsAndDeletions  = False
                             #try:
                             #    csp= doc.CustomDocumentProperties('DOCPROPERTY  Pages ').value
                             #    print('property pagess is %s' % csp)
@@ -2460,7 +2420,8 @@ class CheckLLR(Tool,Conf):
                                                          type=type,
                                                          tbl_req_tag=tbl_req_tag,
                                                          tbl_req_tag_wo_del=tbl_req_tag_wo_del,
-                                                         table_enabled=False)
+                                                         table_enabled=False,
+                                                         found_dir=found_dir)
 
                             ReqPart = doc.Range(start,end)
                             txt = Tool.replaceNonASCII(ReqPart.Text)
@@ -2497,9 +2458,9 @@ class CheckLLR(Tool,Conf):
                                 self.word.ActiveWindow.ActivePane.View.ShowAll = True
                                 # Final revision only
                                 doc.ShowRevisions = False
-                                #self.word.ActiveWindow.View.RevisionsView = wdRevisionsViewFinal
-                                #self.word.ActiveWindow.View.ShowRevisionsAndComments  = False
-                                #self.word.ActiveWindow.View.ShowInsertionsAndDeletions   = False
+                                self.word.ActiveWindow.View.RevisionsView = constants.wdRevisionsViewFinal
+                                self.word.ActiveWindow.View.ShowRevisionsAndComments = False
+                                self.word.ActiveWindow.View.ShowInsertionsAndDeletions  = False
                                 doc.TrackFormatting = False
                                 doc.TrackMoves = False
                                 doc.TrackRevisions = False
@@ -2534,7 +2495,8 @@ class CheckLLR(Tool,Conf):
                                                                  type=type,
                                                                  tbl_req_tag=tbl_req_tag,
                                                                  tbl_req_tag_wo_del=tbl_req_tag_wo_del,
-                                                                 table_enabled=False)
+                                                                 table_enabled=False,
+                                                                 found_dir=found_dir)
                                     #for x in self.tbl_req_vs_section:
                                     #    print "Y:",x
                                     # Convert in plain text format the document
@@ -2670,79 +2632,50 @@ class CheckLLR(Tool,Conf):
                                                 tbl_req_tag.append(start_delimiter)
                                                 tbl_req_tag_wo_del.append(start_delimiter)
                                                 #print "tbl_type",tbl_type
-                                                type = self.getType(filename=filename,
+                                                type = Tool.getType(filename=filename,
                                                                     tbl_type=tbl_type)
-                                                #print "type:",type
-                                                if type == "SHLVCP":
-                                                    if 0==0:
-                                                        if "verify" in list_attributes:
-                                                            print "verify:",list_attributes["verify"]
-                                                        if "forward" in list_attributes:
-                                                            print "forward:",list_attributes["forward"]
-                                                        if "rationale" in list_attributes:
-                                                            print "rationale:",list_attributes["rationale"]
-                                                    self.tbl_list_llr[start_delimiter] = list_attributes
-                                                    #del(list_attr_found[:])
-                                                    del(list_attr_to_be_found[:])
-                                                    for key,attr in self.dico_attributes.items():
-                                                        list_attr_to_be_found.append(key)
-                                                    try:
-                                                        # Test derived requirements
+                                                # Correct allocation
+                                                if "allocation" in list_attributes:
+                                                    #list_allocation_name = Tool.getAllocationComponent(component)
+                                                    list_allocation_name = Tool.getAllocationComponent()
+                                                    dico_alloc_name = []
+                                                    for tbl_allocation_name in list_allocation_name:
+                                                        for alloc_name in tbl_allocation_name:
+                                                            if alloc_name is not None:
+                                                                allocations = alloc_name.split(",")
+                                                                for allocation in allocations:
+                                                                    dico_alloc_name.append(allocation)
+                                                    tbl_alloc = []
+                                                    allocation_txt = list_attributes["allocation"]
+                                                    for x in dico_alloc_name:
+                                                        #print "TEST Alloc:",x
+                                                        if x in allocation_txt:
+                                                            tbl_alloc.append(x)
+                                                            #print "{:s} found in string".format(x)
+                                                    #print tbl_alloc
+                                                    allocation_str = ",".join(tbl_alloc)
+                                                    if tbl_alloc != []:
+                                                        list_attributes["allocation"] = allocation_str
+                                                self.tbl_list_llr[start_delimiter] = list_attributes
+                                                #del(list_attr_found[:])
+                                                del(list_attr_to_be_found[:])
+                                                for key,attr in self.dico_attributes.items():
+                                                    list_attr_to_be_found.append(key)
+                                                try:
+                                                    # Test derived requirements
+                                                    if "refer" in list_attributes and "derived" in list_attributes:
                                                         result = self.getDerived(type,
-                                                                                 list_attributes["verify"],
-                                                                                 list_attributes["forward"],
+                                                                                 list_attributes["refer"],
+                                                                                 list_attributes["derived"],
                                                                                  found_dir,
-                                                                                 start_delimiter,
-                                                                                 key="forward")
+                                                                                 start_delimiter)
                                                         if result:
                                                             # Derived found
                                                             self.nb_derived_req += 1
-                                                    except KeyError,e:
-                                                        self.dico_errors["miscelleanous","S_4",found_dir,start_delimiter,""] = ["Attribute {:s} is missing for requirement {:s}.".format(e,start_delimiter)]
-                                                        self.debug("Attribute {:s} is missing for this requirement.".format(e))
-                                                else:
-                                                    # Correct allocation
-                                                    if "allocation" in list_attributes:
-                                                        #list_allocation_name = Tool.getAllocationComponent(component)
-                                                        list_allocation_name = Tool.getAllocationComponent()
-                                                        dico_alloc_name = []
-                                                        for tbl_allocation_name in list_allocation_name:
-                                                            for alloc_name in tbl_allocation_name:
-                                                                if alloc_name is not None:
-                                                                    allocations = alloc_name.split(",")
-                                                                    for allocation in allocations:
-                                                                        dico_alloc_name.append(allocation)
-                                                        tbl_alloc = []
-                                                        allocation_txt = list_attributes["allocation"]
-                                                        for x in dico_alloc_name:
-                                                            #print "TEST Alloc:",x
-                                                            if x in allocation_txt:
-                                                                tbl_alloc.append(x)
-                                                                #print "{:s} found in string".format(x)
-                                                        #print tbl_alloc
-                                                        allocation_str = ",".join(tbl_alloc)
-                                                        if tbl_alloc != []:
-                                                            list_attributes["allocation"] = allocation_str
-                                                    self.tbl_list_llr[start_delimiter] = list_attributes
-                                                    #del(list_attr_found[:])
-                                                    del(list_attr_to_be_found[:])
-                                                    for key,attr in self.dico_attributes.items():
-                                                        list_attr_to_be_found.append(key)
-                                                    try:
-                                                        # Test derived requirements
-                                                        if "refer" in list_attributes and "derived" in list_attributes:
-                                                            result = self.getDerived(type,
-                                                                                     list_attributes["refer"],
-                                                                                     list_attributes["derived"],
-                                                                                     found_dir,
-                                                                                     start_delimiter)
-                                                            if result:
-                                                                # Derived found
-                                                                self.nb_derived_req += 1
-                                                    except KeyError,e:
-                                                        print "CCC:",e
-                                                        self.dico_errors["miscelleanous","S_4",found_dir,start_delimiter,""] = ["Attribute {:s} is missing for requirement {:s}.".format(e,start_delimiter)]
-                                                        self.debug("Attribute {:s} is missing for this requirement.".format(e))
+                                                except KeyError,e:
+                                                    print "CCC:",e
+                                                    self.dico_errors["miscelleanous","S_4",found_dir,start_delimiter,""] = ["Attribute {:s} is missing for requirement {:s}.".format(e,start_delimiter)]
+                                                    self.debug("Attribute {:s} is missing for this requirement.".format(e))
                                                 try:
                                                     # Test status attribute
                                                     if "status" in list_attributes:
@@ -2893,7 +2826,7 @@ class CheckLLR(Tool,Conf):
                     self.log("Discard {:s}".format(found_dir),gui_display=True)
                     self.check_matrix = checkMatrix({},self.log)
                     # Wrong Word format, only openxml
-                    text = "Wrong Word format for {:s}, only openxml format (docx/docm/xlsx/xlsm/c/vhd) accepted".format(found_dir)
+                    text = "Wrong format for {:s}, only openxml format (docx/docm/xlsx/xlsm/c/vhd) accepted".format(found_dir)
                     self.log(text)
         self.depth -= 1
         print "DEPTH:",self.depth
@@ -2958,7 +2891,7 @@ if __name__ == '__main__':
     tbl_type = ("SSCS",)
     tbl_type = ['ICD_CAN', 'IRD', 'SSCS', 'ICD_SPI', 'SHLVCP', 'HPID', 'HSID', 'SDTS']
     test = CheckLLR()
-    type = test.getType(name,
+    type = Tool.getType(name,
                         tbl_type)
     print type
     if 0==1:

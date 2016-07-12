@@ -4,15 +4,24 @@
 class Conf():
     active_dbg = False
     # TODO: Rendre parametrable dans docid.ini
+    list_req_id = ("REQ_Id","Req Id")
+    dico_types = {"SWRD":("body","issue","refer","status","derived","rationale","terminal","safety","additional","end"),
+                  "SWDD":("body","issue","refer","status","derived","rationale","terminal","safety","additional","end","constraint"),
+                "SHLVCP":("body","issue","verify","status","forward","rationale","additional","end"),
+                  "IRD":(),
+                  "HSID":("body","issue","refer","status","derived","rationale","terminal","additional","end")
+                }
     dico_styles = {"REQ_Body":"body",
                         "REQ_Issue":"issue",
-                        "REQ_Refers to":"refer",
+                        "REQ_Refers_to":"refer",  # Attention sur F5X REQ_Refers to
+                        "REQ_Constrained by":"constraint",
                         "REQ_Status":"status",
                         "REQ_Derived":"derived",
                         "REQ_Rationale":"rationale",
                         "REQ_Terminal":"terminal",
                         "REQ_Safety":"safety",
                         "REQ_Verifies":"verify",
+                        "REQ_Forwarded":"forward",
                         "REQ_Additional_information":"additional",
                         "REQ_End":"end"}
     dico_attributes = {"body":"",
@@ -26,6 +35,7 @@ class Conf():
                  "rationale":"Rationale:",
                  "safety":"Safety:",
                  "additional":"Additional [i|I]nfo\w*:",
+                "req_id":("SWRD_","SWDD_","SHLVCP_","HSID_","PLD[R|D]D_"),
                  "end":("\[End [R|r]equirement\]","\[End Test Case\]"),
                  # Attributes not used in software specification document
                  "allocation":"Allocation:",

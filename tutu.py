@@ -48,6 +48,8 @@ except ImportError as e:
     print (e)
 from stack import Stack
 import json
+import xml.etree.ElementTree as ET
+from shlvcp import Shlvcp
 
 def updateCheck():
     #Gets downloaded version
@@ -1594,26 +1596,21 @@ class TestDoCID(unittest.TestCase):
                           "implemented":"SW_ENM/06"}
         thread._generateCCB(dico_parameters)
 
-    def _test_ckeck_swrd_1(self):
-        current_dir = os.getcwd()
-        self.dirname_req = join(current_dir,"qualification/SET_G7000_ACENM/SWRD")
-        self.dirname_req = "C:\Users\olivier.appere\Desktop\Projets\g7000\SW_DCENM_01_44\SW_DCENM\SwRD"
-        req = CheckLLR(self.dirname_req,hlr_selected=True)
-        #req.use_full_win32com = True
-        req.listDir(tbl_type=("SWRD",))
-        for x,value in req.tbl_req_vs_section.iteritems():
-            print "X:",x,value
-        #req.openLog("SWRD_1")
-        #req.extract(self.dirname_req,type=["SWRD"])
-        #req.closeLog()
-
-    def _test_ckeck_swrd_2(self):
-        current_dir = os.getcwd()
-        self.dirname_req = join(current_dir,"qualification/SET_F5X_WHCC/SWRD")
-        req = CheckLLR(self.dirname_req,hlr_selected=True)
-        req.openLog("SWRD_2")
-        req.extract(self.dirname_req,type=["SWRD"])
+    def test_ckeck_swrd(self):
+        filename = self.setUp(case=9)
+        req = CheckLLR(filename,hlr_selected=True)
+        req.openLog("SWRD")
+        req.extract(filename,type=["SWRD"])
         req.closeLog()
+
+    def test_buildScod(self):
+        test = ThreadQuery()
+        csci_name = "ACENM"
+        test.dir_swrd = "C:\Users\olivier.appere\Desktop\Projets\g7000\SW_ACENM_01_34\SW_ACENM\SwRD"
+        test.dir_swdd = "C:\Users\olivier.appere\Desktop\Projets\g7000\SW_ACENM_01_34\SW_ACENM\SWDD\LLR\Service Layer\Service Memory"
+        test.dir_swdd = "C:\Users\olivier.appere\Desktop\Projets\g7000\SW_ACENM_01_34\SW_ACENM\SWDD\LLR\Application Layer"
+        test.xml_csci = "C:\Users\olivier.appere\Desktop\Projets\g7000\SW_ACENM_01_34\SW_ACENM\Tools\Design\Docs\Template\design_ACENM.csci"
+        test._buildSCOD(csci_name)
 
     def _test_check_pld(self):
         dirname_req = "C:/Documents and Settings/appereo1/Bureau/sqa/TIE/PLD/PLDRD"
@@ -2302,11 +2299,122 @@ Arrow to identify the functional data flows between the current CSCI and others 
                            hlr_selected=False,
                            skip_change_synergy_var=True)
 
+    def test_match_gen_proc(self):
+        filename = self.setUp(case=5)
+        class_shlvcp = Shlvcp()
+        dico = class_shlvcp.readProc(filename)
+        assert(dico=={'Status': 'True',
+                        'PN_Number': 'ECE32-A333-0102',
+                        'SanctionAuto': 'PASS',
+                        'Tester': 'MARTIAL DOERPER',
+                        'Author': None,
+                        'SanctionManual': None,
+                        'TestEnvironment': None,
+                        'ExecutionDate': '18/04/2016 21:01:28'})
+
+    def test_get_generic_bproc(self):
+        list_files = ("GEN_SEQ_CHECK_ERRORS_IN_NOMINAL_MODE_ACLOG2.bproc",
+                      "SHLVCP_GLOBAL_ACENM_0098_PROC_004.bproc")
+        tbl_result = []
+        for filename in list_files:
+            shlvcp = Shlvcp()
+            result = shlvcp.findGenericBproc(filename)
+            tbl_result.append(result)
+        assert(result==[True,False])
+
+    def test_get_execution_info(self):
+        list_tags=("Tester",
+                    "ExecutionDate",
+                    "SanctionAuto",
+                    "SanctionManual",
+                    "Status",
+                    "PN_Number",
+                    "TestEnvironment",
+                    "Author")
+        dico_proc = dict()
+        dico = dict()
+        dirname = self.setUp(case=3)
+        filename = join(dirname,"Procedures")
+        filename = join(filename,"SHLVCP_GLOBAL_ACENM_0224_PROC_002.bproc")
+        shlvcp = Shlvcp()
+        dico_proc = shlvcp.readProc(filename)
+        if 0==1:
+            tree = ET.parse(filename)
+            root = tree.getroot()
+            execution_info = root.find('ExecutionInfo')
+            for element in execution_info:
+                dico[element.tag]=element.text
+                #print element.tag,element.text
+            dico_proc = dico
+        assert(dico_proc == {'Status': 'True',
+                            'PN_Number': 'ECE32-A333-0102',
+                            'SanctionAuto': 'PASS',
+                            'Tester': 'MARTIAL DOERPER',
+                            'Author': None,
+                            'SanctionManual': None,
+                            'TestEnvironment': None,
+                            'ExecutionDate': '19/04/2016 03:18:01'})
+
+    def test_check_class_shlvcp(self):
+        filename = self.setUp(case=4)
+        class_shlvcp = Shlvcp()
+        doc = class_shlvcp.load(filename)
+        attr_check_filename,file_check_filename = class_shlvcp.extract(dirname=filename,
+                                                                        type=("SHLVCP",),
+                                                                        enable_check_bproc=True)
+        print "self.tbl_file_llr",class_shlvcp.tbl_file_llr
+        for x,y in class_shlvcp.tbl_list_llr.iteritems():
+            if x == "SHLVCP_GLOBAL-ACENM_0065":
+                for z,w in y.iteritems():
+                    print "DEBUG:",z,w
+
+    def test_check_class_swdd(self):
+        from swdd import Swdd
+        filename = self.setUp(case=7)
+        class_swdd = Swdd()
+        doc = class_swdd.load(filename,type=("SWDD",))
+        attr_check_filename,file_check_filename = class_swdd.extract(dirname=filename,type=("SWDD",))
+
+    def test_extract_swdd(self):
+        filename = self.setUp(case=8)
+        hsid_dirname = self.setUp(case=10)
+        llr = CheckLLR(basename=filename,
+                       hlr_selected = False)
+        llr.getHSID(hsid_dirname)
+        print "TEST"
+        attr_check_filename,file_check_filename = llr.extract(dirname=filename,
+                                                              type=("SWDD",))
+    def test_get_type(self):
+        list_doc = ("SHLVCP_ACENM_ET3317.docx","SHLVCP_GLOBAL_ACENM_0118_PROC_055.bproc")
+        tbl_type = []
+        for doc_name in list_doc:
+            type = Shlvcp.getType(doc_name)
+            tbl_type.append(type)
+        assert(tbl_type==["SHLVCP","BPROC"])
+
+    def test_get_source_code_version(self):
+        link_code = self.setUp(case=6)
+        source_code_version = Tool.get_source_code_version(link_code)
+        #print "source_code_version",source_code_version
+        assert(source_code_version == "1.4")
+
     def test_check_shlvcp(self):
         ihm = StubIHM()
-        thread = ThreadQuery(master=ihm)
         dirname = self.setUp(case=3)
-        thread._checkSHLVCP(dirname)
+        shlvcp = CheckLLR(dirname,
+                            hlr_selected = True,
+                            callback = ihm.log)
+        #shlvcp.use_full_win32com = True
+        shlvcp.enable_check_bproc = False
+        attr_check_filename,file_check_filename = shlvcp.extract(dirname=dirname,
+                                                                 type=("SHLVCP",))
+        for tc,tps in shlvcp.dico_tc_vs_proc.iteritems():
+            for tp in tps:
+                print "tc,tp:",tc,tp
+        for x,y in shlvcp.dico_proc.iteritems():
+            print "BPROC",x,y
+        class_test = ThreadQuery(master=ihm)
+        class_test._checkSHLVCP(dirname)
 
     def _test_export_is_llr(self):
         ihm = StubIHM()
@@ -2318,6 +2426,23 @@ Arrow to identify the functional data flows between the current CSCI and others 
                          "1.4",
                          "SW_ENM/04",
                          self.hsid_dirname)
+
+    def test_extract_hsid(self):
+        hsid = "C:\Users\olivier.appere\Desktop\Projets\g7000\SW_ACENM_01_34\SW_ACENM\Input Data\Specification\G7000_HSID_ACLOG_ET2982_S.docx"
+        tbl_list_req={}
+        hsid = CheckLLR(hsid,
+                        hsid_selected = True)
+        hsid.openLog("HSID")
+        hsid.active_dbg = True
+        hsid.listDir(tbl_type = ("HSID",))
+        hsid.closeLog()
+        for req,value in hsid.tbl_list_llr.iteritems():
+            status = CheckLLR.getAtribute(value,"status")
+            if status != "DELETED":
+                issue = CheckLLR.getAtribute(value,"issue")
+                tbl_list_req[str(req)]=issue
+        for x,y in tbl_list_req.iteritems():
+            print "X:",x,y
 
     def _test_export_is(self):
         ihm = StubIHM()
@@ -2802,6 +2927,22 @@ Arrow to identify the functional data flows between the current CSCI and others 
         html_filename = join(current_dir,"result\\" + html_name)
         thread._readBPROC(xml,xsl,html_filename,display=False)
 
+    def test_get_bproc(self):
+        class_test = CheckLLR()
+        current_dir = os.getcwd()
+        dirs = ("qualification","SET_G7000_ACENM","SHLVCP","test_case.txt")
+        test_file = current_dir
+        for dir in dirs:
+            test_file = join(test_file,dir)
+        with open(test_file, 'r') as of:
+            data = of.read()
+            body,list_found_procedures = class_test.matchLLRBody(data)
+        #print "list_found_procedures",list_found_procedures
+        assert(list_found_procedures==['SHLVCP_GLOBAL_ACENM_0145_PROC_001.bproc',
+                                        'SHLVCP_GLOBAL_ACENM_0145_PROC_002.bproc',
+                                        'SHLVCP_GLOBAL_ACENM_0145_PROC_003.bproc',
+                                        'SHLVCP_GLOBAL_ACENM_0169_PROC.bproc'])
+
     def _test_readBproc(self):
         return
         def HighlightPattern(text):
@@ -2856,7 +2997,44 @@ Arrow to identify the functional data flows between the current CSCI and others 
         elif case == 2:
             dirname = join(current_dir,"qualification/SET_F5X_ENM/SHLVCP")
         elif case == 3:
-            dirs = ("SET_G7000_ACENM","SHLVCP","SHLVCP")
+            dirs = ("SET_G7000_ACENM","SHLVCP")
+            dirname = join(current_dir,"qualification")
+            for dir in dirs:
+                dirname = join(dirname,dir)
+        elif case == 4:
+            dirs = ("SET_G7000_ACENM","SHLVCP_WO_PROC","SHLVCP_ACENM_ET3317_sans_suivi.docx")
+            dirname = join(current_dir,"qualification")
+            for dir in dirs:
+                dirname = join(dirname,dir)
+        elif case == 5:
+            dirs = ("SET_G7000_ACENM","PROC","SHLVCP_GLOBAL_ACENM_0098_PROC_004.bproc")
+            dirname = join(current_dir,"qualification")
+            for dir in dirs:
+                dirname = join(dirname,dir)
+        elif case == 6:
+            dirs = ("SET_G7000_DCENM","SRC","DPL","DplAcq_ComputeBattTemperatures.c")
+            dirname = join(current_dir,"qualification")
+            for dir in dirs:
+                dirname = join(dirname,dir)
+        elif case == 7:
+            dirs = ("SET_G7000_ACENM","SWDD","LLR","Application Layer","Application Actuation","Check Protection For Waiting Sequence.docx")
+            dirname = join(current_dir,"qualification")
+            for dir in dirs:
+                dirname = join(dirname,dir)
+        elif case == 8:
+            #dirs = ("SET_G7000_ACENM","SWDD","LLR","Application Layer","Application Actuation")
+            dirs = ("SET_G7000_ACENM","SWDD","LLR")
+            dirname = join(current_dir,"qualification")
+            for dir in dirs:
+                dirname = join(dirname,dir)
+        elif case == 9:
+            #dirs = ("SET_G7000_ACENM","SWDD","LLR","Application Layer","Application Actuation")
+            dirs = ("SET_G7000_ACENM","SwRD")
+            dirname = join(current_dir,"qualification")
+            for dir in dirs:
+                dirname = join(dirname,dir)
+        elif case == 10:
+            dirs = ("SET_G7000_ACENM","Specification")
             dirname = join(current_dir,"qualification")
             for dir in dirs:
                 dirname = join(dirname,dir)
@@ -2867,9 +3045,7 @@ Arrow to identify the functional data flows between the current CSCI and others 
             self.hsid_dirname = "/Users/olivier/github/local/HSID"
         self.ig = join(current_dir,"qualification/IG/procedures_zodiac_aero_electric.htm")
         self.saq = join(current_dir,"qualification/IG/formulaires_saq.htm")
-        self.cov = coverage.coverage(branch=True,source=("check_is.py",
-                                                    "check_llr.py",
-                                                    "synergy_thread.py"))
+        self.cov = coverage.coverage(branch=True,source=("check_llr.py",))
         self.cov.start()
         return dirname
 
@@ -2909,19 +3085,31 @@ Arrow to identify the functional data flows between the current CSCI and others 
             self.dirname_upper = join(current_dir,"qualification/ACENM/Upper")
             self.dirname_req = join(current_dir,"qualification/ACENM/Spec")
             self.filename_is = join(current_dir,"qualification/ACENM/Copie de IS_SwRD_ACENM-1.5.1.xlsm")
+
     def tearDown(self):
-        if 0==1:
-            self.cov.stop()
-            self.cov.save()
-            try:
-                self.cov.html_report(directory='covhtml')
-            except coverage.CoverageException,e:
-                print e
+        self.cov.stop()
+        self.cov.save()
+        try:
+            self.cov.html_report(directory='covhtml')
+        except coverage.CoverageException as exception:
+            print exception
+        except KeyError as exception:
+            print exception
             #print("Cleaning up Test cases")
 
 def suite():
     suite = unittest.TestSuite()
-    suite.addTest(TestDoCID('test_check_shlvcp'))
+    #suite.addTest(TestDoCID('test_get_execution_info'))
+    #suite.addTest(TestDoCID('test_match_gen_proc'))
+    #suite.addTest(TestDoCID('test_get_source_code_version'))
+    #suite.addTest(TestDoCID('test_get_bproc'))
+    #suite.addTest(TestDoCID('test_buildScod'))
+    #suite.addTest(TestDoCID('test_check_class_shlvcp'))
+    #suite.addTest(TestDoCID('test_ckeck_swrd'))
+    #suite.addTest(TestDoCID('test_extract_swdd'))
+    #suite.addTest(TestDoCID('test_get_type'))
+    #suite.addTest(TestDoCID('test_get_generic_bproc'))
+    suite.addTest(TestDoCID('test_extract_hsid'))
     return suite
 
 if __name__ == '__main__':

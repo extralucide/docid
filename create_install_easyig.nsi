@@ -15,10 +15,15 @@
 
 !define MUI_COMPONENTSPAGE_SMALLDESC
 
-Name "easyIG"
-LoadLanguageFile "C:\Program Files\NSIS\Contrib\Language Files\French.nlf"
-OutFile "easyig_installer.exe"
-InstallDir "c:\program Files\easyig"
+Name "showIG"
+LoadLanguageFile "C:\Program Files (x86)\NSIS\Contrib\Language Files\French.nlf"
+OutFile "showig_installer.exe"
+InstallDir "C:\Program Files (x86)\showig"
+
+PageEx directory
+  DirVar $INSTDIR
+PageExEnd
+Page instfiles
 
 Section "Install"
 SetOutPath $INSTDIR
@@ -36,7 +41,7 @@ File dist\python27.dll
 File dist\pywintypes27.dll
 File dist\sqlite3.dll
 ; exe
-File dist\get_ig_jquery.exe
+File dist\showig.exe
 
 File dist\ico_sys_internet.ico
 ; pyd
@@ -53,7 +58,7 @@ File dist\pyexpat.pyd
 File dist\select.pyd
 File dist\unicodedata.pyd
 File dist\win32api.pyd
-File dist\win32evtlog.pyd
+;File dist\win32evtlog.pyd
 File dist\win32pipe.pyd
 File dist\win32wnet.pyd
 

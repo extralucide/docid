@@ -50,9 +50,9 @@ def main():
                     "ig.db3"]
     #setup(name="test",scripts=["test.py"],)
     setup(
-        name="easyIG",
-        version="0.3.0",
-        description="Application to get IG.",
+        name="showig",
+        version="1.0.0",
+        description="Application to show IG.",
         author="Olivier Appere",
         license="License GPL v3.0",
         data_files=data_files,
@@ -70,7 +70,8 @@ def main():
         zipfile = None,
         windows=[{
             "script": "get_ig_jquery.py",
-                "icon_resources":[{0, "ico_sys_internet.ico"}]
+                "icon_resources":[{0, "ico_sys_internet.ico"}],
+				"dest_base":"showig"
         }]
     )
 if __name__ == '__main__':

@@ -147,15 +147,15 @@ copy_wrk_area:
 	
 all: gui cli doc
 
-easyig:
+ig:
 	@echo ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
-	@echo º            easyIG windows mode executable generation ...            º
+	@echo º            showIG windows mode executable generation ...            º
 	@echo ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼
 	@$(PYTHON) setup_easyig.py py2exe
-	
-easyig_nsis: easyig
+
+ig_nsis: ig
 	@echo ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
-	@echo º             easyIG installer generation ...                         º
+	@echo º             showIG installer generation ...                         º
 	@echo ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼
 	@$(PATHNSIS)$(MAKENSIS) create_install_easyig.nsi
 
@@ -173,6 +173,9 @@ target: $(MD).html
 #
 # Launch tests
 #
+tu:
+	$(PYTHON) tutu.py > log.txt
+	
 test:
 	@echo ---------------------
 	@echo |  Test _getItems   | 
