@@ -714,18 +714,21 @@ class ThreadQuery(threading.Thread,Synergy):
                             print "Display CR RELOAD_CRLISTBOX"
                             list_cr = self.queue.get(1)
                             # Update list of project of GUI
-                            crlistbox = self.master_ihm.crlistbox
-                            crlistbox.configure(text=NORMAL)
-                            crlistbox.delete(0, END)
-                            inter = 0
-                            for cr_description in list_cr:
-                                crlistbox.insert(END, cr_description)
-                                if inter % 2 == 0:
-                                    crlistbox.itemconfig(inter,{'bg':'gray88','fg':'black'})
-                                else:
-                                    crlistbox.itemconfig(inter,{'bg':'lightgrey','fg':'black'})
-                                inter += 1
-                            crlistbox.configure(text="white")
+                            self.master_ihm.reloadCR_ListBox(list_cr)
+                            if 0==1:
+                                crlistbox = self.master_ihm.crlistbox
+                                crlistbox.configure(text=NORMAL)
+                                crlistbox.delete(0, END)
+                                inter = 0
+                                for cr_description in list_cr:
+                                    crlistbox.insert(END, cr_description)
+                                    if inter % 2 == 0:
+                                        crlistbox.itemconfig(inter,{'bg':'gray88','fg':'black'})
+                                    else:
+                                        crlistbox.itemconfig(inter,{'bg':'lightgrey','fg':'black'})
+                                    inter += 1
+                                crlistbox.configure(text="white")
+
                         except AttributeError:
                             pass
                 elif action == "CHECK_LLR":
@@ -2191,9 +2194,11 @@ class ThreadQuery(threading.Thread,Synergy):
         shlvcp.basename = dirname
         shlvcp.enable_check_bproc = enable_bproc_parsing
         doc = shlvcp.listDir()
+        #doc = shlvcp.load(dirname)
         shlvcp.openLog("SHLVCP")
         attr_check_filename,file_check_filename = shlvcp.extract(dirname=dirname,
-                                                                 type=("SHLVCP",))
+                                                                 type=("SHLVCP",),
+                                                                 enable_check_bproc=enable_bproc_parsing)
         #list_upper_req = []
         #shlvcp.getUpperReqList(list_upper_req)
         #nb_upper_reqs = len(list_upper_req)
@@ -2269,7 +2274,7 @@ class ThreadQuery(threading.Thread,Synergy):
                                 if swrd.signalExists(data) or swrd.aliasExists(data):
                                     pass #print "Signal {:s} found.".format(signal)
                                 else:
-                                    # Check boaard side Right or Left
+                                    # Check board side Right or Left
                                     lh_signal,rh_signal = swrd.allocateSide(data)
                                     # Check signal exists
                                     if lh_signal:

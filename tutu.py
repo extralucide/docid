@@ -50,6 +50,7 @@ from stack import Stack
 import json
 import xml.etree.ElementTree as ET
 from shlvcp import Shlvcp
+from swrd import Swrd
 
 def updateCheck():
     #Gets downloaded version
@@ -1598,10 +1599,94 @@ class TestDoCID(unittest.TestCase):
 
     def test_ckeck_swrd(self):
         filename = self.setUp(case=9)
-        req = CheckLLR(filename,hlr_selected=True)
+        req = CheckLLR(filename,
+                        hlr_selected=True)
         req.openLog("SWRD")
         req.extract(filename,type=["SWRD"])
         req.closeLog()
+
+    def test_extract_tables_in_swrd(self):
+        filename = self.setUp(case=11)
+        spec = CheckLLR(filename,
+                        hlr_selected=True)
+        # print spec.dico_types
+        # exit()
+        spec.openLog("SWRD")
+        spec.use_full_win32com = True
+        spec.listDir(tbl_type=("SWRD",),
+                    table_enabled=True) # True
+        print "Extract result"
+        print "Found {:d} tables at the beginning".format(spec.nb_tables)
+        swrd = Swrd(spec.list_tbl_tables_begin)
+        nb_ext_signals = swrd.populateDicoExtSignal()
+        print("{:d} external signals found.".format(nb_ext_signals))
+        nb_int_signals = swrd.populateDicoIntSignal()
+        print("{:d} internal signals found.".format(nb_int_signals))
+        nb_alias = swrd.populateDicoAlias()
+        print("{:d} alias found.".format(nb_alias))
+
+        for id,table in spec.list_tbl_tables_begin.iteritems():
+            if id == 4: # External interface dataflow
+                for index,row in enumerate(table):
+                    if index == 0: # header
+                        print "HEADER"
+                        for col in row:
+                            print col
+                        print "----------"
+                    else:
+                        print row
+            elif id == 5: # Internal interface dataflow
+                for row in table:
+                    print row
+            elif id == 6: # Alias
+                for row in table:
+                    print row
+        #req.extract(filename,type=["SWRD"])
+        spec.closeLog()
+        # Output requirements tags in xml format
+        root = ET.Element("SWRD")
+        signals = ET.SubElement(root, "SIGNALS")
+        for req,value in spec.tbl_list_llr.iteritems():
+            dico_attrib = {}
+            dico_attrib["id"] = req
+            dico_attrib["derived"] = spec.getAtribute(value,"derived")
+            dico_attrib["issue"] = spec.getAtribute(value,"issue")
+            dico_attrib["status"] = spec.getAtribute(value,"status")
+            dico_attrib["safety"] = spec.getAtribute(value,"safety")
+            dico_attrib["terminal"] = spec.getAtribute(value,"terminal")
+            requirements = ET.SubElement(root, "REQ",attrib=dico_attrib)
+            # Refer
+            str_refer = spec.getAtribute(value,"refer")
+            list_refer = spec.getSplitRefer(str_refer,type="[A-Z]*[_-][\w-]*")
+            #if req == "SWRD_GLOBAL-ACENM_0006":
+            #    print "str_refer",str_refer
+            #    print "list_refer",list_refer
+            # Constraints
+            if "constraint" in value:
+                str_constraints = self.getAtribute(value,"constraint")
+                str_constraints_cleaned = Tool.removeNonAscii(str_constraints)
+                str_constraints_cleaned_wo_dot = re.sub(r"\.", r"_",str_constraints_cleaned)
+                list_constraints = self.getSplitRefer(str_constraints_cleaned_wo_dot,type="[^\[^\].]*")
+            rationale_tag = ET.SubElement(requirements, "RATIONALE")
+            rationale_tag.text = spec.getAtribute(value,"rationale")
+            additional_tag = ET.SubElement(requirements, "ADDITIONAL")
+            additional_tag.text = spec.getAtribute(value,"additional")
+            for refer in list_refer:
+                refer_tag = ET.SubElement(requirements, "REFER")
+                refer_tag.text = refer
+        tree = ET.ElementTree(root)
+        xml_filename = "result\\spec_tags.xml"
+        html_filename = "result\\spec_tags.html"
+        #treestring = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + "\n"
+        #treestring += ET.tostring(tree)
+        #print treestring
+        tree.write(xml_filename)
+        if 0==1:
+            current_dir = os.getcwd()
+            xsl = join(current_dir,"template\\spec_tags.xsl")
+            htmlC = HtmlConverter(xml_filename,xsl)
+            html_final = htmlC.toHtml(html_filename)
+            os.startfile(html_filename)
 
     def test_buildScod(self):
         test = ThreadQuery()
@@ -1729,10 +1814,57 @@ class TestDoCID(unittest.TestCase):
         for error in check_is.dico_errors:
             print error
 
-    def _test_toto(self):
-        req_id_error = 'SRS_15'
-        id = re.sub(r"(.*)_([0-9]{2})",r"\2",req_id_error)
-        rule_text = Tool.getSRTS_Rule(id)
+    def test_get_srts_rule(self):
+        type = "SDTS"
+        if type == "SRTS":
+            database = "db/srts_rules.db3"
+            xml_filename = "result\\srts_rules_list.xml"
+        elif type == "SDTS":
+            database = "db/sdts_rules.db3"
+            xml_filename = "result\\sdts_rules_list.xml"
+        else:
+            database = "db/scs_rules.db3"
+            xml_filename = "result\\scs_rules_list.xml"
+        root = ET.Element("STD")
+        result = Tool.getAll_SDTS_Rule_by_req(by_req=True,database=database)
+        # TODO: add link to DO-178
+        for id,status,version,description,auto,comments in sorted(result):
+            if status is None:
+                status = ""
+            if version is None:
+                version = ""
+            if auto is None:
+                auto = ""
+            if comments is None:
+                comments = ""
+            if auto == 1:
+                auto_attrib = "YES"
+            if auto == 2:
+                auto_attrib = "PARTIALLY"
+            if auto == 3:
+                auto_attrib = "MAYBE"
+            else:
+                auto_attrib = "NO"
+            print "AUTO:",auto
+            rule_node = ET.SubElement(root, "RULE",attrib={"id":id,
+                                                            "status":status,
+                                                            "version":version,
+                                                            "auto":auto_attrib,
+                                                            "by_req":"TRUE"})
+            desc_node = ET.SubElement(rule_node, "DESC")
+            from markdown2 import Markdown
+            markdowner = Markdown()
+            rule_in_html = markdowner.convert(description)
+            desc_node.text = rule_in_html
+            print "HTML:",rule_in_html
+            #desc_node.text = Tool.replaceNonASCII(description,html=True)
+            comment_node = ET.SubElement(rule_node, "COMMENTS")
+            comment_node.text = Tool.replaceNonASCII(comments,html=True)
+            #print "DESC:",clean_description
+            #if id == "37":
+            #    break
+        tree = ET.ElementTree(root)
+        tree.write(xml_filename)
 
     def _test_removeCRLF(self):
         text = "(CSCI x) fitted in an ellipse to identify the current CSCI (i.e. CSCI under specification).\x0d\x0a\
@@ -2358,7 +2490,10 @@ Arrow to identify the functional data flows between the current CSCI and others 
     def test_check_class_shlvcp(self):
         filename = self.setUp(case=4)
         class_shlvcp = Shlvcp()
-        doc = class_shlvcp.load(filename)
+        class_shlvcp.basename = filename
+        class_shlvcp.enable_check_bproc = False
+        doc = class_shlvcp.listDir()
+        #doc = class_shlvcp.load(filename)
         attr_check_filename,file_check_filename = class_shlvcp.extract(dirname=filename,
                                                                         type=("SHLVCP",),
                                                                         enable_check_bproc=True)
@@ -3038,6 +3173,12 @@ Arrow to identify the functional data flows between the current CSCI and others 
             dirname = join(current_dir,"qualification")
             for dir in dirs:
                 dirname = join(dirname,dir)
+        elif case == 11:
+            #dirs = ("SET_G7000_ACENM","SWDD","LLR","Application Layer","Application Actuation")
+            dirs = ("SET_F5X_BITE","SWRD_ARINC")
+            dirname = join(current_dir,"qualification")
+            for dir in dirs:
+                dirname = join(dirname,dir)
         else:
             self.dirname_upper = join(current_dir,"qualification/SET_F5X_ENM/UPPER")
             self.dirname_req = join(current_dir,"qualification/SET_F5X_ENM/SWRD")
@@ -3109,7 +3250,9 @@ def suite():
     #suite.addTest(TestDoCID('test_extract_swdd'))
     #suite.addTest(TestDoCID('test_get_type'))
     #suite.addTest(TestDoCID('test_get_generic_bproc'))
-    suite.addTest(TestDoCID('test_extract_hsid'))
+    #suite.addTest(TestDoCID('test_extract_hsid'))
+    #suite.addTest(TestDoCID('test_extract_tables_in_swrd'))
+    suite.addTest(TestDoCID('test_get_srts_rule'))
     return suite
 
 if __name__ == '__main__':

@@ -1,4 +1,3 @@
-#!/usr/bin/env python 3.4.4
 # -*- coding: utf-8 -*-
 __author__ = 'Olive'
 import re # For regular expressions
@@ -184,7 +183,7 @@ class FuncCallVisitor(c_ast.NodeVisitor):
             if node.name.name not in ("__asm","asm"):
                 self.dico_func_called[found_func_def] = [node.name.name]
         else:
-            if node.name.name not in self.dico_func_called[found_func_def] and node.name.name != "__asm":
+            if node.name.name not in self.dico_func_called[found_func_def] and node.name.name not in ("__asm","asm"):
                 self.dico_func_called[found_func_def].append(node.name.name)
         #print('%s called at %s' % (node.name.name, coord))
 
@@ -289,7 +288,11 @@ class Stack():
         return result
 
     def _reccurFoundCalling(self,function,tbl):
+        print ("TBL:",tbl)
         self.depth_func_call += 1
+        if self.depth_func_call > 13:
+            print ("function:",function)
+            return False
         if function in self.dico_func_called:
             list_calling = self.dico_func_called[function]
             if list_calling is not []:
@@ -320,27 +323,28 @@ class Stack():
                 if calling is not []:
                     for function in calling:
                         del(tbl[:])
-                        tbl = [callee,function,"","","","","","","","","",""]
+                        tbl = [callee,function,"","","","","","","","","","","","",""]
                         sub_result = self._reccurFoundCalling(function,tbl)
                         if not sub_result:
                             self.leaves.append(tbl[:])
                             self.leaves_index += 1
                 else:
-                    tbl = [callee,"","","","","","","","","","",""]
+                    tbl = [callee,"","","","","","","","","","","","","",""]
                     self.leaves.append(tbl[:])
         except AttributeError:
+            print ("iteritems is a python 2 method")
             # Python 3
             for callee,calling in self.dico_func_called.items():
                 if calling is not []:
                     for function in calling:
                         del(tbl[:])
-                        tbl = [callee,function,"","","","","","","","","",""]
+                        tbl = [callee,function,"","","","","","","","","","","","",""]
                         sub_result = self._reccurFoundCalling(function,tbl)
                         if not sub_result:
                             self.leaves.append(tbl[:])
                             self.leaves_index += 1
                 else:
-                    tbl = [callee,"","","","","","","","","","",""]
+                    tbl = [callee,"","","","","","","","","","","","","",""]
                     self.leaves.append(tbl[:])
 
 
@@ -414,13 +418,13 @@ class Stack():
                                      cpp_path=self.compiler,
                                      cpp_args=[r'-E', r'-I{:s}'.format(include)])
 
-                    # List of called functions and where
+                    # List of defined functions and where
                     list_func_def    = []
                     del(list_func_def[:])
                     v = FuncDefVisitor(list_func_def)
                     v.visit(ast)
 
-                    # List of defined functions and where
+                    # List of called functions and where
                     v = FuncCallVisitor(self.dico_func_called,
                                         list_func_def)
                     v.visit(ast)
@@ -436,8 +440,18 @@ class Stack():
                         text = "functions"
                     if self.master_ihm is not None:
                         self.master_ihm.log("Find {:s} ({:} {:s} called)".format(short_filename,v.nb_func_called,text))
+                        for function in list_func_def:
+                            self.master_ihm.log("{:s} => {:s}".format(short_filename,function))
+                            if function in self.dico_func_called:
+                                for func_called in self.dico_func_called[function]:
+                                    self.master_ihm.log("=> {:s} => {:s}".format(function,func_called))
                     else:
                         print ("Find {:s} ({:} {:s} called)".format(short_filename,v.nb_func_called,text))
+                        for function in list_func_def:
+                            print("{:s} => {:s}".format(short_filename,function))
+                            if function in self.dico_func_called:
+                                for func_called in self.dico_func_called[function]:
+                                    print("=> {:s} => {:s}".format(function,func_called))
                 except ParseError as e:
                     short_filename = Tool.getFileName(filename)
                     if self.master_ihm is not None:
@@ -465,6 +479,11 @@ class Stack():
                     self.dico_functions_vs_file[function]=file
         #print "self.dico_functions_vs_file",self.dico_functions_vs_file
         dico_function_vs_stack_size = self._getStackFromAsm()
+        if not dico_function_vs_stack_size:
+            if self.master_ihm is not None:
+                self.master_ihm.log("No assembler files found.")
+            else:
+                print ("No assembler files found.")
         wb = Workbook()
         if wb is not None:
             ws = wb.worksheets[0]

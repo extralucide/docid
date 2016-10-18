@@ -16,14 +16,38 @@ GUI_BACKUP_EXE = docid_backup.exe
 CLI_EXE = docid_cli.exe
 MARKDOWN = lib/markdown2.py
 MAKE = make
+CC=dcc
+LD=dld
+LFLAGS=-tPPCE200Z6NEN:simple -m30 -Xlink-time-lint -Xstop-on-warning
+CFLAGS=-tPPCE200Z6NEN:simple -g -Xalign-functions=4 -Xforce-prototypes -Xlint -Xstop-on-warning -Xenum-is-best -Xsmall-data=0 -Xsmall-const=0 -Xno-common -Xdebug-local-cie -Xpass-source -Xkeep-assembly-file -Xnested-interrupts -Xpragma-section-last 
+LIST_OBJ_TXT=list_obj.txt
+
 #
 # Configuration:
 #
 PYTHON = python
 PYTHON_3 = C:\WinPython-64bit-3.4.4.2\python-3.4.4.amd64\python
+PYTHON_34 = C:\Users\olivier.appere\Python34\python
+PYTHON_35 = C:\Python35\python
+
 PYINSTALLER = C:\WinPython-64bit-3.4.4.2\python-3.4.4.amd64\Scripts\pyinstaller
 CX_FREEZE = C:\WinPython-64bit-3.4.4.2\python-3.4.4.amd64\Scripts\cxfreeze
+CSCI_SRC = ../SRC
+INCLUDE = $(CSCI_SRC)/INCLUDE
+LINK_DIR = ../BUILD
+#CSCI_DIR = $(sort $(dir $(wildcard $(CSCI_SRC)/*/ $(CSCI_SRC)/*/*/)))
+#LIST_CSCI_SRC = $(sort $(dir $(wildcard $(CSCI_SRC)/*/*/*.c)))
+#LIST_CSCI_SRC := $(shell find $(CSCI_SRC) -type d)
+# Make does not offer a recursive wildcard function, so here's one:
+rwildcard=$(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 
+# How to recursively find all files with the same name in a given folder
+#ALL_INDEX_HTMLS := $(call rwildcard,foo/,index.html)
+
+# How to recursively find all files that match a pattern
+SRC := $(call rwildcard,$(CSCI_SRC)/,*.c)
+OBJ= $(SRC:.c=.o)
+OBJDIR = ../OBJ
 MAKENSIS = makensis.exe
 ZIP2EXE = Contrib\zip2exe
 OUTPUT = 
@@ -73,10 +97,10 @@ stack_cxfreeze:
 	@cp conf/docid_empty.ini $(DIST)/conf/docid.ini
 	
 stack_py2exe:
-	@echo ÉÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ»
-	@echo º            stack windows mode executable generation ...             º
-	@echo ÈÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼
-	@$(PYTHON_3) setup_dummy.py py2exe
+	@echo ================================================
+	@echo = stack windows mode executable generation ... =
+	@echo ================================================
+	@$(PYTHON_35) setup_dummy.py py2exe
 	@rm -f -r -v $(DIST)/result/*.*
 	@touch $(DIST)/result/empty.txt
 	@cp conf/docid_empty.ini $(DIST)/conf/docid.ini
@@ -175,6 +199,27 @@ target: $(MD).html
 #
 tu:
 	$(PYTHON) tutu.py > log.txt
+
+stack:
+	$(PYTHON) stack.py
+
+list_obj:$(OBJ)
+	@echo "Create list of objects"
+	$(foreach obj,$^,$(file >>$(LIST_OBJ_TXT),$obj))
+	
+acenm: hello
+ 
+hello: list_obj
+	@echo "Link"
+	$(LD) $(LFLAGS) -o $@.elf -@$(LIST_OBJ) $(LINK_DIR)\ACENM.ld -@O=hello.map
+	
+$(OBJDIR)%.o: %.c
+	@echo "Compile"
+	$(CC) $(CFLAGS) -I$(INCLUDE) -O -c $< -o $@ -DCHECKSUM_EXTERNAL_DEFINITION=0
+	
+clean_acenm:
+	@echo "Clean objects"
+	@$(foreach obj,$(OBJ),rm -rf $(obj);)
 	
 test:
 	@echo ---------------------

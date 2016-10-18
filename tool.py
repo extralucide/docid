@@ -1326,8 +1326,10 @@ class Tool():
     # srts_rules.db3
     @staticmethod
     def getSRTS_Rule(id):
+        data = self.getSDTS_Rule(id,database="db/srts_rules.db3")
+        return data
         table = "rules"
-        print ("rule id:",id)
+        #print ("rule id:",id)
         query = "SELECT description FROM {:s} WHERE id LIKE '{:s}'".format(table,id)
         result = Tool.sqlite_query_one(query,database="db/srts_rules.db3")
         if result is None:
@@ -1338,11 +1340,12 @@ class Tool():
 
     # sdts_rules.db3
     @staticmethod
-    def getSDTS_Rule(id):
+    def getSDTS_Rule(id,
+                     database="db/sdts_rules.db3"):
         table = "rules"
         print ("rule id:",id)
         query = "SELECT description FROM {:s} WHERE id LIKE '{:s}'".format(table,id)
-        result = Tool.sqlite_query_one(query,database="db/sdts_rules.db3")
+        result = Tool.sqlite_query_one(query,database=database)
         if result is None:
             data = False
         else:
@@ -1351,19 +1354,38 @@ class Tool():
 
     # sdts_rules.db3
     @staticmethod
-    def getAll_SDTS_Rule_by_req(by_req=True):
+    def getAll_SDTS_Rule_by_req(by_req=True,
+                                version=None,
+                                database="db/sdts_rules.db3"):
         table = "rules"
-        print ("rule id:",id)
+        #print ("rule id:",id)
         if by_req:
-            query = "SELECT id,description FROM {:s} WHERE by_req LIKE '1'".format(table)
+            by_req_str = "1"
         else:
-            query = "SELECT id,description FROM {:s} WHERE by_req LIKE '0'".format(table)
-        result = Tool.sqlite_query(query,database="db/sdts_rules.db3")
+            by_req_str = "0"
+        if version is not None:
+            query = "SELECT id,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '{:s}' AND version LIKE '{:s}'".format(table,by_req_str,version)
+        else:
+            query = "SELECT id,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '{:s}'".format(table,by_req_str)
+        result = Tool.sqlite_query(query,database=database)
         if result is None:
             data = False
         else:
             data = result
         return data
+
+    @staticmethod
+    def updateRule(id,txt,database="db/sdts_rules.db3"):
+        #now = datetime.datetime.now()
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("SELECT rules.id FROM rules WHERE id LIKE '" + id + "'  LIMIT 1")
+        data = cur.fetchone()
+        if data is not None:
+            id = data[0]
+            cur.execute("UPDATE rules SET description=? WHERE id= ?",(txt,id))
+        #else:
+        #    cur.execute("INSERT INTO history(document_id,issue,writer_id,date,modifications) VALUES(?,?,?,?,?)",(3,self.revision,1,now,interface.modif_log.get(1.0,END)))
 
     # docid.db3
     def retrieveLastSelection(self,item):
@@ -2273,6 +2295,7 @@ class Tool():
                     r'\xa7':r'chapter ',
                     r'\x0d':r'',                # CR
                     r'\x0a':r'<br/>',           # LF
+                    r'\x09':r'    ',           # Tab
                     r'\x95':r'...',     # dot
             }
         else:
@@ -3219,6 +3242,8 @@ class BProc_HTMLParser(HTMLParser):
             self.attr = attr[1]
         try:
             self.text += self._createBeacon(tag,attrs)
+        except MemoryError as exception:
+            print (exception)
         except UnicodeDecodeError as exception:
             print (exception)
 
@@ -3226,7 +3251,10 @@ class BProc_HTMLParser(HTMLParser):
 ##            print "Encountered an end tag :", tag
         if tag == self.target_tag:
             self.foundCell = False
-        self.text += "</" + tag +  ">"
+        try:
+            self.text += "</" + tag +  ">"
+        except MemoryError as exception:
+            print (exception)
         # MemoryError with self.text
         self.tbl.append(self.text)
         if "attr" in self.__dict__:
@@ -3237,7 +3265,10 @@ class BProc_HTMLParser(HTMLParser):
         if self.foundCell:
             data = Tool.replaceNonASCII(data)
             data = self.HighlightPattern(data)
-        self.text += data
+        try:
+            self.text += data
+        except MemoryError as exception:
+            print (exception)
 
 
 

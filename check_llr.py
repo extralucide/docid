@@ -730,7 +730,8 @@ class CheckLLR(Tool,Conf,Excel):
                         pass
         return nb
 
-    def getSplitRefer(self,str_refer,type="SWRD_[\w-]*"):
+    @staticmethod
+    def getSplitRefer(str_refer,type="SWRD_[\w-]*"):
         # Attetnion [ est inclus dans .* mais pas dans \w c'est pour ça que ça marche pour HSID mais pas pour SWRD
         list_hlr = re.findall(r'\[({:s})\]'.format(type), str_refer)
         #print "TEST",list_hlr
@@ -1921,9 +1922,9 @@ class CheckLLR(Tool,Conf,Excel):
         start_first_req_part =  myRange.Start
         if found:
             txt = myRange.Text
-            print "Found REQ_Id:",txt
-            print "Start:",myRange.Start
-            print "End:",myRange.End
+            self.debug("Found REQ_Id:{:s}".format(txt))
+            self.debug("Start:{:d}".format(myRange.Start))
+            self.debug("End:{:d}".format(myRange.End))
             result = self.matchBegin(txt,type)
             #print 'RESULT',result
             if not result:
@@ -1946,7 +1947,7 @@ class CheckLLR(Tool,Conf,Excel):
                     txt = m.group(1)
                     start = myRange.Start  # start REQ ID tag"
                     end = myRange.End # end REQ ID tag
-                    print "Found REQ:",txt,start,end
+                    self.debug("Found REQ_Id:{:s} {:d} {:d}".format(txt,start,end))
                     if [txt,start,end] not in tbl_req:
                         tbl_req.append([txt,start,end])
                     else:
@@ -2036,13 +2037,13 @@ class CheckLLR(Tool,Conf,Excel):
         debug_attributes = []
         sel = self.doc.Application.Selection
         for style,key in self.dico_styles.iteritems():
-            print "style/key/type",key,style,type
+            self.debug("style:{:s} key:{:s} type:{:s}".format(key,style,type))
             if (key in self.dico_types["SWRD"] and type == "SWRD") or \
                     (key in self.dico_types["SWDD"] and type == "SWDD") or \
                     (key in self.dico_types["HSID"] and type == "HSID"):
                 range = self.doc.Range(start,end)
                 try:
-                    print "Loooking for style:",style
+                    self.debug("Looking for style:{:s}".format(style))
                     found = self.find(range,style=style)
                     #print "FOUND",found
                     if found:
@@ -2075,6 +2076,8 @@ class CheckLLR(Tool,Conf,Excel):
                             list_attributes[key] = text
                 except pythoncom.com_error as e:
                     print e
+            else:
+                self.debug("key {:s} does not exists in a known dictionnary".format(key))
 
     def testStatusDeleted(self,start_delimiter,list_attributes):
         # Test status attribute
@@ -2100,7 +2103,7 @@ class CheckLLR(Tool,Conf,Excel):
         tag_req = ""
         list_req_tag=("S[w|W]RD","S[w|W]RD","SHLVCP","SLLVCP","CAN-IRD","HSID","ICD")
         for req_tag in list_req_tag:
-            m = re.match(r'^({:s}).*',start_delimiter)
+            m = re.match(r'^({:s}).*'.format(req_tag),start_delimiter)
             if m:
                 type = m.group(1)
                 tag_req = type + "_"
@@ -2156,11 +2159,11 @@ class CheckLLR(Tool,Conf,Excel):
                     for col in range(1, nb_cols):
                         try:
                             txt = Tool.replaceNonASCII(tbl.Cell(row, col).Range.Text)
-
                             line.append(txt)
                         except:
                             #print "Warning, encounter joined cells."
                             self.log("Warning, encounter joined cells.")
+                            line.append("")
                             pass  # exception for joined cells
                     if header:
                         str_line = "|".join(line)
@@ -2211,7 +2214,9 @@ class CheckLLR(Tool,Conf,Excel):
         #self.start_req_area = start
         # start is the beginning of requirements zone
         if table_enabled:
-            self.nb_tables += self.parseTable(0,start_area_req,self.list_tbl_tables_begin)
+            self.nb_tables += self.parseTable(0,
+                                              start_area_req,
+                                              self.list_tbl_tables_begin)
             print "nb_tables",self.nb_tables
 
         # Find end of requirement
@@ -2303,7 +2308,8 @@ class CheckLLR(Tool,Conf,Excel):
     def listDir(self,
                 dirname="",
                 tbl_type=("SWRD","PLDRD"),
-                component="SW_ENM"):
+                component="SW_ENM",
+                table_enabled=False):
         """
         Recursive function to find files in directories.
         Treatment for Excel and Word file is different
@@ -2388,21 +2394,24 @@ class CheckLLR(Tool,Conf,Excel):
                     found_pythoncom = pythoncom_loader is not None
                     if self.use_full_win32com and found_pythoncom:
                         print "use_full_win32com:",self.use_full_win32com
+                        start = ""
+                        end = ""
                         try :
                             doc = self.word.Documents.Open(filename)
-                            doc.TrackFormatting = False
-                            doc.TrackMoves = False
-                            doc.TrackRevisions = False
-                            doc.ScreenUpdating  = False
+                            #doc.TrackFormatting = False
+                            #doc.TrackMoves = False
+                            #doc.TrackRevisions = False
+                            #doc.ScreenUpdating  = False
                             # Active Show All
-                            self.word.ActiveWindow.ActivePane.View.ShowAll = True
-                            doc.TrackFormatting = False
-                            doc.TrackMoves = False
-                            doc.TrackRevisions = False
-                            doc.ScreenUpdating  = False
-                            self.word.ActiveWindow.View.RevisionsView = constants.wdRevisionsViewFinal
-                            self.word.ActiveWindow.View.ShowRevisionsAndComments = False
-                            self.word.ActiveWindow.View.ShowInsertionsAndDeletions  = False
+                            #self.word.ActiveWindow.ActivePane.View.ShowAll = True
+                            #doc.TrackFormatting = False
+                            #doc.TrackMoves = False
+                            #doc.TrackRevisions = False
+                            #doc.ScreenUpdating  = False
+                            if 0==1:
+                                self.word.ActiveWindow.View.RevisionsView = constants.wdRevisionsViewFinal
+                                self.word.ActiveWindow.View.ShowRevisionsAndComments = False
+                                self.word.ActiveWindow.View.ShowInsertionsAndDeletions  = False
                             #try:
                             #    csp= doc.CustomDocumentProperties('DOCPROPERTY  Pages ').value
                             #    print('property pagess is %s' % csp)
@@ -2420,7 +2429,7 @@ class CheckLLR(Tool,Conf,Excel):
                                                          type=type,
                                                          tbl_req_tag=tbl_req_tag,
                                                          tbl_req_tag_wo_del=tbl_req_tag_wo_del,
-                                                         table_enabled=False,
+                                                         table_enabled=table_enabled,
                                                          found_dir=found_dir)
 
                             ReqPart = doc.Range(start,end)
@@ -2495,7 +2504,7 @@ class CheckLLR(Tool,Conf,Excel):
                                                                  type=type,
                                                                  tbl_req_tag=tbl_req_tag,
                                                                  tbl_req_tag_wo_del=tbl_req_tag_wo_del,
-                                                                 table_enabled=False,
+                                                                 table_enabled=table_enabled,
                                                                  found_dir=found_dir)
                                     #for x in self.tbl_req_vs_section:
                                     #    print "Y:",x
@@ -2833,6 +2842,11 @@ class CheckLLR(Tool,Conf,Excel):
 
 if __name__ == '__main__':
     #list_refer = []
+    str_refer = "[CAN-IRD-345],[CAN-IRD-313]"
+    list_refer = CheckLLR.getSplitRefer(str_refer,type="[A-Z]*[_-][\w-]*")
+    print "STR_REFER",str_refer
+    print "LIST_REFER",list_refer
+    exit()
     refer = "[SWRD_GLOBAL-DCENM_0364],[SWRD_GLOBAL-DCENM_0365],[SWRD_GLOBAL-DCENM_0367],[SWRD_GLOBAL-DCENM_0369],[SWRD_GLOBAL-DCENM_0370],[SWRD_GLOBAL-DCENM_0371]"
     test = CheckLLR()
     vhdl_file = "C:\Users\olivier.appere\Desktop\Projets\g7000\PLD_EMERLOG_2_7\PLD_EMERLOG_VHDL\hdl\ADC\ADC_cbit.vhd"

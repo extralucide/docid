@@ -41,7 +41,7 @@ class Swrd():
             self.dico_missing_signals[signal] = [req]
         self.nb_errors += 1
 
-    def populateDicoExtSignal(self,index=3):
+    def populateDicoExtSignal(self):
         max = len(self.list_tbl_tables_begin)
         #print "MAX",max
         found = False
@@ -93,7 +93,7 @@ class Swrd():
         nb_signals = len(self.dico_int_signal)
         return nb_signals
 
-    def populateDicoAlias(self,index=5):
+    def populateDicoAlias(self):
         max = len(self.list_tbl_tables_begin)
         found = False
         for index in range(1,max+1):
