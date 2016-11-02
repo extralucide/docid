@@ -19,8 +19,8 @@ except ImportError:
 try:
     import Pmw
 except ImportError:
-    print ("DoCID requires the Python MegaWidgets for Python. " \
-    "See http://sourceforge.net/projects/pmw/")
+    print ("DoCID requires the Python MegaWidgets for Python. "
+           "See http://sourceforge.net/projects/pmw/")
 import tkMessageBox
 import tkSimpleDialog
 import Queue
@@ -71,13 +71,11 @@ class scrollTxtArea:
 
 class ExportIS(CheckIS):
     dico_sheets = {"is":("CONTEXT","REVIEW","DOC REVIEW","REQ REVIEW","REQ ANALYSIS","UPPER REQ ANALYSIS","REMARKS")}
-    def __init__(self,
-                 hlr_selected=False,
-                 **kwargs):
 
+    def __init__(self, hlr_selected=False, **kwargs):
+        CheckIS.__init__(self, **kwargs)
         for key in kwargs:
             self.__dict__[key] = kwargs[key]
-
         self.index_row = 0
         self.index_column = 0
         self.nb_cell_read = 0
@@ -92,7 +90,6 @@ class ExportIS(CheckIS):
         self.resetKeywords()
         self.dico_remarks = {}
         self.resetSheetsList()
-        # Patch temporaire
         self.component = ""
         self.list_cr = []
         self.list_cr_not_found = []
@@ -101,20 +98,20 @@ class ExportIS(CheckIS):
         self.tbl_file_llr_wo_del = {}
         swrd = ExtractReq()
         result = swrd.restoreFromSQLite()
-        for id,tag,body,issue,refer,status,derived,terminal,rationale,safety,additional in project_list:
-            self.tbl_list_llr[tag]={"issue":issue,
-                                    "status":status,
-                                    "refer":refer,
-                                    "derived":derived,
-                                    "body":body
-                                    }
+        for id, tag, body, issue, refer, status, derived, terminal, rationale, safety, additional in project_list:
+            self.tbl_list_llr[tag] = {"issue": issue,
+                                      "status": status,
+                                      "refer": refer,
+                                      "derived": derived,
+                                      "body": body
+            }
             if status is not "DELETED":
-                self.tbl_file_llr_wo_del[tag]={"issue":issue,
-                                        "status":status,
-                                        "refer":refer,
-                                        "derived":derived,
-                                        "body":body
-                                        }
+                self.tbl_file_llr_wo_del[tag] = {"issue": issue,
+                                                 "status": status,
+                                                 "refer": refer,
+                                                 "derived": derived,
+                                                 "body": body
+                }
 
 class ThreadReq(ThreadQuery):
     def __init__(self,
@@ -144,7 +141,8 @@ class ThreadReq(ThreadQuery):
         self.running = True
         self.verrou = threading.RLock()
 
-    def _importSWRD(self):
+    @staticmethod
+    def _importSWRD():
         print "ImportSWRD"
         swrd = ExtractReq()
         swrd.extract()
@@ -173,7 +171,7 @@ class ThreadReq(ThreadQuery):
         while self.queue.qsize():
             try:
                 self.lock()
-                print threading.enumerate();
+                print threading.enumerate()
                 # Check contents of message
                 action = self.queue.get(0)
                 print "ACTION:",action
@@ -201,8 +199,8 @@ class ExtractReq():
         self.spec.use_full_win32com = True
 
     @staticmethod
-    def getSplitRefer(str_refer,type="SWRD_[\w-]*"):
-        list_hlr = re.findall(r'\[({:s})\]'.format(type), str_refer)
+    def getSplitRefer(str_refer,type_doc="SWRD_[\w-]*"):
+        list_hlr = re.findall(r'\[({:s})\]'.format(type_doc), str_refer)
         return list_hlr
 
     def extract(self):
@@ -212,7 +210,8 @@ class ExtractReq():
         self.saveInSQLite()
         self.spec.closeLog()
 
-    def restoreFromSQLite(self,database="db/swrd.db3"):
+    @staticmethod
+    def restoreFromSQLite(database="db/swrd.db3"):
         sql_req = SQLite(database)
         sql_req.connect()
         reqs = sql_req.get_all()
@@ -229,18 +228,17 @@ class ExtractReq():
         print "nb entries:",nb
         sql_req.close()
         for req,value in self.spec.tbl_list_llr.iteritems():
-            dico_attrib = {}
-            dico_attrib["id"] = req
-            dico_attrib["body"] = self.spec.getAtribute(value,"body")
-            dico_attrib["derived"] = self.spec.getAtribute(value,"derived")
-            dico_attrib["issue"] = self.spec.getAtribute(value,"issue")
-            dico_attrib["status"] = self.spec.getAtribute(value,"status")
-            dico_attrib["safety"] = self.spec.getAtribute(value,"safety")
-            dico_attrib["terminal"] = self.spec.getAtribute(value,"terminal")
+            dico_attrib = {"id": req, "body": self.spec.getAtribute(value, "body"),
+                           "derived": self.spec.getAtribute(value, "derived"),
+                           "issue": self.spec.getAtribute(value, "issue"),
+                           "status": self.spec.getAtribute(value, "status"),
+                           "safety": self.spec.getAtribute(value, "safety"),
+                           "terminal": self.spec.getAtribute(value, "terminal")}
             #print "REQ:",req
             #print "BODY:",dico_attrib["body"]
 
-    def setUp(self,case=0):
+    @staticmethod
+    def setUp(case=0):
         import os
         #print("Setting up Test cases")
         dirname = ""
@@ -249,8 +247,8 @@ class ExtractReq():
             #dirs = ("SET_G7000_ACENM","SWDD","LLR","Application Layer","Application Actuation")
             dirs = ("SWRD","TEST")
             dirname = join(current_dir,"qualification")
-            for dir in dirs:
-                dirname = join(dirname,dir)
+            for directory in dirs:
+                dirname = join(dirname,directory)
         return dirname
 
     def test_extract_tables_in_swrd(self):
@@ -276,8 +274,8 @@ class ExtractReq():
         nb_alias = swrd.populateDicoAlias()
         print("{:d} alias found.".format(nb_alias))
 
-        for id,table in spec.list_tbl_tables_begin.iteritems():
-            if id == 4: # External interface dataflow
+        for table_id,table in spec.list_tbl_tables_begin.iteritems():
+            if table_id == 4: # External interface dataflow
                 for index,row in enumerate(table):
                     if index == 0: # header
                         print "HEADER"
@@ -286,10 +284,10 @@ class ExtractReq():
                         print "----------"
                     else:
                         print row
-            elif id == 5: # Internal interface dataflow
+            elif table_id == 5: # Internal interface dataflow
                 for row in table:
                     print row
-            elif id == 6: # Alias
+            elif table_id == 6: # Alias
                 for row in table:
                     print row
         #req.extract(filename,type=["SWRD"])
@@ -298,13 +296,9 @@ class ExtractReq():
         root = ET.Element("SWRD")
         signals = ET.SubElement(root, "SIGNALS")
         for req,value in spec.tbl_list_llr.iteritems():
-            dico_attrib = {}
-            dico_attrib["id"] = req
-            dico_attrib["derived"] = spec.getAtribute(value,"derived")
-            dico_attrib["issue"] = spec.getAtribute(value,"issue")
-            dico_attrib["status"] = spec.getAtribute(value,"status")
-            dico_attrib["safety"] = spec.getAtribute(value,"safety")
-            dico_attrib["terminal"] = spec.getAtribute(value,"terminal")
+            dico_attrib = {"id": req, "derived": spec.getAtribute(value, "derived"),
+                           "issue": spec.getAtribute(value, "issue"), "status": spec.getAtribute(value, "status"),
+                           "safety": spec.getAtribute(value, "safety"), "terminal": spec.getAtribute(value, "terminal")}
             requirements = ET.SubElement(root, "REQ",attrib=dico_attrib)
             # Refer
             str_refer = spec.getAtribute(value,"refer")
@@ -340,8 +334,11 @@ class ExtractReq():
             os.startfile(html_filename)
 
 class GuiTool():
-    def createEntry(self,
-                    frame,
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def createEntry(frame,
                     tag,
                     content,
                     bg="white",
@@ -398,7 +395,7 @@ class smallWindows(Frame,
     def up_event(self, event,listbox):
         index = listbox.index("active")
         if listbox.selection_includes(index):
-            index = index - 1
+            index -= 1
         else:
             index = listbox.size() - 1
         if index < 0:
@@ -448,7 +445,7 @@ class smallWindows(Frame,
         return version
 
     def get_status(self):
-        status=self.status_listbox.get()
+        status=self.status_listbox.get(FIRST)
         return status
 
     def remove_comment(self,event,comment_id,rule_id,rule_tag,user_login):
@@ -517,7 +514,7 @@ class smallWindows(Frame,
             frame.tag_bind(handle, "<Leave>", self.outsideLink)
         frame.insert(END, txt,handle)
 
-    def edit_comment(self,id):
+    def edit_comment(self,comment_id):
         txt=self.read()
         now = datetime.now()
         date = now.strftime("%A, %d. %B %Y %I:%M%p")
@@ -525,33 +522,33 @@ class smallWindows(Frame,
         user_login = getpass.getuser()
         status = self.get_status()
         if tkMessageBox.askyesno("Update Comment", "Are you sure?"):
-            Tool.UpdateComment(id,
+            Tool.UpdateComment(comment_id,
                                 user_login=user_login,
                                 date=date,
                                 txt=txt,
                                 status=status)
         self.exit()
 
-    def edit_response(self,id):
+    def edit_response(self,response_id):
         txt=self.read()
         now = datetime.now()
         date = now.strftime("%A, %d. %B %Y %I:%M%p")
         print "NOW:",date
         user_login = getpass.getuser()
         if tkMessageBox.askyesno("Update Response", "Are you sure?"):
-            Tool.UpdateResponse(id,
+            Tool.UpdateResponse(response_id,
                                 user_login=user_login,
                                 date=date,
                                 txt=txt)
         self.exit()
 
-    def add_response(self,id):
+    def add_response(self,comment_id):
         txt=self.read()
         now = datetime.now()
         date = now.strftime("%A, %d. %B %Y %I:%M%p")
         user_login = getpass.getuser()
         if tkMessageBox.askyesno("Add a response", "Are you sure?"):
-            Tool.ResponseToComment(id,
+            Tool.ResponseToComment(comment_id,
                                 user_login=user_login,
                                 date=date,
                                 txt=txt)
@@ -560,11 +557,11 @@ class smallWindows(Frame,
     def editResponseWindow(self, event, response_id):
         # Edit comment
         InspectionWorkflow = ("TO BE DISCUSSED","ACCEPTED","CORRECTED","REJECTED")
-        id,user_login,date,response,status = Tool.readResponse(response_id)
+        sql_response_id,user_login,date,response,status = Tool.readResponse(response_id)
         comment_windows = smallWindows(master=self.display_rule)
         comment_windows.create(title="Response")
         left_frame = Frame(comment_windows.display_rule)
-        comment_windows.create_text(title="Response {:d} written by {:s} on {:s}".format(id,user_login,date),
+        comment_windows.create_text(title="Response {:d} written by {:s} on {:s}".format(sql_response_id,user_login,date),
                                     frame=left_frame,
                                     height=8,
                                     side=TOP)
@@ -579,18 +576,18 @@ class smallWindows(Frame,
     def editCommentWindow(self, event, comment_id,rule_tag):
         # Edit comment
         InspectionWorkflow = ("TO BE DISCUSSED","ACCEPTED","CORRECTED","REJECTED")
-        id,user_login,date,comment,status = Tool.readCommentByID(comment_id)
+        sql_comment_id,user_login,date,comment,status = Tool.readCommentByID(comment_id)
         comment_windows = smallWindows(master=self.display_rule)
         comment_windows.create(title="Comment")
         left_frame = Frame(comment_windows.display_rule)
-        comment_windows.create_text(title="Update comment {:d} written by {:s} on {:s} for rule {:s}".format(id,user_login,date,rule_tag),
+        comment_windows.create_text(title="Update comment {:d} written by {:s} on {:s} for rule {:s}".format(sql_comment_id,user_login,date,rule_tag),
                                     frame=left_frame,
                                     height=8,
                                     side=TOP)
         formatted_comment = Tool.replaceNonASCII(comment)
         comment_windows.write(txt='{:s}'.format(formatted_comment))
         # Display comments
-        responses_frame = comment_windows.create_text(title="Responses for comments {:d}".format(id),
+        responses_frame = comment_windows.create_text(title="Responses for comments {:d}".format(sql_comment_id),
                                                       frame=left_frame,
                                                       height=8)
         responses = Tool.readResponses(comment_id)
@@ -642,17 +639,17 @@ class smallWindows(Frame,
             print "Status Num:",num
             self.status_listbox.selectitem(num,setentry=1)
 
-    def add_button(self,text,help,side=LEFT,callback=None,id=None):
-        if id is None:
+    def add_button(self,text,func_help,side=LEFT,callback=None,rule_id=None):
+        if rule_id is None:
             self.button_add_comment = Button(self.display_rule,
                                                text=text,
                                                command=callback)
         else:
             self.button_add_comment = Button(self.display_rule,
                                                text=text,
-                                               command=lambda arg1=id: callback(id))
+                                               command=lambda arg=rule_id: callback(arg))
         balloon_help = Pmw.Balloon(self.display_rule)
-        balloon_help.bind(self.button_add_comment, help)
+        balloon_help.bind(self.button_add_comment, func_help)
 
         self.button_add_comment.pack(padx=5,anchor=E,fill=X,side=side)
 
@@ -676,14 +673,14 @@ class smallWindows(Frame,
                                    callback=lambda arg1=rule_id,arg2=rule_tag,arg3=callback_refresh: comment_windows.add_comment(arg1,arg2,arg3))
         comment_windows.add_button(text="Quit",help="Back to the rule",side=TOP,callback=comment_windows.exit)
 
-    def display_input_new_response_windows(self,id):
+    def display_input_new_response_windows(self,comment_id):
         comment_windows = smallWindows(master=self.display_rule)
         comment_windows.create(title="Response")
-        comment_windows.create_text(title="Response to comment {:d}".format(id))
+        comment_windows.create_text(title="Response to comment {:d}".format(comment_id))
         comment_windows.add_button(text="OK",
                                    help="Add a response",
                                    side=TOP,
-                                   callback=lambda arg1=id:comment_windows.add_response(id))
+                                   callback=lambda arg=comment_id:comment_windows.add_response(arg))
         comment_windows.add_button(text="Quit",
                                    help="Back",
                                    side=TOP,
@@ -695,7 +692,7 @@ class smallWindows(Frame,
         if comments:
             print "COMMENTS",comments
             inter = 0
-            for id,user_login,date,comment in comments:
+            for comment_id,user_login,date,comment in comments:
                 if inter % 2 == 0:
                     color = 'gray88'
                 else:
@@ -703,12 +700,12 @@ class smallWindows(Frame,
                 handle = "handle_{:d}".format(inter)
                 #self.comment_windows.write(txt='{:d}) {:s} {:s}: {:s}\n'.format(id,user_login,date,comment),
                 formatted_comment = Tool.replaceNonASCII(comment)
-                self.comment_windows.write(txt='{:d}) {:s}\n'.format(id,formatted_comment),
+                self.comment_windows.write(txt='{:d}) {:s}\n'.format(comment_id,formatted_comment),
                                            color=color,
                                            handle=handle,
-                                           hlink = id,
-                                           callback=lambda event, arg1=id,arg2=rule_tag: self.editCommentWindow(event,id,rule_tag),
-                                           callback_delete=lambda event, arg1=id,arg2=rule_id,arg3=rule_tag,arg4=user_login: self.remove_comment(event,arg1,arg2,arg3,arg4),
+                                           hlink = comment_id,
+                                           callback=lambda event, arg1=comment_id,arg2=rule_tag: self.editCommentWindow(event,arg1,arg2),
+                                           callback_delete=lambda event, arg1=comment_id,arg2=rule_id,arg3=rule_tag,arg4=user_login: self.remove_comment(event,arg1,arg2,arg3,arg4),
                                            run=True)
                 inter += 1
         # Disable writing
@@ -741,8 +738,8 @@ class smallWindows(Frame,
         self.comment_windows.create(title="DO-178 {:s} Objectives".format(self.review_type))
         result = Tool.getDesignReviewDoObjectives()
         list_objectives = []
-        for id,chapter,objective,description in result:
-            list_objectives.append("{:d}) {:s} {:s}".format(id,chapter,objective))
+        for objective_id,chapter,objective,description in result:
+            list_objectives.append("{:d}) {:s} {:s}".format(objective_id,chapter,objective))
         left_frame = Frame(self.comment_windows.display_rule)
         self.comment_windows.create_listbox(frame=left_frame,
                                             height=6,
@@ -779,6 +776,8 @@ class smallWindows(Frame,
         index = self.status_listbox.curselection()[0]
         if index != ():
             item = self.status_listbox.get(index)
+        else:
+            item = None
         self.selection = item
         print "ITEM SELECTED",item
 
@@ -786,6 +785,8 @@ class smallWindows(Frame,
         index = self.status_listbox.curselection()[0]
         if index != ():
             status = self.status_listbox.get(index)
+        else:
+            status = None
         print "STATUS",status
         Tool.updateRuleStatus(self.rule_id,status)
 
@@ -857,7 +858,7 @@ class smallWindows(Frame,
                        text=None,
                        height=2,
                        width=80,
-                       list=("APPROVED","MODIFIED","TO BE MODIFIED","DELETED"),
+                       list_items=("APPROVED","MODIFIED","TO BE MODIFIED","DELETED"),
                        callback=None):
 
         self.status_listbox = Pmw.ComboBox(frame,
@@ -865,7 +866,7 @@ class smallWindows(Frame,
                 labelpos = 'nw',
                 sticky = 'w',
                 selectioncommand = self.set_listbox_selection,
-                scrolledlist_items = list,
+                scrolledlist_items = list_items,
                 dropdown = 0,
         )
 
@@ -891,7 +892,7 @@ class smallWindows(Frame,
                        text=None,
                        height=2,
                        width=80,
-                       list=("APPROVED","MODIFIED","TO BE MODIFIED","DELETED"),
+                       list_items=("APPROVED","MODIFIED","TO BE MODIFIED","DELETED"),
                        callback=None):
 
         if text is None:
@@ -916,7 +917,7 @@ class smallWindows(Frame,
         self.status_listbox.bind("<Key-Down>", lambda event, arg=self.status_listbox: self.down_event(event, arg))
         self.status_listbox.bind("<ButtonRelease-1>", self.set_listbox_selection)
         inter = 0
-        for status in list:
+        for status in list_items:
             self.status_listbox.insert(END, status)
             if inter % 2 == 0:
                 self.status_listbox.itemconfig(inter, {'bg': 'gray88', 'fg': 'black'})
@@ -1068,9 +1069,9 @@ class smallWindows(Frame,
         self.display_rule.focus_set()
 
     def write_objectives(self, list_objectives):
-        for type,chapter,objective in list_objectives:
+        for type_objective,chapter,objective in list_objectives:
             print "list_objectives",list_objectives
-            self.display_objectives.insert(END, chapter + " " + type + ": " + objective + "\n")
+            self.display_objectives.insert(END, chapter + " " + type_objective + ": " + objective + "\n")
         self.objectives_frame.pack(anchor=W)
 
     def write_refers_to_deprecated(self, list_refers_to):
@@ -1224,7 +1225,7 @@ class Std(TableCanvas):
 
         self.rows = self.model.getRowCount()
         self.cols = self.model.getColumnCount()
-        self.tablewidth = (self.cellwidth) * self.cols
+        self.tablewidth = self.cellwidth * self.cols
         #self.do_bindings()
         #initial sort order
         self.model.setSortOrder()
@@ -1243,7 +1244,7 @@ class Std(TableCanvas):
         self.delete('multicellrect')
         rclicked = self.get_row_clicked(event)
         colclicked = self.get_col_clicked(event)
-        if colclicked == None:
+        if colclicked is None:
             return
         column_name = self.model.getColumnLabel(colclicked)
         print "column_name",column_name
@@ -1356,7 +1357,9 @@ class Std(TableCanvas):
                 try: print 'entire record:', self.model.getRecordAtRow(clicks[0])
                 except: print 'No record at:', clicks
 
-    def do_bindings(self,callback):
+    def do_bindings(self,callback=None):
+        if callback is None:
+            print "Missing callback for do_bindings line 1360"
         #print "Std custom do_bindings"
         #self.bind("<Button-1>",self.user_handle_left_click)
         self.bind("<Double-Button-1>",lambda event,arg=callback: self.user_handle_double_click(event,arg))
@@ -1371,9 +1374,9 @@ class Std(TableCanvas):
         result = Tool.getDesignReviewDoObjectives(database=self.database)
         index = 1
         data = {}
-        for id,chapter,objective,description in result:
+        for objective_id,chapter,objective,description in result:
             data[index] = {}
-            data[index]["Objective ID"] = id
+            data[index]["Objective ID"] = objective_id
             data[index]["Chapter"] = chapter
             data[index]["Objective"] = objective
             data[index]["Description"] = description
@@ -1398,7 +1401,7 @@ class Std(TableCanvas):
     def setList(self,
                 by_req=True,
                 page=None):
-
+        print "setList for class Std"
         result = Tool.getAll_SDTS_Rule_by_req(by_req=by_req,
                                               version=self.version,
                                               database=self.database)
@@ -1418,9 +1421,10 @@ class Std(TableCanvas):
                              project_list,
                              std_type="",
                              rule_type=""):
+        print "_refreshTableProject from class Std"
         index = 1
         data = {}
-        for id,tag,status,version,description,auto,comments in project_list:
+        for comment_id,tag,status,version,description,auto,comments in project_list:
             data[index] = {}
             str_id = "{:d}".format(tag)
             data[index]["Rule ID"] = "{:s}_{:s}{:s}".format(std_type,rule_type,str_id.zfill(3))
@@ -1444,9 +1448,23 @@ class Std(TableCanvas):
         page.redrawTable()
 
 class Std_Req(Std):
-    def setList(self,
-                page=None):
+    def __init__(self,
+             parent=None,
+             model=None,
+             width=None,
+             height=None,
+             rows=10,
+             cols=5,
+             editable=False,
+             database=None,
+             sds_type=None,
+             **kwargs):
+        Std.__init__(self,parent,model,width,height,rows,cols,editable,database,sds_type,**kwargs)
 
+    def setList(self,
+                by_req=False,
+                page=None):
+        print "setList for class Std_Req"
         swrd = ExtractReq()
         result = swrd.restoreFromSQLite()
 
@@ -1460,13 +1478,21 @@ class Std_Req(Std):
     def _refreshTableProject(self,
                              page,
                              project_list,
-                             std_type=""):
+                             std_type="",
+                             rule_type=""):
+        """
+
+        :param page:
+        :param project_list:
+        :param std_type:
+        :param rule_type:
+        """
         index = 1
         data = {}
         page.reqs_tag_vs_id = {}
         # TODO: Ajouter un lien entre id et tag
-        for id,tag,body,issue,refer,status,derived,terminal,rationale,safety,additional in project_list:
-            page.reqs_tag_vs_id[tag]=id
+        for req_id,tag,body,issue,refer,status,derived,terminal,rationale,safety,additional in project_list:
+            page.reqs_tag_vs_id[tag]=req_id
             data[index] = {}
             data[index]["Req ID"] = tag
             #data[index]["Version"] = issue
@@ -1527,7 +1553,7 @@ class Std_Req(Std):
                         # Create windows for rule attributes
                         sql_req = SQLite(database=self.database)
                         sql_req.connect()
-                        id,tag,body,issue,refer,status,derived,terminal,rationale,safety,additional = sql_req.get(id=req_id)
+                        sql_req_id,tag,body,issue,refer,status,derived,terminal,rationale,safety,additional = sql_req.get(id=req_id)
                         sql_req.close()
                         self.small_windows = smallWindowsReq(database=self.database)
                         # TODO: passer en argument
@@ -1556,7 +1582,9 @@ class Std_Req(Std):
                 try: print 'entire record:', self.model.getRecordAtRow(clicks[0])
                 except: print 'No record at:', clicks
 
-    def do_bindings(self,callback):
+    def do_bindings(self,callback=None):
+        if callback is None:
+            print "Missing callback for do_bindings of class Std_Req"
         #print "Std custom do_bindings"
         #self.bind("<Button-1>",self.user_handle_left_click)
         self.bind("<Double-Button-1>",lambda event,arg=callback: self.user_handle_double_click(event,arg))
@@ -1636,8 +1664,7 @@ class ThreadSafeListbox(Listbox):
 
 class ManageStdGui(Frame,
                    Toplevel,
-                   Text,
-                   Std):
+                   Text):
     dico_sheetnames={"general":"General","by_req":"By Requirement","do":"DO-178 Design Review Objectives"}
     def online_documentation(self,event=None):
         """Open the online documentation"""
@@ -1645,13 +1672,14 @@ class ManageStdGui(Frame,
         link='file:///C:/Users/olivier.appere/DesignEditor/srts_rules.html#'
         webbrowser.open(link,autoraise=1)
 
-    def export_xml(self):
+    @staticmethod
+    def export_xml():
         import xml.etree.ElementTree as ET
-        type = "SDTS"
-        if type == "SRTS":
+        type_standard = "SDTS"
+        if type_standard == "SRTS":
             database = "db/srts_rules.db3"
             xml_filename = "result\\srts_rules_list.xml"
-        elif type == "SDTS":
+        elif type_standard == "SDTS":
             database = "db/sdts_rules.db3"
             xml_filename = "result\\sdts_rules_list.xml"
         else:
@@ -1660,7 +1688,7 @@ class ManageStdGui(Frame,
         root = ET.Element("STD")
         result = Tool.getAll_SDTS_Rule_by_req(by_req=True,database=database)
         # TODO: add link to DO-178
-        for id,status,version,description,auto,comments in sorted(result):
+        for comment_id,status,version,description,auto,comments in sorted(result):
             if status is None:
                 status = ""
             if version is None:
@@ -1677,7 +1705,7 @@ class ManageStdGui(Frame,
                 auto_attrib = "MAYBE"
             else:
                 auto_attrib = "NO"
-            str_id = "{:d}".format(id)
+            str_id = "{:d}".format(comment_id)
             list_objectives = Tool.getRuleObjectives(str_id,database = database)
             rule_node = ET.SubElement(root, "RULE",attrib={"id":str_id,
                                                             "status":status,
@@ -1724,7 +1752,7 @@ class ManageStdGui(Frame,
                 tkMessageBox.showwarning("Name exists", "Sheet name already exists!")
                 return 0
         noshts = len(self.notebook.pagenames())
-        if sheetname == None:
+        if sheetname is None:
             sheetname = tkSimpleDialog.askstring("New sheet name?", "Enter sheet name:",
                                                 initialvalue='sheet'+str(noshts+1))
         checksheet_name(sheetname)
@@ -1774,7 +1802,7 @@ class ManageStdGui(Frame,
                 tkMessageBox.showwarning("Name exists", "Sheet name already exists!")
                 return 0
         noshts = len(self.notebook.pagenames())
-        if sheetname == None:
+        if sheetname is None:
             sheetname = tkSimpleDialog.askstring("New sheet name?", "Enter sheet name:",
                                                 initialvalue='sheet'+str(noshts+1))
         checksheet_name(sheetname)
@@ -1933,8 +1961,8 @@ class ManageStdGui(Frame,
                 "columntypes":{"Rule ID":"text","Version":"text","Status":"text","Objective":"text"}}
         self.sheets = {}
         self.add_Sheet_Req(sheetname=self.dico_sheetnames['by_req'],sheetdata=data)
-        self.setList(page=self.sheets[self.dico_sheetnames['by_req']])
-        self.sheets[self.dico_sheetnames['by_req']].do_bindings(self.refreshReq)
+        self.currenttable.setList(page=self.sheets[self.dico_sheetnames['by_req']])
+        self.currenttable.do_bindings(self.refreshReq)
         ok_button = Button(self.overall_frame, text='OK', command=self.fenetre.destroy)
         ok_button.pack(side=LEFT, anchor=E)
         refresh_button = Button(self.overall_frame, text='Refresh', command=self.refreshReq)
