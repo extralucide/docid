@@ -302,7 +302,7 @@ class ExtractReq():
             requirements = ET.SubElement(root, "REQ",attrib=dico_attrib)
             # Refer
             str_refer = spec.getAtribute(value,"refer")
-            list_refer = spec.getSplitRefer(str_refer,type="[A-Z]*[_-][\w-]*")
+            list_refer = spec.getSplitRefer(str_refer,type_doc="[A-Z]*[_-][\w-]*")
             #if req == "SWRD_GLOBAL-ACENM_0006":
             #    print "str_refer",str_refer
             #    print "list_refer",list_refer
@@ -311,7 +311,7 @@ class ExtractReq():
                 str_constraints = self.getAtribute(value,"constraint")
                 str_constraints_cleaned = Tool.removeNonAscii(str_constraints)
                 str_constraints_cleaned_wo_dot = re.sub(r"\.", r"_",str_constraints_cleaned)
-                list_constraints = self.getSplitRefer(str_constraints_cleaned_wo_dot,type="[^\[^\].]*")
+                list_constraints = self.getSplitRefer(str_constraints_cleaned_wo_dot,type_doc="[^\[^\].]*")
             rationale_tag = ET.SubElement(requirements, "RATIONALE")
             rationale_tag.text = spec.getAtribute(value,"rationale")
             additional_tag = ET.SubElement(requirements, "ADDITIONAL")
@@ -614,7 +614,7 @@ class smallWindows(Frame,
         comment_windows.create_combobox(comment_windows.display_rule,
                                         width=40,
                                         text="Status",
-                                        list=InspectionWorkflow,
+                                        list_items=InspectionWorkflow,
                                         callback=self.status_listbox_onselect)
         comment_windows.status_focus(status,
                                      list_items=InspectionWorkflow)
@@ -766,6 +766,7 @@ class smallWindows(Frame,
         html = markdowner.convert(description)
         print "HTML:",html
         html_converted = Tool.replaceNonASCII(html)
+        # TODO: Remove non ascii character like u'\u201c'
         filename = join("result","preview.html")
         with open(filename, 'w') as of:
             of.write(html_converted)
@@ -1027,7 +1028,7 @@ class smallWindows(Frame,
         self.create_combobox(right_frame,
                             width=40,
                             text="Status",
-                            list=("MATURE","TBD","TBC"),
+                            list_items=("MATURE","TBD","TBC"),
                             callback=self.status_listbox_onselect)
 
         self.entry_version = self.createEntry(frame=right_frame,
@@ -1122,7 +1123,7 @@ class smallWindowsReq(smallWindows):
         self.create_combobox(right_frame,
                             width=40,
                             text="Status",
-                            list=("MATURE","TBD","TBC"),
+                            list_items=("MATURE","TBD","TBC"),
                             callback=self.status_listbox_onselect)
 
         self.entry_version = self.createEntry(frame=right_frame,
@@ -1179,6 +1180,7 @@ class Std(TableCanvas):
         if database is not None:
             print "DATABASE:",database
             self.database = database
+        self.version = None
         self.sds_type=sds_type
         self.cellbackgr = '#FFFAF0'
         self.entrybackgr = 'white'
@@ -1516,7 +1518,7 @@ class Std_Req(Std):
 
     def refreshObjectives(self,str_refer):
         # Refers To
-        list_refer = ExtractReq.getSplitRefer(str_refer,type="[A-Z]*_[\w-]*") #"SWRD_[\w-]*"
+        list_refer = ExtractReq.getSplitRefer(str_refer,type_doc="[A-Z]*_[\w-]*") #"SWRD_[\w-]*"
         self.small_windows.write_objectives(list_refer)
 
     def user_handle_double_click(self, event,callback_refresh_all):  #Click event callback function.
@@ -1841,14 +1843,17 @@ class ManageStdGui(Frame,
 
     def refreshAll(self):
         # Page General
-        self.setList(by_req=False,page=self.sheets[self.dico_sheetnames['general']])
+        page = self.sheets[self.dico_sheetnames['general']]
+        page.setList(by_req=False,page=page)
         # Page By Requirement
-        self.setList(by_req=True,page=self.sheets[self.dico_sheetnames['by_req']])
+        page = self.sheets[self.dico_sheetnames['by_req']]
+        page.setList(by_req=True,page=page)
         # Page DO-178 Objectives
-        self.setListDoObjectives(page=self.sheets[self.dico_sheetnames['do']])
+        page = self.sheets[self.dico_sheetnames['do']]
+        page.setListDoObjectives(page=page)
 
-    def refreshReq(self):
-        self.setList(by_req=True,page=self.sheets[self.dico_sheetnames['by_req']])
+    def refreshReq(self, page):
+        self.page.setList(by_req=True,page=page)
 
     @staticmethod
     def setWindowPos(window):
@@ -1965,7 +1970,9 @@ class ManageStdGui(Frame,
         self.currenttable.do_bindings(self.refreshReq)
         ok_button = Button(self.overall_frame, text='OK', command=self.fenetre.destroy)
         ok_button.pack(side=LEFT, anchor=E)
-        refresh_button = Button(self.overall_frame, text='Refresh', command=self.refreshReq)
+        refresh_button = Button(self.overall_frame,
+                                text='Refresh',
+                                command=lambda arg=self.sheets[self.dico_sheetnames['by_req']]: self.currenttable.refreshReq(arg))
         refresh_button.pack(side=LEFT, anchor=E)
         cancel_button = Button(self.overall_frame, text='Quit', command=self.fenetre.destroy)
         cancel_button.pack(anchor=E)
@@ -1989,7 +1996,7 @@ class ManageStdGui(Frame,
         self.add_Sheet(sheetname=self.dico_sheetnames['general'],sheetdata=data)
         self.add_Sheet(sheetname=self.dico_sheetnames['by_req'],sheetdata=data)
         self.add_Sheet(sheetname=self.dico_sheetnames['do'],
-                       sheetdata={"colnames":{"Objective ID":"","Chapter":"","Objectives":"","Description":""}},
+                       sheetdata={"colnames":{"Objective ID":"", "Chapter":"", "Objectives":"", "Description":""}},
                        import_dict=True)
 
         # Page General, By Requirement and DO-178 Objectives
