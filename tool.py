@@ -92,12 +92,354 @@ except ImportError as e:
 #    from pycparser import c_parser, c_ast,parse_file
 #except ImportError as e:
 #    warnings.warn(e)
+class SQLite():
+    # TODO: Move sqlite query from Tool class here
+    def __init__(self,database):
+        self.database = database
 
+    def connect(self):
+        try:
+            self.con = lite.connect(self.database, isolation_level=None)
+            #cur = self.con.cursor()
+            #cur.execute("DROP TABLE IF EXISTS hlr_vs_chapter")
+            return True
+        except lite.Error, e:
+            print "Error %s:" % e.args[0]
+            return False
+
+    def create(self):
+        try:
+            #con = lite.connect('swrd_enm.db3')
+            cur = self.con.cursor()
+            cur.executescript("""
+                                BEGIN TRANSACTION;
+                                DROP TABLE IF EXISTS requirements;
+                                CREATE TABLE requirements (id INTEGER PRIMARY KEY, tag TEXT, body TEXT, issue TEXT, refer TEXT, status TEXT, derived TEXT, terminal TEXT,rationale TEXT, safety TEXT, additional TEXT);
+                                COMMIT;
+                """)
+            self.con.commit()
+            print 'New SQLite database created.'
+            return True
+        except lite.Error, e:
+            print "Error %s:" % e.args[0]
+            return False
+        #finally:
+        #    if con:
+        #        con.close()
+
+    def insert_many(self,dico_attr):
+        with self.con:
+            counter = 0
+            cur = self.con.cursor()
+            #self.con.set_progress_handler(self.progress_handler, 1)
+            #print "tbl_req_vs_chapter",tbl_req_vs_chapter
+            #cur.execute("INSERT INTO last_query(database,reference,revision,project,item,release,baseline,input_date) VALUES(?,?,?,?,?,?,?,?)",(self.database,self.reference,self.revision,project,item,release,baseline,now))
+            for req,value in dico_attr.iteritems():
+                dico_attrib = {}
+                dico_attrib["id"] = req
+                dico_attrib["body"] = Tool.getAtribute(value,"body")
+                dico_attrib["derived"] = Tool.getAtribute(value,"derived")
+                dico_attrib["issue"] = Tool.getAtribute(value,"issue")
+                dico_attrib["refer"] = Tool.getAtribute(value,"refer")
+                dico_attrib["status"] = Tool.getAtribute(value,"status")
+                dico_attrib["safety"] = Tool.getAtribute(value,"safety")
+                dico_attrib["terminal"] = Tool.getAtribute(value,"terminal")
+                dico_attrib["additional"] = Tool.getAtribute(value,"additional")
+                dico_attrib["rationale"] = Tool.getAtribute(value,"rationale")
+                counter += 1
+                cur.execute("INSERT INTO requirements(tag,body,issue,refer,status,derived,terminal,rationale,safety,additional) "
+                            "VALUES(?,?,?,?,?,?,?,?,?,?)",(dico_attrib["id"],dico_attrib["body"],dico_attrib["issue"],
+                                                           dico_attrib["refer"],dico_attrib["status"],dico_attrib["derived"],
+                                                           dico_attrib["terminal"],dico_attrib["rationale"],dico_attrib["safety"],
+                                                           dico_attrib["additional"]))
+            #cur.executemany("INSERT INTO hlr_vs_chapter(chapter,req_id) VALUES(?,?)", tbl_req_vs_chapter)
+            #print cur.rowcount
+            self.con.commit()
+        return counter
+
+    def get_all(self):
+        with self.con:
+            cur = self.con.cursor()
+            cur.execute("SELECT id, tag , body , issue , refer , status , derived, terminal ,rationale, safety, additional FROM requirements")
+            data = cur.fetchall()
+        return data
+
+    def get(self,id):
+        with self.con:
+            cur = self.con.cursor()
+            cur.execute("SELECT id, tag , body , issue , refer , status , derived, terminal ,rationale, safety, additional FROM requirements WHERE id = {:d}".format(id))
+            data = cur.fetchone()
+        return data
+
+    def close(self):
+        if self.con:
+            self.con.close()
+
+class StdMngt(SQLite):
+    @staticmethod
+    def getUserRole(login,
+                     database="db/sdts_rules.db3"):
+        table = "access_control_list"
+        query = "SELECT role FROM {:s} WHERE login LIKE '{:s}'".format(table,login)
+        print "QUERY",query
+        result = Tool.sqlite_query_one(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def getSDTS_Rule(tag,
+                     version=None,
+                     database="db/sdts_rules.db3"):
+        table = "rules"
+        print ("rule id:",tag)
+        if version is not None:
+            query = "SELECT description,status,version FROM {:s} WHERE tag = {:s} AND version = {:s}".format(table,tag,version)
+        else:
+            query = "SELECT description,status,version FROM {:s} WHERE tag = {:s} ".format(table,tag)
+        print "getSDTS_Rule:",query
+        result = Tool.sqlite_query_one(query,database=database)
+        print "RESULT",result
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @classmethod
+    def getSRTS_Rule(cls,id):
+        # TODO: Erreur a corriger self ... static method
+        """
+
+        :type cls: object
+        """
+        data = cls.getSDTS_Rule(id,database="db/srts_rules.db3")
+        return data
+        table = "rules"
+        #print ("rule id:",id)
+        query = "SELECT description FROM {:s} WHERE id LIKE '{:s}'".format(table,id)
+        result = Tool.sqlite_query_one(query,database="db/srts_rules.db3")
+        if result is None:
+            data = False
+        else:
+            data = result[0]
+        return data
+
+    @staticmethod
+    def getRuleObjectives(id,
+                          database="db/sdts_rules.db3"):
+        table = "rules_vs_objectives"
+        print ("rule id:",id)
+        query = "SELECT type,chapter,objective FROM {:s} LEFT JOIN do_178_objectives ON do_178_objectives.id = rules_vs_objectives.objective_id WHERE rule_id LIKE '{:s}'".format(table,id)
+        result = Tool.sqlite_query(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def getDoObjective(objective_id,
+                     database="db/sdts_rules.db3"):
+        table = "do_178_objectives"
+        print ("objective id:",objective_id)
+        query = "SELECT chapter,objective,description FROM {:s} WHERE id LIKE '{:d}'".format(table,objective_id)
+        print "QUERY",query
+        result = Tool.sqlite_query_one(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def getDesignReviewDoObjectives(database="db/sdts_rules.db3"):
+        table = "do_178_objectives"
+        print ("rule id:",id)
+        query = "SELECT id,chapter,objective,description FROM {:s} ".format(table)
+        result = Tool.sqlite_query(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    # sdts_rules.db3
+    @staticmethod
+    def getAll_SDTS_Rule_by_req(by_req=True,
+                                version=None,
+                                database="db/sdts_rules.db3"):
+        table = "rules"
+        #print ("rule id:",id)
+        if by_req:
+            by_req_str = "1"
+        else:
+            by_req_str = "0"
+        if version is not None:
+            query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '{:s}' AND version LIKE '{:s}'".format(table,by_req_str,version)
+        else:
+            query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '{:s}'".format(table,by_req_str)
+        result = Tool.sqlite_query(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def updateDo(id,txt,database="db/sdts_rules.db3"):
+        #now = datetime.datetime.now()
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("SELECT id FROM do_178_objectives WHERE id LIKE '{:d}'  LIMIT 1".format(id))
+        data = cur.fetchone()
+        if data is not None:
+            id = data[0]
+            cur.execute("UPDATE do_178_objectives SET description=? WHERE id= ?",(txt,id))
+
+    @staticmethod
+    def updateRuleStatus(tag,
+                         status,
+                         database="db/sdts_rules.db3"):
+        #now = datetime.datetime.now()
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("SELECT id,tag FROM rules WHERE tag LIKE '{:s}' LIMIT 1".format(tag))
+        data = cur.fetchone()
+        print "DATA",data
+        if data is not None:
+            id_found = data[0]
+            query = "UPDATE rules SET status=? WHERE id= ?",(status,id_found)
+            print "QUERY",query
+            cur.execute("UPDATE rules SET status=? WHERE id= ?",(status,id_found))
+        #else:
+        #    cur.execute("INSERT INTO history(document_id,issue,writer_id,date,modifications) VALUES(?,?,?,?,?)",(3,self.revision,1,now,interface.modif_log.get(1.0,END)))
+
+    @staticmethod
+    def updateRule(tag,
+                   txt,
+                   status,
+                   version=None,
+                   database="db/sdts_rules.db3"):
+        #now = datetime.datetime.now()
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        if version is not None:
+            query = "SELECT id,tag FROM rules WHERE tag = {:s} AND version LIKE '{:s}' LIMIT 1".format(tag,version)
+            print "QUERY",query
+            cur.execute(query)
+            data = cur.fetchone()
+            if data is None:
+                print "May be version is to be created in database {:s}".format(database)
+        else:
+            cur.execute("SELECT id,tag FROM rules WHERE tag LIKE '{:s}' LIMIT 1".format(id))
+            data = cur.fetchone()
+        print "DATA",data
+        if data is not None:
+            id_found = data[0]
+            cur.execute("UPDATE rules SET description=?,status=?,version=? WHERE id= ?",(txt,status,version,id_found))
+        #else:
+        #    cur.execute("INSERT INTO history(document_id,issue,writer_id,date,modifications) VALUES(?,?,?,?,?)",(3,self.revision,1,now,interface.modif_log.get(1.0,END)))
+
+    @staticmethod
+    def addLinkRule2Objective(rule_id,objective_id,database="db/sdts_rules.db3"):
+        #TODO: write addLinkRule2Objective function
+        print "write addLinkRule2Objective function",rule_id,objective_id
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        #cur.execute("SELECT rules.id FROM rules_vs_comments WHERE rule_id LIKE '" + id + "'  LIMIT 1")
+        #data = cur.fetchone()
+        #if data is not None:
+        #   id = data[0]
+        #   cur.execute("UPDATE rules SET description=? WHERE id= ?",(txt,id))
+        #else:
+        cur.execute("INSERT INTO rules_vs_objectives(rule_id,objective_id) VALUES(?,?)",(rule_id,objective_id))
+
+    @staticmethod
+    def readComments(id,database="db/sdts_rules.db3",table = "rules_vs_comments"):
+        # TODO: rendre generique pour les reqs
+        print ("rule id:",id)
+        query = "SELECT id,user_login,date,comment FROM {:s} WHERE rule_id LIKE '{:s}' ".format(table,str(id))
+        result = Tool.sqlite_query(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def readResponses(comment_id,database="db/sdts_rules.db3"):
+        table = "responses_to_comments"
+        query = "SELECT id,user_login,date,response FROM {:s} WHERE comment_id LIKE '{:d}' ".format(table,comment_id)
+        result = Tool.sqlite_query(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def readCommentByID(id,database="db/sdts_rules.db3"):
+        table = "rules_vs_comments"
+        print ("rule id:",id)
+        query = "SELECT id,user_login,date,comment,status FROM {:s} WHERE id LIKE '{:d}' ".format(table,id)
+        result = Tool.sqlite_query_one(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def readResponse(id,database="db/sdts_rules.db3"):
+        table = "responses_to_comments"
+        print ("rule id:",id)
+        query = "SELECT id,user_login,date,response,status FROM {:s} WHERE id LIKE '{:d}' ".format(table,id)
+        result = Tool.sqlite_query_one(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def ResponseToComment(id,user_login="Nobody",date="",txt="",database="db/sdts_rules.db3"):
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("INSERT INTO responses_to_comments(comment_id,user_login,date,response) VALUES(?,?,?,?)",(id,user_login,date,txt))
+
+    @staticmethod
+    def addCommentRule(id,user_login="Nobody",date="",txt="",database="db/sdts_rules.db3"):
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("INSERT INTO rules_vs_comments(rule_id,user_login,date,comment) VALUES(?,?,?,?)",(id,user_login,date,txt))
+
+    @staticmethod
+    def UpdateComment(id,user_login="Nobody",date="",txt="",status="",database="db/sdts_rules.db3"):
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("SELECT id FROM rules_vs_comments WHERE id LIKE '{:d}'  LIMIT 1".format(id))
+        data = cur.fetchone()
+        if data is not None:
+           id = data[0]
+           cur.execute("UPDATE rules_vs_comments SET user_login=?,date=?,comment=?,status=? WHERE id= ?",(user_login,date,txt,status,id))
+
+    @staticmethod
+    def UpdateResponse(id,user_login="Nobody",date="",txt="",database="db/sdts_rules.db3"):
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("SELECT id FROM responses_to_comments WHERE id LIKE '{:d}'  LIMIT 1".format(id))
+        data = cur.fetchone()
+        if data is not None:
+           id = data[0]
+           cur.execute("UPDATE responses_to_comments SET user_login=?,date=?,response=? WHERE id= ?",(user_login,date,txt,id))
 
 #
 # Class Tool
 #
-class Tool():
+class Tool(StdMngt,SQLite):
     """
         Class toolbox
     """
@@ -208,6 +550,16 @@ class Tool():
             if not line.strip ():
                 continue
             yield line
+
+    @staticmethod
+    def getAtribute(dico,attr):
+        if attr in dico:
+            value = Tool.removeNonAscii(dico[attr])
+            # Remove tabulation
+            value = re.sub(r"\t",r"",value)
+        else:
+            value = "None"
+        return value
 
     def getOptions(self,key,tag):
         if self.config_parser.has_option(key,tag):
@@ -1324,68 +1676,6 @@ class Tool():
 ##            print "Character not supported:", exception
 ##        return stdout,stderr
     # srts_rules.db3
-    @staticmethod
-    def getSRTS_Rule(id):
-        data = self.getSDTS_Rule(id,database="db/srts_rules.db3")
-        return data
-        table = "rules"
-        #print ("rule id:",id)
-        query = "SELECT description FROM {:s} WHERE id LIKE '{:s}'".format(table,id)
-        result = Tool.sqlite_query_one(query,database="db/srts_rules.db3")
-        if result is None:
-            data = False
-        else:
-            data = result[0]
-        return data
-
-    # sdts_rules.db3
-    @staticmethod
-    def getSDTS_Rule(id,
-                     database="db/sdts_rules.db3"):
-        table = "rules"
-        print ("rule id:",id)
-        query = "SELECT description FROM {:s} WHERE id LIKE '{:s}'".format(table,id)
-        result = Tool.sqlite_query_one(query,database=database)
-        if result is None:
-            data = False
-        else:
-            data = result[0]
-        return data
-
-    # sdts_rules.db3
-    @staticmethod
-    def getAll_SDTS_Rule_by_req(by_req=True,
-                                version=None,
-                                database="db/sdts_rules.db3"):
-        table = "rules"
-        #print ("rule id:",id)
-        if by_req:
-            by_req_str = "1"
-        else:
-            by_req_str = "0"
-        if version is not None:
-            query = "SELECT id,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '{:s}' AND version LIKE '{:s}'".format(table,by_req_str,version)
-        else:
-            query = "SELECT id,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '{:s}'".format(table,by_req_str)
-        result = Tool.sqlite_query(query,database=database)
-        if result is None:
-            data = False
-        else:
-            data = result
-        return data
-
-    @staticmethod
-    def updateRule(id,txt,database="db/sdts_rules.db3"):
-        #now = datetime.datetime.now()
-        con = lite.connect(database, isolation_level=None)
-        cur = con.cursor()
-        cur.execute("SELECT rules.id FROM rules WHERE id LIKE '" + id + "'  LIMIT 1")
-        data = cur.fetchone()
-        if data is not None:
-            id = data[0]
-            cur.execute("UPDATE rules SET description=? WHERE id= ?",(txt,id))
-        #else:
-        #    cur.execute("INSERT INTO history(document_id,issue,writer_id,date,modifications) VALUES(?,?,?,?,?)",(3,self.revision,1,now,interface.modif_log.get(1.0,END)))
 
     # docid.db3
     def retrieveLastSelection(self,item):
@@ -1401,7 +1691,7 @@ class Tool():
     def getSystemName(self,item=""):
         if item != "":
             query = "SELECT systems.name FROM systems \
-                        LEFT OUTER JOIN link_systems_items ON link_systems_items.system_id = systems.id \
+                        LEFT OUTER JOIN linkze_systems_items ON link_systems_items.system_id = systems.id \
                         LEFT OUTER JOIN items ON items.id = link_systems_items.item_id \
                         WHERE items.name LIKE '{:s}'".format(item)
             result = self.sqlite_query_one(query)

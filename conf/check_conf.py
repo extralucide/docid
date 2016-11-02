@@ -2,7 +2,7 @@
 # # -*- coding: latin-1 -*-
 # -*- coding: utf-8 -*-
 class Conf():
-    active_dbg = False
+    active_dbg = True
     # TODO: Rendre parametrable dans docid.ini
     list_req_id = ("REQ_Id","Req Id")
     dico_types = {"SWRD":("body","issue","refer","status","derived","rationale","terminal","safety","additional","end"),
@@ -13,7 +13,7 @@ class Conf():
                 }
     dico_styles = {"REQ_Body":"body",
                         "REQ_Issue":"issue",
-                        "REQ_Refers_to":"refer",  # Attention sur F5X REQ_Refers to
+                        "REQ_Refers to":"refer",  # Attention sur F5X REQ_Refers to
                         "REQ_Constrained by":"constraint",
                         "REQ_Status":"status",
                         "REQ_Derived":"derived",

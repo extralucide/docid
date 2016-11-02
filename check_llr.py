@@ -2076,8 +2076,9 @@ class CheckLLR(Tool,Conf,Excel):
                             list_attributes[key] = text
                 except pythoncom.com_error as e:
                     print e
+                    #break
             else:
-                self.debug("key {:s} does not exists in a known dictionnary".format(key))
+                self.debug("key {:s} does not exists in a known dictionary".format(key))
 
     def testStatusDeleted(self,start_delimiter,list_attributes):
         # Test status attribute

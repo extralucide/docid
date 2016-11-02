@@ -910,7 +910,7 @@ class ThreadQuery(threading.Thread,Synergy):
         """
         Check every 1000 ms if there is something new in the queue.
         """
-##        print time.strftime("%H:%M:%S", time.localtime())
+        #print time.strftime("%H:%M:%S", time.localtime())
 ##        print time.strftime("PERIODIC CALL " + self.name_id)
         self.processIncoming()
         if not self.running:
@@ -920,7 +920,8 @@ class ThreadQuery(threading.Thread,Synergy):
             sys.exit(1)
         try:
             self.master_ihm.after(1000, self.periodicCall)
-        except AttributeError:
+        except AttributeError as e:
+            print "Error",e
             time.sleep(1)
             self.periodicCall
 
@@ -3515,7 +3516,7 @@ class ThreadQuery(threading.Thread,Synergy):
             dico_cr_children={}
             self.children_cr_path = 0
             if first_layer:
-                parent_cr_id = sycr_id #.zfill(4)
+                parent_cr_id = sycr_id #.zfill(4).zfill(4)
                 #REplace space bby underscore otherwise getCR_ID does not work properly
                 sycr_type = re.sub(r' ',r'_',sycr_type)
                 sycr_tag = sycr_domain + " " + sycr_type + " " + sycr_id.zfill(4)
