@@ -404,10 +404,10 @@ class StdMngt(SQLite):
         return data
 
     @staticmethod
-    def readCommentByID(id,database="db/sdts_rules.db3"):
+    def readCommentByID(comment_id,database="db/sdts_rules.db3"):
         table = "rules_vs_comments"
-        print ("rule id:",id)
-        query = "SELECT id,user_login,date,comment,status FROM {:s} WHERE id LIKE '{:d}' ".format(table,id)
+        print ("rule id:",comment_id)
+        query = "SELECT id,user_login,date,comment,status,rule_id FROM {:s} WHERE id LIKE '{:d}' ".format(table,comment_id)
         result = Tool.sqlite_query_one(query,database=database)
         if result is None:
             data = False
@@ -419,7 +419,7 @@ class StdMngt(SQLite):
     def readResponse(id,database="db/sdts_rules.db3"):
         table = "responses_to_comments"
         print ("rule id:",id)
-        query = "SELECT id,user_login,date,response,status FROM {:s} WHERE id LIKE '{:d}' ".format(table,id)
+        query = "SELECT id,user_login,date,response,status,comment_id FROM {:s} WHERE id LIKE '{:d}' ".format(table,id)
         result = Tool.sqlite_query_one(query,database=database)
         if result is None:
             data = False
