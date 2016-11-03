@@ -196,9 +196,24 @@ class StdMngt(SQLite):
         table = "rules"
         print ("rule id:",tag)
         if version is not None:
-            query = "SELECT description,status,version FROM {:s} WHERE tag = {:s} AND version = {:s}".format(table,tag,version)
+            query = "SELECT description,status,version FROM {:s} WHERE tag = {:s} AND version = {:s}".format(table,str(tag),version)
         else:
-            query = "SELECT description,status,version FROM {:s} WHERE tag = {:s} ".format(table,tag)
+            query = "SELECT description,status,version FROM {:s} WHERE tag = {:s} ".format(table,str(tag))
+        print "getSDTS_Rule:",query
+        result = Tool.sqlite_query_one(query,database=database)
+        print "RESULT",result
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def getSDTS_Rule_by_ID(rule_id,
+                           database="db/sdts_rules.db3"):
+        table = "rules"
+        print ("rule id:",rule_id)
+        query = "SELECT description,status,version FROM {:s} WHERE id = {:s} ".format(table,str(rule_id))
         print "getSDTS_Rule:",query
         result = Tool.sqlite_query_one(query,database=database)
         print "RESULT",result
@@ -228,11 +243,12 @@ class StdMngt(SQLite):
         return data
 
     @staticmethod
-    def getRuleObjectives(id,
+    def getRuleObjectives(tag,
                           database="db/sdts_rules.db3"):
         table = "rules_vs_objectives"
-        print ("rule id:",id)
-        query = "SELECT type,chapter,objective FROM {:s} LEFT JOIN do_178_objectives ON do_178_objectives.id = rules_vs_objectives.objective_id WHERE rule_id LIKE '{:s}'".format(table,id)
+        print ("rule id:",tag)
+        query = "SELECT type,chapter,objective FROM {:s} LEFT JOIN do_178_objectives ON do_178_objectives.id = rules_vs_objectives.objective_id WHERE rule_id LIKE '{:s}'".format(table,str(tag))
+        print "getRuleObjectives:",query
         result = Tool.sqlite_query(query,database=database)
         if result is None:
             data = False
@@ -245,7 +261,7 @@ class StdMngt(SQLite):
                      database="db/sdts_rules.db3"):
         table = "do_178_objectives"
         print ("objective id:",objective_id)
-        query = "SELECT chapter,objective,description FROM {:s} WHERE id LIKE '{:d}'".format(table,objective_id)
+        query = "SELECT chapter,objective,description,type FROM {:s} WHERE id LIKE '{:d}'".format(table,objective_id)
         print "QUERY",query
         result = Tool.sqlite_query_one(query,database=database)
         if result is None:
@@ -257,8 +273,7 @@ class StdMngt(SQLite):
     @staticmethod
     def getDesignReviewDoObjectives(database="db/sdts_rules.db3"):
         table = "do_178_objectives"
-        print ("rule id:",id)
-        query = "SELECT id,chapter,objective,description FROM {:s} ".format(table)
+        query = "SELECT id,chapter,objective,description,type FROM {:s} ".format(table)
         result = Tool.sqlite_query(query,database=database)
         if result is None:
             data = False
@@ -278,9 +293,16 @@ class StdMngt(SQLite):
         else:
             by_req_str = "0"
         if version is not None:
-            query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '{:s}' AND version LIKE '{:s}'".format(table,by_req_str,version)
+            if by_req_str == "1":
+                query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '1' AND version LIKE '{:s}'".format(table,version)
+            else:
+                query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE (by_req != '1' OR by_req IS NULL) AND version LIKE '{:s}'".format(table,version)
         else:
-            query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '{:s}'".format(table,by_req_str)
+            if by_req_str == "1":
+                query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '1'".format(table)
+            else:
+                query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req != '1' OR by_req IS NULL".format(table)
+        print "getAll_SDTS_Rule_by_req:",query
         result = Tool.sqlite_query(query,database=database)
         if result is None:
             data = False
@@ -333,6 +355,7 @@ class StdMngt(SQLite):
             data = cur.fetchone()
             if data is None:
                 print "May be version is to be created in database {:s}".format(database)
+                cur.execute("INSERT INTO rules(description,status,version,tag) VALUES(?,?,?,?)",(txt,status,version,tag))
         else:
             cur.execute("SELECT id,tag FROM rules WHERE tag LIKE '{:s}' LIMIT 1".format(id))
             data = cur.fetchone()

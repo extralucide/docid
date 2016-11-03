@@ -8,6 +8,8 @@ from openpyxl import load_workbook,Workbook
 #
 from openpyxl.styles import Font,PatternFill,Border,Side,Alignment
 from openpyxl.styles.borders import BORDER_THIN,BORDER_MEDIUM
+from openpyxl.styles.colors import RED,YELLOW,WHITE,GREEN
+
 try:
     from openpyxl.drawing.image import Image
 except ImportError as e:
@@ -41,6 +43,7 @@ class Style:
     @staticmethod
     def set_border(ws,
                    cell_range,
+                   bg=WHITE,
                    font = Font(name='Arial',size=12,bold=True),
                    border_style=BORDER_MEDIUM,
                    alignment_horizontal="center"):
@@ -74,6 +77,41 @@ class Style:
                 else:
                     Style.setStyleRow(row,style_border_middle)
                 index_column +=1
+
+    @staticmethod
+    def set_border_is(ws, cell_range,bg=WHITE,align=True):
+        font = Font(name='Arial',size=10,bold=False)
+        if align:
+            alignment=Alignment(horizontal='center',vertical='center',wrap_text=False,shrink_to_fit=True)
+        else:
+            alignment=Alignment(wrap_text=False,shrink_to_fit=True)
+        if bg != WHITE:
+            style_border = Style(border=Border(left=Side(border_style=BORDER_MEDIUM),
+                                               right=Side(border_style=BORDER_MEDIUM),
+                                                    top=Side(border_style=BORDER_MEDIUM),
+                                                    bottom=Side(border_style=BORDER_MEDIUM)),
+                                      alignment=alignment,
+                                      fill=PatternFill(patternType='solid',start_color=bg),
+                                      font=font)
+        else:
+            style_border = Style(border=Border(left=Side(border_style=BORDER_MEDIUM),
+                                               right=Side(border_style=BORDER_MEDIUM),
+                                                    top=Side(border_style=BORDER_MEDIUM),
+                                                    bottom=Side(border_style=BORDER_MEDIUM)),
+                                      alignment=alignment,
+                                      font=font)
+
+        #row = ws.iter_rows(cell_range)
+        min_col, min_row, max_col, max_row = range_boundaries(cell_range.upper())
+        #print "TEST:",min_col, min_row, max_col, max_row
+        for index_row, rows in enumerate(ws.iter_rows(cell_range)):
+        #for row in rows:
+            index_column = 0
+            for row in rows:
+                Style.setStyleRow(row,style_border)
+                #row.style = style_border
+                index_column +=1
+
     @staticmethod
     def setStyleRow(row,style):
         row.border = style.border

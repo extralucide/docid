@@ -95,10 +95,13 @@ class ExportIS(CheckIS):
         self.list_cr_not_found = []
         self.list_rules_unknown = []
         self.tbl_list_llr = {}
+        self.tbl_req_tag_wo_del = {}
         self.tbl_file_llr_wo_del = {}
         swrd = ExtractReq()
+        # TODO: Patch
+        name = "SW_TOTO"
         result = swrd.restoreFromSQLite()
-        for id, tag, body, issue, refer, status, derived, terminal, rationale, safety, additional in project_list:
+        for id, tag, body, issue, refer, status, derived, terminal, rationale, safety, additional in result:
             self.tbl_list_llr[tag] = {"issue": issue,
                                       "status": status,
                                       "refer": refer,
@@ -106,12 +109,13 @@ class ExportIS(CheckIS):
                                       "body": body
             }
             if status is not "DELETED":
-                self.tbl_file_llr_wo_del[tag] = {"issue": issue,
+                self.tbl_req_tag_wo_del[tag] = {"issue": issue,
                                                  "status": status,
                                                  "refer": refer,
                                                  "derived": derived,
                                                  "body": body
                 }
+        self.tbl_file_llr_wo_del[name] = self.tbl_req_tag_wo_del
 
 class ThreadReq(ThreadQuery):
     def __init__(self,
@@ -147,15 +151,19 @@ class ThreadReq(ThreadQuery):
         swrd = ExtractReq()
         swrd.extract()
 
-    def _exportIS(self):
+    def _exportIS(self,reviewer_name = ""):
 
         export_is = ExportIS(hlr_selected = True)
 
         print "tbl_file_llr_wo_del",export_is.tbl_file_llr_wo_del
         print "tbl_list_llr",export_is.tbl_list_llr
 
-        filename_is = export_is.exportIS()
+        filename_is = export_is.exportIS(reviewer_name = reviewer_name)
         print "filename_is",filename_is
+        if filename_is is not None:
+            self.master_ihm.resultGenerateCID(filename_is,
+                                    False,
+                                    text="INSPECTION SHEET")
 
     def processIncoming(self):
         """
@@ -180,7 +188,8 @@ class ThreadReq(ThreadQuery):
                     self.import_req_thread = threading.Thread(None,self._importSWRD,None)
                     self.import_req_thread.start()
                 elif action == "EXPORT_IS_HLR":
-                    self.send_cmd_thread = threading.Thread(None,self._exportIS,None)
+                    reviewer_name = self.queue.get(1)
+                    self.send_cmd_thread = threading.Thread(None,self._exportIS,None,(reviewer_name,))
                     self.send_cmd_thread.start()
                 self.unlock()
             except Queue.Empty:
@@ -381,6 +390,7 @@ class smallWindows(Frame,
                  review_type=None):
         self.database=database
         self.review_type = review_type
+        self.header_description = ""
         print "master parameter not implemented"
     #             fenetre=None,
     #             rule_id=None):
@@ -445,7 +455,7 @@ class smallWindows(Frame,
         return version
 
     def get_status(self):
-        status=self.status_listbox.get(FIRST)
+        status=self.status_listbox.get(ACTIVE)
         return status
 
     def remove_comment(self,event,comment_id,rule_id,rule_tag,user_login):
@@ -473,13 +483,13 @@ class smallWindows(Frame,
             callback_refresh(rule_id,rule_tag)
             self.exit()
 
-    def add_link_rule_to_objective(self,rule_id,callback):
+    def add_link_rule_to_objective(self,tag,callback):
         m = re.match(r'([0-9]{1,3})\).*',self.selection)
         if m:
             objective_id = m.group(1)
-            Tool.addLinkRule2Objective(rule_id,objective_id,database=self.database)
+            Tool.addLinkRule2Objective(tag,objective_id,database=self.database)
             # Refresh parent objectives list
-            callback(rule_id)
+            callback(tag)
 
     def onLink(self, event):
         event.widget.configure(cursor="arrow")
@@ -639,7 +649,12 @@ class smallWindows(Frame,
             print "Status Num:",num
             self.status_listbox.selectitem(num,setentry=1)
 
-    def add_button(self,text,func_help,side=LEFT,callback=None,rule_id=None):
+    def add_button(self,
+                   text,
+                   func_help,
+                   side=LEFT,
+                   callback=None,
+                   rule_id=None):
         if rule_id is None:
             self.button_add_comment = Button(self.display_rule,
                                                text=text,
@@ -668,21 +683,24 @@ class smallWindows(Frame,
         comment_windows.create(title="Add a new comment")
         comment_windows.create_text(title="Comment for rule {:s}".format(rule_tag))
         comment_windows.add_button(text="Add",
-                                   help="Add a comment",
+                                   func_help="Add a comment",
                                    side=TOP,
                                    callback=lambda arg1=rule_id,arg2=rule_tag,arg3=callback_refresh: comment_windows.add_comment(arg1,arg2,arg3))
-        comment_windows.add_button(text="Quit",help="Back to the rule",side=TOP,callback=comment_windows.exit)
+        comment_windows.add_button(text="Quit",
+                                   func_help="Back to the rule",
+                                   side=TOP,
+                                   callback=comment_windows.exit)
 
     def display_input_new_response_windows(self,comment_id):
         comment_windows = smallWindows(master=self.display_rule)
         comment_windows.create(title="Response")
         comment_windows.create_text(title="Response to comment {:d}".format(comment_id))
         comment_windows.add_button(text="OK",
-                                   help="Add a response",
+                                   func_help="Add a response",
                                    side=TOP,
                                    callback=lambda arg=comment_id:comment_windows.add_response(arg))
         comment_windows.add_button(text="Quit",
-                                   help="Back",
+                                   func_help="Back",
                                    side=TOP,
                                    callback=comment_windows.exit)
     def refreshComments(self,rule_id,rule_tag):
@@ -718,54 +736,64 @@ class smallWindows(Frame,
         self.comment_windows.create(title="List of comments for rule {:s}".format(rule_tag))
         self.comment_windows.create_text(title="Comments")
         self.comment_windows.add_button(text="Add",
-                                        help="Add a comment",
+                                        func_help="Add a comment",
                                         side=TOP,
                                         callback=lambda arg1=self.rule_id,arg2=rule_tag,arg3=self.refreshComments: self.comment_windows.display_input_new_comment_windows(arg1,arg2,arg3))
         self.refreshComments(self.rule_id,rule_tag)
         self.comment_windows.add_button(text="Quit",
-                                        help="Back to the rule",
+                                        func_help="Back to the rule",
                                         side=TOP,
                                         callback=self.comment_windows.exit)
 
+    def getDesignReviewDoObjectives(self):
+        result = Tool.getDesignReviewDoObjectives()
+        list_objectives = []
+        for objective_id,chapter,objective,description,objective_type in result:
+            list_objectives.append("{:d}) {:s} {:s} {:s}".format(objective_id,objective_type,chapter,objective))
+        return list_objectives
+
     def display_objectives_windows(self,
                                    parent,
-                                   rule_id,
+                                   rule_id, # Warning TAG not rule ID
                                    callback):
         self.comment_windows = smallWindows(master=parent,
                                             database=self.database,
                                             review_type=self.review_type)
         self.comment_windows.set_id(self.rule_id)
         self.comment_windows.create(title="DO-178 {:s} Objectives".format(self.review_type))
-        result = Tool.getDesignReviewDoObjectives()
-        list_objectives = []
-        for objective_id,chapter,objective,description in result:
-            list_objectives.append("{:d}) {:s} {:s}".format(objective_id,chapter,objective))
+
+        list_objectives = self.getDesignReviewDoObjectives()
+
         left_frame = Frame(self.comment_windows.display_rule)
         self.comment_windows.create_listbox(frame=left_frame,
                                             height=6,
                                             width=80,
-                                            list=list_objectives)
+                                            list_items=list_objectives)
         self.comment_windows.create_text(frame=left_frame,
                                          width=60,
                                          title="Objective description in markdown language",
-                                         height=8)
+                                         height=8,
+                                         exit_button=False,
+                                         preview_html=True)
         left_frame.pack(side=LEFT)
         self.comment_windows.add_button(text="Add",
-                                        help="Add a link between a rule and an objective",
+                                        func_help="Add a link between a rule and an objective",
                                         side=TOP,
                                         callback=lambda arg1=rule_id,arg2=callback: self.comment_windows.add_link_rule_to_objective(arg1,arg2))
         self.comment_windows.add_button(text="Quit",
-                                        help="Back to the rule",
+                                        func_help="Back to the rule",
                                         side=TOP,
                                         callback=self.comment_windows.exit)
 
-    def viewer_html(self,args=None):
+    def viewer_html(self):
         import os
-        description=self.read()
+        description = self.header_description
+        description += self.read()
         markdowner = Markdown()
         html = markdowner.convert(description)
         print "HTML:",html
         html_converted = Tool.replaceNonASCII(html)
+        html_converted = Tool.removeNonAscii(html_converted)
         # TODO: Remove non ascii character like u'\u201c'
         filename = join("result","preview.html")
         with open(filename, 'w') as of:
@@ -777,6 +805,13 @@ class smallWindows(Frame,
         index = self.status_listbox.curselection()[0]
         if index != ():
             item = self.status_listbox.get(index)
+            selection = self.status_listbox.get(index)
+            m = re.match(r'([0-9]{1,3})\).*',selection)
+            if m:
+                objective_id = int(m.group(1))
+                chapter,objective,description,objective_type = Tool.getDoObjective(objective_id)
+                self.header_description = "#{:s}: {:s} {:s}\n".format(objective_type,chapter,objective)
+                self.write(description)
         else:
             item = None
         self.selection = item
@@ -831,7 +866,10 @@ class smallWindows(Frame,
                     height=6,
                     side=LEFT,
                     title="Description",
-                    callback=None):
+                    callback=None,
+                    exit_button=True,
+                    preview_html=False,
+                    pre_text=""):
         if frame is None:
             frame = self.display_rule
         description_frame = Frame(frame)
@@ -850,8 +888,12 @@ class smallWindows(Frame,
         if callback is not None:
             ok_button = Button(frame, text='Update', command=callback)
             ok_button.pack(side=TOP, anchor=E,fill=X)
-        cancel_button = Button(frame, text='Quit', command=self.exit)
-        cancel_button.pack(side=TOP, anchor=E,fill=X)
+        if exit_button:
+            cancel_button = Button(frame, text='Quit', command=self.exit)
+            cancel_button.pack(side=TOP, anchor=E,fill=X)
+        if preview_html:
+            view_html = Button(frame, text='Preview', command=self.viewer_html)
+            view_html.pack(side=BOTTOM, anchor=E)
         return scrolltxt_first_area
 
     def create_combobox(self,
@@ -874,14 +916,15 @@ class smallWindows(Frame,
         #self.status_listbox.pack(fill=BOTH, expand=1,anchor=W)
         self.status_listbox.pack(anchor=W)
 
-    def overListbox(self,event,listbox):
+    def overListbox_deprecated(self,event,listbox):
         index = listbox.nearest(event.y)
         selection = listbox.get(index)
         m = re.match(r'([0-9]{1,3})\).*',selection)
         if m:
             objective_id = int(m.group(1))
         print "INDEX",index
-        chapter,objective,description = Tool.getDoObjective(objective_id)
+        chapter,objective,description,objective_type = Tool.getDoObjective(objective_id)
+        self.header_description = "#{:s}: {:s} {:s}\n".format(objective_type,chapter,objective)
         print  "DESCRIPTION",description
         #balloon_help = Pmw.Balloon(listbox)
         #balloon_help.bind(listbox, description)
@@ -905,14 +948,15 @@ class smallWindows(Frame,
                                            #bg="white",
                                            text=text,
                                            bd=0)
-        self.status_frame.pack()
+        self.status_frame.pack(anchor=W)
         self.status_listbox = Listbox(self.status_frame,height=height,width=width)
         self.vbar_crlisbox = vbar_crlisbox = Scrollbar(self.status_frame, name="vbar_crlisbox")
         self.vbar_crlisbox.pack(side=RIGHT, fill=Y)
         vbar_crlisbox["command"] = self.status_listbox.yview
         self.status_listbox["yscrollcommand"] = vbar_crlisbox.set
-        self.status_listbox.bind("<Double-Button-1>", callback)
-        self.status_listbox.bind("<Button-3>", lambda event, arg=self.status_listbox: self.overListbox(event, arg))
+        #self.status_listbox.bind("<Double-Button-1>", callback)
+        #self.status_listbox.bind("<Button-3>", lambda event, arg=self.status_listbox: self.overListbox(event, arg))
+        self.status_listbox.bind("<Double-Button-1>", lambda event, arg=self.status_listbox: self.overListbox(event, arg))
         self.status_listbox.bind("<MouseWheel>", self.crlistbox_scrollEvent)
         self.status_listbox.bind("<Key-Up>", lambda event, arg=self.status_listbox: self.up_event(event, arg))
         self.status_listbox.bind("<Key-Down>", lambda event, arg=self.status_listbox: self.down_event(event, arg))
@@ -936,6 +980,7 @@ class smallWindows(Frame,
                    callback=None,
                    callback2=None,
                    callback3=None):
+
         self.create_text(width=width,
                         height=height,
                         title=text)
@@ -954,7 +999,7 @@ class smallWindows(Frame,
         self.display_objectives.pack(expand=1)
         self.button_add_objective = Button(self.objectives_frame,
                                            text='Add',
-                                           command=lambda arg1=self.display_rule,arg2=self.rule_id,arg3=callback2: self.display_objectives_windows(arg1,arg2,arg3))
+                                           command=lambda arg1=self.display_rule,arg2=rule_tag,arg3=callback2: self.display_objectives_windows(arg1,arg2,arg3))
         self.button_add_objective.pack(padx=5,anchor=E)
         balloon_help = Pmw.Balloon(self.objectives_frame)
         balloon_help.bind(self.button_add_objective, 'Add a link to DO-178\n'
@@ -966,7 +1011,8 @@ class smallWindows(Frame,
         self.create_combobox(right_frame,
                             width=40,
                             text="Status",
-                            callback=self.status_listbox_onselect)
+                            callback=self.status_listbox_onselect,
+                            list_items=("APPROVED","MODIFIED","TO BE MODIFIED","DELETED","OBSOLETE"))
 
         self.entry_version = self.createEntry(frame=right_frame,
                                               tag='Version',
@@ -1237,6 +1283,7 @@ class Std(TableCanvas):
         self.columnactions = {'text': {"Edit": 'drawCellEntry'},
                               'number': {"Edit": 'drawCellEntry'}}
         self.setFontSize()
+        self.draggedcol = None
 
     def user_handle_left_click(self,event):
         """Does cell selection when mouse is clicked on canvas"""
@@ -1269,17 +1316,31 @@ class Std(TableCanvas):
         #finally, draw the selected col on the table
         self.drawSelectedCol()
 
-    def refreshObjectives(self,rule_id):
+    def refreshObjectives(self,
+                          tag):
         # Objectives
-        list_objectives = Tool.getRuleObjectives(rule_id,self.database)
+        list_objectives = Tool.getRuleObjectives(tag,self.database)
         self.small_windows.write_objectives(list_objectives)
+
+    def refreshGeneral(self):
+        # Page General
+        self.setList(by_req=False)
+
+    def refreshReq(self):
+        # Page By Requirement
+        self.setList(by_req=True)
+
+    def refreshListObjectives(self):
+        # Page DO-178 Objectives
+        self.setListDoObjectives()
 
     def user_handle_double_click(self, event,callback_refresh_all):  #Click event callback function.
         def callback(callback_refresh_all=None):
             update_text=self.small_windows.read()
             version = self.small_windows.get_version()
             status = self.small_windows.get_status()
-            Tool.updateRule(tag=rule_id,
+            # TODO: Attention int_tag est global
+            Tool.updateRule(tag=str(int_tag),
                             txt=update_text,
                             status=status,
                             version=version,
@@ -1317,31 +1378,42 @@ class Std(TableCanvas):
                 if rule_id_column:
                     #Now we try to get the value of the row+col that was clicked.
                     #try:
-                    if 1==1:
                         #if clicks[1] == 0:
-                        rule = self.model.getValueAt(clicks[0], clicks[1])
-                        m = re.match(r'.*_0?([0-9]{1,3})',rule)
-                        if m:
-                            rule_id = m.group(1).lstrip("0")
-                            # Create windows for rule attributes
-                            txt,status,version = Tool.getSDTS_Rule(tag=rule_id,database=self.database)
-                            self.small_windows = smallWindows(database=self.database,
-                                                              review_type=self.dico_objectives[self.sds_type])
-                            self.small_windows.set_id(rule_id)
-                            self.small_windows.create(title=rule)
-                            # Description
-                            self.small_windows.create_rule(text="Description of the rule in markdown language",
-                                                           rule_tag=rule,
-                                                           callback=callback,
-                                                           callback2=self.refreshObjectives,
-                                                           callback3=callback_refresh_all)
-                            self.small_windows.write(txt)
-                            # Status
-                            self.small_windows.status_focus(status)
-                            # Objectives
-                            self.refreshObjectives(rule_id)
-                            # Version
-                            self.small_windows.write_version(version)
+                    rule = self.model.getValueAt(clicks[0], clicks[1])
+                    #print "TEST rule vs id:",self.rules_tag_vs_id
+                    m = re.match(r'.*_0?([0-9]{1,3})',rule)
+                    if m:
+                        int_tag = int(m.group(1).lstrip("0"))
+                    print "int_tag",rule,int_tag
+                    print "rules_tag_vs_id",self.rules_tag_vs_id
+                    if int_tag in self.rules_tag_vs_id:
+                        rule_id = self.rules_tag_vs_id[int_tag]
+                        print "rule_id",rule,rule_id
+                    #m = re.match(r'.*_0?([0-9]{1,3})',rule)
+                    #if m:
+                    #    rule_id = m.group(1).lstrip("0")
+                        # Create windows for rule attributes
+                        txt,status,version = Tool.getSDTS_Rule_by_ID(rule_id=rule_id,
+                                                               database=self.database)
+                        self.small_windows = smallWindows(database=self.database,
+                                                          review_type=self.dico_objectives[self.sds_type])
+                        self.small_windows.set_id(rule_id)
+                        self.small_windows.create(title=rule)
+                        self.small_windows.header_description = "#{:s}\n".format(re.escape(rule))
+                        # Description
+                        self.small_windows.create_rule(text="Description of the rule in markdown language",
+                                                       rule_tag=int_tag,
+                                                       callback=callback,
+                                                       callback2=self.refreshObjectives,
+                                                       callback3=callback_refresh_all)
+                        self.small_windows.write(txt)
+                        # Status
+                        self.small_windows.status_focus(status,
+                                                        list_items=("APPROVED","MODIFIED","TO BE MODIFIED","DELETED","OBSOLETE"))
+                        # Objectives
+                        self.refreshObjectives(str(int_tag))
+                        # Version
+                        self.small_windows.write_version(version)
                     #except:
                     #    print 'No record at:', clicks
                 elif do_objectives_column:
@@ -1372,18 +1444,18 @@ class Std(TableCanvas):
         else:
             self.bind("<Button-3>", self.handle_right_click)
 
-    def setListDoObjectives(self,page):
+    def setListDoObjectives(self):
         result = Tool.getDesignReviewDoObjectives(database=self.database)
         index = 1
         data = {}
-        for objective_id,chapter,objective,description in result:
+        for objective_id,chapter,objective,description,objective_type in result:
             data[index] = {}
             data[index]["Objective ID"] = objective_id
             data[index]["Chapter"] = chapter
             data[index]["Objective"] = objective
             data[index]["Description"] = description
             index += 1
-        index_max = page.model.getRowCount()
+        index_max = self.model.getRowCount()
         print "index_max", index_max
         while index <= index_max:
             data[index] = {}
@@ -1395,14 +1467,13 @@ class Std(TableCanvas):
         model = TableModel()
         model.importDict(data)
         print "DATA _refreshTableProject", data
-        page.model.importDict(data)
+        self.model.importDict(data)
         # self.table_project.setModel(model)
-        page.updateModel(model)
-        page.redrawTable()
+        self.updateModel(model)
+        self.redrawTable()
 
     def setList(self,
-                by_req=True,
-                page=None):
+                by_req=True):
         print "setList for class Std"
         result = Tool.getAll_SDTS_Rule_by_req(by_req=by_req,
                                               version=self.version,
@@ -1413,27 +1484,27 @@ class Std(TableCanvas):
             else:
                 rule_type = ""
             sorted_result = sorted(result,key=lambda x: x[1])#,reverse=True)
-            self._refreshTableProject(page,
-                                      sorted_result,
+            self._refreshTableProject(sorted_result,
                                       std_type=self.sds_type,
                                       rule_type=rule_type)
 
     def _refreshTableProject(self,
-                             page,
                              project_list,
                              std_type="",
                              rule_type=""):
         print "_refreshTableProject from class Std"
         index = 1
         data = {}
-        for comment_id,tag,status,version,description,auto,comments in project_list:
+        self.rules_tag_vs_id = {}
+        for rule_id,tag,status,version,description,auto,comments in project_list:
+            self.rules_tag_vs_id[tag]=rule_id
             data[index] = {}
             str_id = "{:d}".format(tag)
             data[index]["Rule ID"] = "{:s}_{:s}{:s}".format(std_type,rule_type,str_id.zfill(3))
             data[index]["Version"] = version
             data[index]["Status"] = status
             index += 1
-        index_max = page.model.getRowCount()
+        index_max = self.model.getRowCount()
         print "index_max", index_max
         while index <= index_max:
             data[index] = {}
@@ -1444,10 +1515,10 @@ class Std(TableCanvas):
         model = TableModel()
         model.importDict(data)
         print "DATA _refreshTableProject", data
-        page.model.importDict(data)
+        self.model.importDict(data)
         # self.table_project.setModel(model)
-        page.updateModel(model)
-        page.redrawTable()
+        self.updateModel(model)
+        self.redrawTable()
 
 class Std_Req(Std):
     def __init__(self,
@@ -1464,8 +1535,7 @@ class Std_Req(Std):
         Std.__init__(self,parent,model,width,height,rows,cols,editable,database,sds_type,**kwargs)
 
     def setList(self,
-                by_req=False,
-                page=None):
+                by_req=False):
         print "setList for class Std_Req"
         swrd = ExtractReq()
         result = swrd.restoreFromSQLite()
@@ -1473,12 +1543,10 @@ class Std_Req(Std):
         #result = Tool.getAll_SWRD_req(database=self.database)
         if result:
             sorted_result = sorted(result,key=lambda x: x[0])
-            self._refreshTableProject(page,
-                                  sorted_result,
+            self._refreshTableProject(sorted_result,
                                   std_type=self.sds_type)
 
     def _refreshTableProject(self,
-                             page,
                              project_list,
                              std_type="",
                              rule_type=""):
@@ -1491,16 +1559,16 @@ class Std_Req(Std):
         """
         index = 1
         data = {}
-        page.reqs_tag_vs_id = {}
+        self.reqs_tag_vs_id = {}
         # TODO: Ajouter un lien entre id et tag
         for req_id,tag,body,issue,refer,status,derived,terminal,rationale,safety,additional in project_list:
-            page.reqs_tag_vs_id[tag]=req_id
+            self.reqs_tag_vs_id[tag]=req_id
             data[index] = {}
             data[index]["Req ID"] = tag
             #data[index]["Version"] = issue
             #data[index]["Status"] = status
             index += 1
-        index_max = page.model.getRowCount()
+        index_max = self.model.getRowCount()
         print "index_max", index_max
         while index <= index_max:
             data[index] = {}
@@ -1511,10 +1579,10 @@ class Std_Req(Std):
         model = TableModel()
         model.importDict(data)
         #print "DATA _refreshTableProject", data
-        page.model.importDict(data)
+        self.model.importDict(data)
         # self.table_project.setModel(model)
-        page.updateModel(model)
-        page.redrawTable()
+        self.updateModel(model)
+        self.redrawTable()
 
     def refreshObjectives(self,str_refer):
         # Refers To
@@ -1584,12 +1652,15 @@ class Std_Req(Std):
                 try: print 'entire record:', self.model.getRecordAtRow(clicks[0])
                 except: print 'No record at:', clicks
 
+    def refreshReq(self):
+        self.setList(by_req=True)
+
     def do_bindings(self,callback=None):
         if callback is None:
             print "Missing callback for do_bindings of class Std_Req"
         #print "Std custom do_bindings"
         #self.bind("<Button-1>",self.user_handle_left_click)
-        self.bind("<Double-Button-1>",lambda event,arg=callback: self.user_handle_double_click(event,arg))
+        self.bind("<Double-Button-1>",lambda event,arg=self.refreshReq: self.user_handle_double_click(event,arg))
         if self.ostyp=='mac':
             #For mac we bind Shift, left-click to right click
             self.bind("<Button-2>", self.handle_right_click)
@@ -1690,7 +1761,7 @@ class ManageStdGui(Frame,
         root = ET.Element("STD")
         result = Tool.getAll_SDTS_Rule_by_req(by_req=True,database=database)
         # TODO: add link to DO-178
-        for comment_id,status,version,description,auto,comments in sorted(result):
+        for rule_id,tag,status,version,description,auto,comments in sorted(result):
             if status is None:
                 status = ""
             if version is None:
@@ -1707,7 +1778,7 @@ class ManageStdGui(Frame,
                 auto_attrib = "MAYBE"
             else:
                 auto_attrib = "NO"
-            str_id = "{:d}".format(comment_id)
+            str_id = "{:d}".format(tag)
             list_objectives = Tool.getRuleObjectives(str_id,database = database)
             rule_node = ET.SubElement(root, "RULE",attrib={"id":str_id,
                                                             "status":status,
@@ -1721,7 +1792,7 @@ class ManageStdGui(Frame,
             print "HTML:",rule_in_html
             #desc_node.text = Tool.replaceNonASCII(description,html=True)
             if list_objectives is not None:
-                for chapter,objective in list_objectives:
+                for chapter,objective,objective_type in list_objectives:
                     do_node = ET.SubElement(rule_node, "DO")
                     do_node.text = "{:s} {:s}".format(chapter,objective)
             comment_node = ET.SubElement(rule_node, "COMMENTS")
@@ -1844,16 +1915,13 @@ class ManageStdGui(Frame,
     def refreshAll(self):
         # Page General
         page = self.sheets[self.dico_sheetnames['general']]
-        page.setList(by_req=False,page=page)
+        page.setList(by_req=False)
         # Page By Requirement
         page = self.sheets[self.dico_sheetnames['by_req']]
-        page.setList(by_req=True,page=page)
+        page.setList(by_req=True)
         # Page DO-178 Objectives
         page = self.sheets[self.dico_sheetnames['do']]
-        page.setListDoObjectives(page=page)
-
-    def refreshReq(self, page):
-        self.page.setList(by_req=True,page=page)
+        page.setListDoObjectives()
 
     @staticmethod
     def setWindowPos(window):
@@ -1909,6 +1977,8 @@ class ManageStdGui(Frame,
         def callback():
             print "Click OK"
             self.queue.put("EXPORT_IS_HLR")  # order to check HLR
+            user_logged = getpass.getuser()
+            self.queue.put(user_logged)
             return True
         self.window_for_export_is = Toplevel()
         self.setWindowPos(self.window_for_export_is)
@@ -1960,19 +2030,19 @@ class ManageStdGui(Frame,
         self.overall_frame.pack(anchor=W)
         self.notebook = Pmw.NoteBook(self.overall_frame, raisecommand=self.setcurrenttable)
         self.notebook.pack(fill='both', expand=1, padx=4, pady=4)
-        data = {"colnames": {"Rule ID": "", "Version": "", "Status": "", "Objective": ""},
-                "columnorder":{1:"Rule ID",2:"Version",3:"Status",4:"Objective"},
+        data = {"colnames": {"Requirement ID": ""},
+                "columnorder":{1:"Requirement ID"},
                 "columnlabels":{},
-                "columntypes":{"Rule ID":"text","Version":"text","Status":"text","Objective":"text"}}
+                "columntypes":{"Requirement ID":"text"}}
         self.sheets = {}
         self.add_Sheet_Req(sheetname=self.dico_sheetnames['by_req'],sheetdata=data)
-        self.currenttable.setList(page=self.sheets[self.dico_sheetnames['by_req']])
-        self.currenttable.do_bindings(self.refreshReq)
+        self.currenttable.setList()
+        self.currenttable.do_bindings()
         ok_button = Button(self.overall_frame, text='OK', command=self.fenetre.destroy)
         ok_button.pack(side=LEFT, anchor=E)
         refresh_button = Button(self.overall_frame,
                                 text='Refresh',
-                                command=lambda arg=self.sheets[self.dico_sheetnames['by_req']]: self.currenttable.refreshReq(arg))
+                                command=self.currenttable.refreshReq)
         refresh_button.pack(side=LEFT, anchor=E)
         cancel_button = Button(self.overall_frame, text='Quit', command=self.fenetre.destroy)
         cancel_button.pack(anchor=E)
@@ -2002,10 +2072,12 @@ class ManageStdGui(Frame,
         # Page General, By Requirement and DO-178 Objectives
         self.refreshAll()
         # Binding
-        self.sheets[self.dico_sheetnames['general']].do_bindings(self.refreshAll)
-        self.sheets[self.dico_sheetnames['by_req']].do_bindings(self.refreshAll)
-        self.sheets[self.dico_sheetnames['do']].do_bindings(self.refreshAll)
-        #self.table_project = self.currenttable
+        page =  self.sheets[self.dico_sheetnames['general']]
+        page.do_bindings(page.refreshGeneral)
+        page =  self.sheets[self.dico_sheetnames['by_req']]
+        page.do_bindings(page.refreshReq)
+        page =  self.sheets[self.dico_sheetnames['do']]
+        page.do_bindings(page.refreshListObjectives)
         self.notebook.setnaturalsize()
         ok_button = Button(self.overall_frame, text='OK', command=self.fenetre.destroy)
         ok_button.pack(side=LEFT, anchor=E)
@@ -2054,7 +2126,10 @@ if __name__ == '__main__':
     menubar.add_command(label="View HTML", command=std_win.online_documentation)
     mainmenu.add_cascade(label="File", menu=menubar)
     exportbar = Menu(mainmenu)
+    # Export all standard rules to XML file
     exportbar.add_command(label="Export XML", command=std_win.export_xml)
+    # TODO: Call SAXON
+    exportbar.add_command(label="Export HTML", command=None)
     exportbar.add_command(label="Export to ReqIF format", command=std_win.export_xml)
     mainmenu.add_cascade(label="Tools", menu=exportbar)
     reportbar = Menu(mainmenu)
