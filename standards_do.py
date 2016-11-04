@@ -33,6 +33,7 @@ from tkintertable.TableFormula import Formula
 from check_llr import CheckLLR
 from check_is import CheckIS
 from tool import SQLite
+from tkinterhtml import HtmlFrame,TkinterHtml
 
 class scrollTxtArea:
     def __init__(self,
@@ -380,6 +381,31 @@ class GuiTool():
             box.pack()
         return entry
 
+class Browser:
+    def hide(self):
+        self.root.withdraw()
+
+    def show(self):
+        self.root.update()
+        self.root.deiconify()
+
+    def __init__(self):
+        self.root = Tk()
+        self.root.title('HTML Previewer')
+        icone = "ico_sys_desktop.ico"
+        self.root.iconbitmap(icone)
+        self.root.resizable(False, False)
+        self.html_frame = HtmlFrame(self.root, horizontal_scrollbar="auto",width=500,height=276)
+        self.html_frame.grid(sticky=NSEW)
+        close_button = Button(self.root, text='Close', command=self.browser_quit)
+        close_button.grid(sticky=SE)
+        self.root.protocol("WM_DELETE_WINDOW", self.browser_quit)
+        self.hide()
+
+    def browser_quit(self):
+        self.hide()
+        #self.root.destroy()
+
 class smallWindows(Frame,
                    Toplevel,
                    Text,
@@ -391,11 +417,9 @@ class smallWindows(Frame,
         self.database=database
         self.review_type = review_type
         self.header_description = ""
-        print "master parameter not implemented"
-    #             fenetre=None,
-    #             rule_id=None):
         Frame.__init__(self,master)
     #    self.rule_id=rule_id
+
     def crlistbox_scrollEvent(self, event):
         if event.delta > 0:
             self.status_listbox.yview_scroll(-2, 'units')
@@ -833,7 +857,8 @@ class smallWindows(Frame,
                                         side=TOP,
                                         callback=self.comment_windows.exit)
 
-    def viewer_html(self):
+    def viewer_html(self,browser=True):
+        global browser_window
         import os
         description = self.header_description
         description += self.read()
@@ -847,7 +872,16 @@ class smallWindows(Frame,
         with open(filename, 'w') as of:
             of.write(html_converted)
         #os.startfile("result/{:s}".format(html_converted))
-        webbrowser.open(filename,autoraise=1)
+        # Test tkinterhtml
+        if browser:
+            webbrowser.open(filename,autoraise=1)
+        else:
+            print "open html viewer"
+            #viewer = smallWindows(master=self.display_rule)
+            #self.root = Frame(viewer)
+
+            browser_window.html_frame.set_content(html_converted)
+            browser_window.show()
 
     def set_listbox_selection(self,event):
         index = self.status_listbox.curselection()[0]
@@ -935,13 +969,15 @@ class smallWindows(Frame,
         self.help_text = scrolltxt_first_area.text
         if callback is not None:
             ok_button = Button(frame, text='Update', command=callback)
-            ok_button.pack(side=TOP, anchor=E,fill=X)
+            ok_button.pack(side=BOTTOM, anchor=E,fill=X)
         if exit_button:
             cancel_button = Button(frame, text='Quit', command=self.exit)
             cancel_button.pack(side=TOP, anchor=E,fill=X)
         if preview_html:
-            view_html = Button(frame, text='Preview', command=self.viewer_html)
+            view_html = Button(frame, text='Preview Browser', command=self.viewer_html)
             view_html.pack(side=BOTTOM, anchor=E)
+            view_html_internal = Button(frame, text='Preview', command=lambda browser=False:self.viewer_html(browser))
+            view_html_internal.pack(side=BOTTOM, anchor=E)
         return scrolltxt_first_area
 
     def create_combobox(self,
@@ -1069,15 +1105,17 @@ class smallWindows(Frame,
                                               width=40)
         self.entry_version.pack(anchor=W)
         right_frame.pack()
-        bottom_frame = Frame(self.display_rule, bg="red",width=400)
+        bottom_frame = Frame(self.display_rule, bg="red",width=600)
         show_comments_button = Button(bottom_frame,
                                       text='Show Comments',
                                       command=lambda arg1=rule_tag: self.display_comment_windows(rule_tag))
         show_comments_button.pack(side=LEFT,anchor=E)
         ok_button = Button(bottom_frame, text='Update', command=lambda arg=callback3: callback(callback3))
         ok_button.pack(side=LEFT, anchor=E)
-        view_html = Button(bottom_frame, text='Preview', command=self.viewer_html)
+        view_html = Button(bottom_frame, text='Preview Browser', command=self.viewer_html)
         view_html.pack(side=LEFT, anchor=E)
+        view_html_internal = Button(bottom_frame, text='Preview', command=lambda browser=False:self.viewer_html(browser))
+        view_html_internal.pack(side=LEFT, anchor=E)
         #cancel_button = Button(bottom_frame, text='Quit', command=self.display_rule.destroy)
         cancel_button = Button(bottom_frame, text='Quit', command=self.exit)
         cancel_button.pack(side=LEFT,anchor=E)
@@ -1416,9 +1454,10 @@ class Std(TableCanvas):
         clicks = (rclicked, cclicked)
         print 'clicks:', clicks
         column_name = self.model.getColumnLabel(cclicked)
-        rule_id_column = re.search(r'Rule ID',column_name)
+        rule_tag_column = re.search(r'Rule Tag',column_name)
+        #rule_id_column = re.search(r'Rule ID',column_name)
         do_objectives_column = re.search(r'Objective ID',column_name)
-        if not rule_id_column and not do_objectives_column:
+        if not rule_tag_column and not do_objectives_column:
             #absrow = self.get_AbsoluteRow(row)
             model=self.getModel()
             cellvalue = model.getCellRecord(rclicked, cclicked)
@@ -1429,23 +1468,28 @@ class Std(TableCanvas):
             #except:
             #    print 'Error'
             if clicks:
-                if rule_id_column:
+                if rule_tag_column:
                     #Now we try to get the value of the row+col that was clicked.
                     #try:
                         #if clicks[1] == 0:
                     rule = self.model.getValueAt(clicks[0], clicks[1])
+                    rule_id_colindex = self.model.getColumnIndex('Rule ID')
+                    rule_id = self.model.getValueAt(clicks[0], rule_id_colindex)
                     #print "TEST rule vs id:",self.rules_tag_vs_id
+
                     m = re.match(r'.*_0?([0-9]{1,3})',rule)
                     if m:
                         int_tag = int(m.group(1).lstrip("0"))
                     print "int_tag",rule,int_tag
-                    print "rules_tag_vs_id",self.rules_tag_vs_id
-                    if int_tag in self.rules_tag_vs_id:
-                        rule_id = self.rules_tag_vs_id[int_tag]
-                        print "rule_id",rule,rule_id
-                    #m = re.match(r'.*_0?([0-9]{1,3})',rule)
-                    #if m:
-                    #    rule_id = m.group(1).lstrip("0")
+                    if 0==1:
+                        print "rules_tag_vs_id",self.rules_tag_vs_id
+                        if int_tag in self.rules_tag_vs_id:
+                            rule_id = self.rules_tag_vs_id[int_tag]
+                            print "rule_id",rule,rule_id
+                    else:
+                        #m = re.match(r'.*_0?([0-9]{1,3})',rule)
+                        #if m:
+                        #    rule_id = m.group(1).lstrip("0")
                         # Create windows for rule attributes
                         txt,status,version = Tool.getSDTS_Rule_by_ID(rule_id=rule_id,
                                                                database=self.database)
@@ -1472,7 +1516,7 @@ class Std(TableCanvas):
                     #    print 'No record at:', clicks
                 elif do_objectives_column:
                     objective_id = self.model.getValueAt(clicks[0], clicks[1])
-                    chapter,objective,txt = Tool.getDoObjective(objective_id,database=self.database)
+                    chapter,objective,txt,objective_type = Tool.getDoObjective(objective_id,database=self.database)
                     self.small_windows = smallWindows(database=self.database)
                     self.small_windows.create(title="DO-178 chapter {:s} {:s}".format(chapter,objective))
                     self.small_windows.create_text(width=80,
@@ -1538,9 +1582,10 @@ class Std(TableCanvas):
             else:
                 rule_type = ""
             sorted_result = sorted(result,key=lambda x: x[1])#,reverse=True)
-            self._refreshTableProject(sorted_result,
-                                      std_type=self.sds_type,
-                                      rule_type=rule_type)
+            model = self._refreshTableProject(sorted_result,
+                                              std_type=self.sds_type,
+                                              rule_type=rule_type)
+            return model
 
     def _refreshTableProject(self,
                              project_list,
@@ -1554,7 +1599,8 @@ class Std(TableCanvas):
             self.rules_tag_vs_id[tag]=rule_id
             data[index] = {}
             str_id = "{:d}".format(tag)
-            data[index]["Rule ID"] = "{:s}_{:s}{:s}".format(std_type,rule_type,str_id.zfill(3))
+            data[index]["Rule ID"] = rule_id
+            data[index]["Rule Tag"] = "{:s}_{:s}{:s}".format(std_type,rule_type,str_id.zfill(3))
             data[index]["Version"] = version
             data[index]["Status"] = status
             index += 1
@@ -1563,16 +1609,18 @@ class Std(TableCanvas):
         while index <= index_max:
             data[index] = {}
             data[index]["Rule ID"] = ""
+            data[index]["Rule Tag"] = ""
             data[index]["Version"] = ""
             data[index]["Status"] = ""
             index += 1
         model = TableModel()
         model.importDict(data)
         print "DATA _refreshTableProject", data
-        self.model.importDict(data)
+        #self.model.importDict(data)
         # self.table_project.setModel(model)
         self.updateModel(model)
         self.redrawTable()
+        return model
 
 class Std_Req(Std):
     def __init__(self,
@@ -1945,7 +1993,8 @@ class ManageStdGui(Frame,
             else:
                 model = TableModel(newdict=sheetdata)
                 #model.importDict(sheetdata)
-            print "Std"
+            #self.updateModel(model)
+
             self.currenttable = Std(page,
                                     model=model,
                                     reverseorder=1,
@@ -1955,6 +2004,8 @@ class ManageStdGui(Frame,
                                     database=self.database,
                                     sds_type=self.sds_type,
                                     )
+            #self.currenttable.redrawTable()
+            #self.currenttable.autoResizeColumns()
         else:
             self.currenttable = Std(page,
                                     database=self.database,
@@ -1996,12 +2047,15 @@ class ManageStdGui(Frame,
                  version=None,
                  std_type="SDS",
                  queue=None):
+        global browser_window
+
         self.queue = queue
         self.fenetre = fenetre
         self.database=database
         self.version=version
         self.sds_type=std_type
         self.overall_frame = None
+        browser_window = Browser()
 
     def displaySCS(self):
         self.database="db/scs_rules.db3"
@@ -2115,19 +2169,39 @@ class ManageStdGui(Frame,
         self.notebook = Pmw.NoteBook(self.overall_frame, raisecommand=self.setcurrenttable)
         self.notebook.pack(fill='both', expand=1, padx=4, pady=4)
 
-        data = {"colnames": {"Rule ID": "", "Version": "", "Status": "", "Objective": ""},
-                "columnorder":{1:"Rule ID",2:"Version",3:"Status",4:"Objective"},
+        data = {"colnames": {"ID": "", "Rule Tag": "","Version": "", "Status": ""},
+                "columnorder":{1:"ID",2:"Rule Tag",3:"Version",4:"Status"},
                 "columnlabels":{},
-                "columntypes":{"Rule ID":"text","Version":"text","Status":"text","Objective":"text"}}
+                "columntypes":{"ID":"text","Rule Tag":"text","Version":"text","Status":"text","Objective":"text"}}
         self.sheets = {}
-        self.add_Sheet(sheetname=self.dico_sheetnames['general'],sheetdata=data)
+        result = Tool.getAll_SDTS_Rule_by_req(by_req=False,
+                                              version=self.version,
+                                              database=self.database)
+        sheetdata = {"colnames":{"Rule ID":"", "Rule Tag":"", "Version":"", "Status":""}}
+        if result:
+            rule_type = ""
+            sorted_result = sorted(result,key=lambda x: x[1])
+            index = 1
+            #sheetdata = {}
+            for rule_id,tag,status,version,description,auto,comments in sorted_result:
+                sheetdata[index] = {}
+                str_id = "{:d}".format(tag)
+                sheetdata[index]["Rule ID"] = rule_id
+                sheetdata[index]["Rule Tag"] = "{:s}_{:s}{:s}".format(self.sds_type,rule_type,str_id.zfill(3))
+                sheetdata[index]["Version"] = version
+                sheetdata[index]["Status"] = status
+                index += 1
+
+        self.add_Sheet(sheetname=self.dico_sheetnames['general'],
+                       sheetdata=sheetdata,
+                       import_dict=True)
         self.add_Sheet(sheetname=self.dico_sheetnames['by_req'],sheetdata=data)
         self.add_Sheet(sheetname=self.dico_sheetnames['do'],
                        sheetdata={"colnames":{"Objective ID":"", "Chapter":"", "Objectives":"", "Description":""}},
                        import_dict=True)
 
         # Page General, By Requirement and DO-178 Objectives
-        self.refreshAll()
+
         # Binding
         page =  self.sheets[self.dico_sheetnames['general']]
         page.do_bindings(page.refreshGeneral)
@@ -2181,6 +2255,9 @@ if __name__ == '__main__':
     menubar.add_command(label="Import Inspection Sheet", command=None)
     menubar.add_separator()
     menubar.add_command(label="View HTML", command=std_win.online_documentation)
+    menubar.add_separator()
+    #menubar.add_command(label="Preferences", command=std_win.showtablePrefs)
+    #menubar.add_command(label="Save Preferences", command=std_win.applyPrefs)
     mainmenu.add_cascade(label="File", menu=menubar)
     exportbar = Menu(mainmenu)
     # Export all standard rules to XML file

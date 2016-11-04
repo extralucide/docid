@@ -299,9 +299,9 @@ class StdMngt(SQLite):
                 query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE (by_req != '1' OR by_req IS NULL) AND version LIKE '{:s}'".format(table,version)
         else:
             if by_req_str == "1":
-                query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '1'".format(table)
+                query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req LIKE '1' AND (status != 'OBSOLETE' OR status IS NULL)".format(table)
             else:
-                query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE by_req != '1' OR by_req IS NULL".format(table)
+                query = "SELECT id,tag,status,version,description,auto,comments FROM {:s} WHERE (by_req != '1' OR by_req IS NULL) AND (status != 'OBSOLETE' OR status IS NULL)".format(table)
         print "getAll_SDTS_Rule_by_req:",query
         result = Tool.sqlite_query(query,database=database)
         if result is None:
@@ -357,7 +357,7 @@ class StdMngt(SQLite):
                 print "May be version is to be created in database {:s}".format(database)
                 cur.execute("INSERT INTO rules(description,status,version,tag) VALUES(?,?,?,?)",(txt,status,version,tag))
         else:
-            cur.execute("SELECT id,tag FROM rules WHERE tag LIKE '{:s}' LIMIT 1".format(id))
+            cur.execute("SELECT id,tag FROM rules WHERE tag LIKE '{:s}' LIMIT 1".format(tag))
             data = cur.fetchone()
         print "DATA",data
         if data is not None:
