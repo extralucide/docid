@@ -390,7 +390,7 @@ class Browser:
         self.root.deiconify()
 
     def __init__(self):
-        self.root = Tk()
+        self.root = Toplevel() #Tk()
         self.root.title('HTML Previewer')
         icone = "ico_sys_desktop.ico"
         self.root.iconbitmap(icone)
@@ -1301,6 +1301,9 @@ class Std(TableCanvas):
     def __init__(self,
                  parent=None,
                  model=None,
+                 rules=True,
+                 by_req=False,
+                 import_dict=False,
                  width=None,
                  height=None,
                  rows=10,
@@ -1308,74 +1311,107 @@ class Std(TableCanvas):
                  editable=False,
                  database=None,
                  sds_type=None,
+                 reverseorder=1,
+                 rowheaderwidth=100,
+                 showkeynamesinheader=True,
                  **kwargs):
-        TableCanvas.__init__(self, parent,
-                        bg='white',
-                        width=width,
-                        height=height,
-                        relief=GROOVE,
-                        scrollregion=(0, 0, 150, 100))
+
         if database is not None:
             print "DATABASE:",database
             self.database = database
+        else:
+            self.database = "db/sdts_rules.db3"
         self.version = None
         self.sds_type=sds_type
-        self.cellbackgr = '#FFFAF0'
-        self.entrybackgr = 'white'
-
-        self.selectedcolor = 'yellow'
-        self.rowselectedcolor = '#B0E0E6'
-        self.multipleselectioncolor = '#ECD672'
-        self.parentframe = parent
-        #get platform into a variable
-        self.ostyp = self.checkOSType()
-        if "log" in self.__dict__:
-            self.log("ostyp" + self.ostyp, False)  # From Interface class
-        self.platform = platform.system()
-        if "log" in self.__dict__:
-            self.log("platform" + self.platform, False)  # From Interface class
-        self.width = width
-        self.height = height
-        self.set_defaults()
-
-        self.currentpage = None
-        self.navFrame = None
-        self.currentrow = 0
-        self.currentcol = 0
-        self.reverseorder = 0
-        self.startrow = self.endrow = None
-        self.startcol = self.endcol = None
-        self.allrows = False  #for selected all rows without setting multiplerowlist
-        self.multiplerowlist = []
-        self.multiplecollist = []
-        self.col_positions = []  #record current column grid positions
-        self.mode = 'normal'
-        self.editable = editable
-        self.filtered = False
-
-        self.loadPrefs()
-        #set any options passed in kwargs to overwrite defaults and prefs
-        for key in kwargs:
-            self.__dict__[key] = kwargs[key]
-
-        if model is None:
-            self.model = TableModel(rows=rows, columns=cols)
+        #self.createTableFrame()
+        if rules:
+            data = self.create_table_rules(by_req=by_req)
         else:
-            self.model = model
+            data = self.create_table_objectives()
+        if import_dict:
+            #self.createfromDict(data) Marche pas namefield pas connu
+            model = TableModel()
+            model.importDict(data)
+            #self.redrawTable()
+        else:
+            model = TableModel(newdict=data) # Marche pas no ColumNames
 
-        self.rows = self.model.getRowCount()
-        self.cols = self.model.getColumnCount()
-        self.tablewidth = self.cellwidth * self.cols
-        #self.do_bindings()
-        #initial sort order
-        self.model.setSortOrder()
+        TableCanvas.__init__(self,
+                             parent,
+                             model=model,
+                            bg='white',
+                            width=width,
+                            height=height,
+                            relief=GROOVE,
+                            reverseorder=reverseorder,
+                            editable=editable,
+                            rowheaderwidth=rowheaderwidth,
+                            showkeynamesinheader=True,
+                            scrollregion=(0, 0, 150, 100))
+        self.createTableFrame()
+       #for key in kwargs:
+       #     self.__dict__[key] = kwargs[key]
 
-        #column specific actions, define for every column type in the model
-        #when you add a column type you should edit this dict
-        self.columnactions = {'text': {"Edit": 'drawCellEntry'},
-                              'number': {"Edit": 'drawCellEntry'}}
-        self.setFontSize()
-        self.draggedcol = None
+
+    def create_table_objectives(self):
+        data = {"columnnames":{"Objective ID":"", "Chapter":"", "Objective":"", "Description":""},
+                "columnorder":{1:"Objective ID",2:"Chapter",3:"Objective",4:"Description"},
+                "columnlabels":{"Objective ID":"Objective ID", "Chapter":"Chapter", "Objective":"Objective", "Description":"Description"},
+                "columntypes":{"Objective ID":"text","Chapter":"text","Objective":"text","Description":"text"}}
+        result = Tool.getDesignReviewDoObjectives(database=self.database)
+        index = 1
+        for objective_id,chapter,objective,description,objective_type in result:
+            data[index] = {}
+            data[index]["Objective ID"] = objective_id
+            data[index]["Chapter"] = chapter
+            data[index]["Objective"] = objective
+            data[index]["Description"] = description
+            index += 1
+        #index_max = self.model.getRowCount()
+        #while index <= index_max:
+        #    data[index] = {}
+        #    data[index]["Objective ID"] = ""
+        #    data[index]["Chapter"] = ""
+        #    data[index]["Objective"] = ""
+        #    data[index]["Description"] = ""
+        #    index += 1
+        return data
+
+    def create_table_rules(self,by_req=False):
+        sheetdata = {"columnames": {"Rule ID": "", "Rule Tag": "","Version": "", "Status": ""},
+                "columnorder":{1:"Rule ID",2:"Rule Tag",3:"Version",4:"Status"},
+                "columnlabels":{"Rule ID":"Rule ID", "Rule Tag":"Rule Tag","Version":"Version", "Status":"Status"},
+                "columntypes":{"Rule ID":"text","Rule Tag":"text","Version":"text","Status":"text"}}
+        #sheetdata = {'rec1': {'col1': 99.88, 'col2': 108.79, 'label': 'rec1'},
+        #             'rec2': {'col1': 99.88, 'col2': 108.79, 'label': 'rec2'}}
+        #sheetdata = {"columnnames": {"Rule ID": "", "Rule Tag": "","Version": "", "Status": ""}}
+        result = Tool.getAll_SDTS_Rule_by_req(by_req=False,
+                                              version=self.version,
+                                              database=self.database)
+        if result:
+            if by_req:
+                rule_type = "REQ_"
+            else:
+                rule_type = ""
+            sorted_result = sorted(result, key=lambda x: x[1])
+            index = 1
+            for rule_id,tag,status,version,description,auto,comments in sorted_result:
+                sheetdata[index] = {}
+                str_id = "{:d}".format(tag)
+                sheetdata[index]["Rule ID"] = rule_id
+                sheetdata[index]["Rule Tag"] = "{:s}_{:s}{:s}".format(self.sds_type,rule_type,str_id.zfill(3))
+                sheetdata[index]["Version"] = version
+                sheetdata[index]["Status"] = status
+                index += 1
+            #index_max = model.getRowCount()
+            #while index <= index_max:
+            #    sheetdata[index] = {}
+            #    sheetdata[index]["Rule ID"] = ""
+            #    sheetdata[index]["Rule Tag"] = ""
+            #    sheetdata[index]["Version"] = ""
+            #    sheetdata[index]["Status"] = ""
+            #    index += 1
+        return sheetdata
 
     def user_handle_left_click(self,event):
         """Does cell selection when mouse is clicked on canvas"""
@@ -1593,7 +1629,10 @@ class Std(TableCanvas):
                              rule_type=""):
         print "_refreshTableProject from class Std"
         index = 1
-        data = {}
+        data = {"colnames": {"`Rule ID": "", "Rule Tag": "","Version": "", "Status": ""},
+                "columnorder":{1:"Rule ID",2:"Rule Tag",3:"Version",4:"Status"},
+                "columnlabels":{},
+                "columntypes":{"Rule ID":"text","Rule Tag":"text","Version":"text","Status":"text","Objective":"text"}}
         self.rules_tag_vs_id = {}
         for rule_id,tag,status,version,description,auto,comments in project_list:
             self.rules_tag_vs_id[tag]=rule_id
@@ -1605,7 +1644,7 @@ class Std(TableCanvas):
             data[index]["Status"] = status
             index += 1
         index_max = self.model.getRowCount()
-        print "index_max", index_max
+        print "index_max & index", index_max,index
         while index <= index_max:
             data[index] = {}
             data[index]["Rule ID"] = ""
@@ -1613,8 +1652,10 @@ class Std(TableCanvas):
             data[index]["Version"] = ""
             data[index]["Status"] = ""
             index += 1
-        model = TableModel()
-        model.importDict(data)
+        model = TableModel(newdict=data)
+        index_max = self.model.getRowCount()
+        print "index_max & index", index_max,index
+        #model.importDict(data)
         print "DATA _refreshTableProject", data
         #self.model.importDict(data)
         # self.table_project.setModel(model)
@@ -1969,7 +2010,8 @@ class ManageStdGui(Frame,
 
     def add_Sheet(self,
                   sheetname=None,
-                  sheetdata=None,
+                  rules=True,
+                  by_req=False,
                   import_dict=False):
         """Add a new sheet - handles all the table creation stuff"""
         def checksheet_name(name):
@@ -1986,35 +2028,44 @@ class ManageStdGui(Frame,
         checksheet_name(sheetname)
         page = self.notebook.add(sheetname)
         #Create the table and model if data present
-        if sheetdata is not None:
-            if import_dict:
-                model = TableModel()
-                model.importDict(sheetdata)
-            else:
-                model = TableModel(newdict=sheetdata)
+        #TODO: sequence to be done in Std class
+        if 1==1:
+        #if sheetdata is not None:
+            #if import_dict:
+            #    model = TableModel()
+            #    model.importDict(sheetdata)
+            #else:
+            #    model = TableModel(newdict=sheetdata)
+                #index_max = model.getRowCount()
+                #print "index_max", index_max
                 #model.importDict(sheetdata)
             #self.updateModel(model)
 
             self.currenttable = Std(page,
-                                    model=model,
+                                    by_req=by_req,
+                                    rules=rules,
+                                    import_dict=import_dict,
                                     reverseorder=1,
                                     editable=True,
                                     rowheaderwidth=100,
                                     showkeynamesinheader=True,
                                     database=self.database,
                                     sds_type=self.sds_type,
+                                    width=800,
+                                    height=600
                                     )
             #self.currenttable.redrawTable()
-            #self.currenttable.autoResizeColumns()
+            #
         else:
             self.currenttable = Std(page,
                                     database=self.database,
                                     sds_type=self.sds_type)
 
         #Load preferences into table
-        self.currenttable.loadPrefs()
+        #self.currenttable.loadPrefs()
         #This handles all the canvas and header in the frame passed to constructor
-        self.currenttable.createTableFrame()
+        #self.currenttable.createTableFrame()
+        #self.currenttable.autoResizeColumns()
         #add the table to the sheet dict
         self.sheets[sheetname] = self.currenttable
         self.saved = 0
@@ -2158,7 +2209,6 @@ class ManageStdGui(Frame,
         cancel_button = Button(self.overall_frame, text='Quit', command=self.fenetre.destroy)
         cancel_button.pack(anchor=E)
 
-
     def createMainWin(self):
         if self.overall_frame is not None:
             self.overall_frame.destroy()
@@ -2168,57 +2218,48 @@ class ManageStdGui(Frame,
         self.overall_frame.pack(anchor=W)
         self.notebook = Pmw.NoteBook(self.overall_frame, raisecommand=self.setcurrenttable)
         self.notebook.pack(fill='both', expand=1, padx=4, pady=4)
-
-        data = {"colnames": {"ID": "", "Rule Tag": "","Version": "", "Status": ""},
-                "columnorder":{1:"ID",2:"Rule Tag",3:"Version",4:"Status"},
-                "columnlabels":{},
-                "columntypes":{"ID":"text","Rule Tag":"text","Version":"text","Status":"text","Objective":"text"}}
         self.sheets = {}
-        result = Tool.getAll_SDTS_Rule_by_req(by_req=False,
-                                              version=self.version,
-                                              database=self.database)
-        sheetdata = {"colnames":{"Rule ID":"", "Rule Tag":"", "Version":"", "Status":""}}
-        if result:
-            rule_type = ""
-            sorted_result = sorted(result,key=lambda x: x[1])
-            index = 1
-            #sheetdata = {}
-            for rule_id,tag,status,version,description,auto,comments in sorted_result:
-                sheetdata[index] = {}
-                str_id = "{:d}".format(tag)
-                sheetdata[index]["Rule ID"] = rule_id
-                sheetdata[index]["Rule Tag"] = "{:s}_{:s}{:s}".format(self.sds_type,rule_type,str_id.zfill(3))
-                sheetdata[index]["Version"] = version
-                sheetdata[index]["Status"] = status
-                index += 1
 
+        #sheetdata = self.create_table_dico()
         self.add_Sheet(sheetname=self.dico_sheetnames['general'],
-                       sheetdata=sheetdata,
-                       import_dict=True)
-        self.add_Sheet(sheetname=self.dico_sheetnames['by_req'],sheetdata=data)
+                       by_req=False)
+                       #import_dict=True)
+        #sheetdata = self.create_table_dico(by_req=True)
+        self.add_Sheet(sheetname=self.dico_sheetnames['by_req'],
+                       by_req=True)
+                       #import_dict=True)
         self.add_Sheet(sheetname=self.dico_sheetnames['do'],
-                       sheetdata={"colnames":{"Objective ID":"", "Chapter":"", "Objectives":"", "Description":""}},
-                       import_dict=True)
+                       rules=False)
 
         # Page General, By Requirement and DO-178 Objectives
 
         # Binding
-        page =  self.sheets[self.dico_sheetnames['general']]
+        page = self.sheets[self.dico_sheetnames['general']]
         page.do_bindings(page.refreshGeneral)
-        page =  self.sheets[self.dico_sheetnames['by_req']]
+        page = self.sheets[self.dico_sheetnames['by_req']]
         page.do_bindings(page.refreshReq)
-        page =  self.sheets[self.dico_sheetnames['do']]
+        page = self.sheets[self.dico_sheetnames['do']]
         page.do_bindings(page.refreshListObjectives)
         self.notebook.setnaturalsize()
-        ok_button = Button(self.overall_frame, text='OK', command=self.fenetre.destroy)
+        ok_button = Button(self.overall_frame, text='OK', command=destroy_app)
         ok_button.pack(side=LEFT, anchor=E)
         refresh_button = Button(self.overall_frame, text='Refresh', command=self.refreshAll)
         refresh_button.pack(side=LEFT, anchor=E)
-        cancel_button = Button(self.overall_frame, text='Quit', command=self.fenetre.destroy)
+        cancel_button = Button(self.overall_frame, text='Quit', command=destroy_app)
         cancel_button.pack(anchor=E)
 
-def test():
-    pass
+def destroy_app():
+    global fenetre
+    global thread_req
+
+    if tkMessageBox.askokcancel("Quit", "Do you really want to quit now?"):
+        thread_req.stop()
+        for child in fenetre.winfo_children():
+            print
+            "CHILD:", child
+            child.destroy()
+        fenetre.destroy()
+
 if __name__ == '__main__':
 
     #exit()
@@ -2277,5 +2318,7 @@ if __name__ == '__main__':
     managebar.add_command(label="SCS", command=std_win.displaySCS)
     mainmenu.add_cascade(label="Display", menu=managebar)
     fenetre.configure(menu=mainmenu)
+    fenetre.geometry('800x600+200+100')
+    fenetre.protocol("WM_DELETE_WINDOW", destroy_app)
     thread_req.start()
     fenetre.mainloop()

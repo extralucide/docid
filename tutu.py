@@ -51,6 +51,7 @@ import json
 import xml.etree.ElementTree as ET
 from shlvcp import Shlvcp
 from swrd import Swrd
+from standards_do import Std
 
 def updateCheck():
     #Gets downloaded version
@@ -1828,7 +1829,7 @@ class TestDoCID(unittest.TestCase):
         root = ET.Element("STD")
         result = Tool.getAll_SDTS_Rule_by_req(by_req=True,database=database)
         # TODO: add link to DO-178
-        for id,status,version,description,auto,comments in sorted(result):
+        for id,status,version,description,auto,comments,objectives_type in sorted(result):
             if status is None:
                 status = ""
             if version is None:
@@ -3117,6 +3118,19 @@ Arrow to identify the functional data flows between the current CSCI and others 
                 print e
         os.startfile(html_filename)
 
+    def create_tkintertable(self):
+        page = Tk()
+        currenttable = Std(page,
+                            by_req=False,
+                            rules=True,
+                            import_dict=False,
+                            reverseorder=1,
+                            editable=True,
+                            rowheaderwidth=100,
+                            showkeynamesinheader=True,
+                            )
+        page.mainloop()
+
     def runTest (self):
         pass
         #print("Running Test")
@@ -3252,7 +3266,8 @@ def suite():
     #suite.addTest(TestDoCID('test_get_generic_bproc'))
     #suite.addTest(TestDoCID('test_extract_hsid'))
     #suite.addTest(TestDoCID('test_extract_tables_in_swrd'))
-    suite.addTest(TestDoCID('test_get_srts_rule'))
+    #suite.addTest(TestDoCID('test_get_srts_rule'))
+    suite.addTest(TestDoCID('create_tkintertable'))
     return suite
 
 if __name__ == '__main__':
