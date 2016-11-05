@@ -51,7 +51,7 @@ import json
 import xml.etree.ElementTree as ET
 from shlvcp import Shlvcp
 from swrd import Swrd
-from standards_do import Std
+from standards_do import Std,Std_Req
 
 def updateCheck():
     #Gets downloaded version
@@ -3119,6 +3119,23 @@ Arrow to identify the functional data flows between the current CSCI and others 
         os.startfile(html_filename)
 
     def create_tkintertable(self):
+        page = Tk()
+        currenttable = Std_Req(page,
+                            by_req=False,
+                            req=True,
+                            rules=True,
+                            import_dict=True,
+                            reverseorder=1,
+                            editable=True,
+                            rowheaderwidth=150,
+                            database="db/swrd.db3",
+                            showkeynamesinheader=True,
+                            width=800,
+                            height=600
+                            )
+        page.mainloop()
+
+    def create_tkintertable_1(self):
         page = Tk()
         currenttable = Std(page,
                             by_req=False,

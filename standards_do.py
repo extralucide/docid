@@ -1301,6 +1301,7 @@ class Std(TableCanvas):
     def __init__(self,
                  parent=None,
                  model=None,
+                 req=False,
                  rules=True,
                  by_req=False,
                  import_dict=False,
@@ -1324,13 +1325,16 @@ class Std(TableCanvas):
         self.version = None
         self.sds_type=sds_type
         #self.createTableFrame()
-        if rules:
+        if req:
+            data = self.create_table_reqs()
+        elif rules:
             data = self.create_table_rules(by_req=by_req)
         else:
             data = self.create_table_objectives()
         if import_dict:
             #self.createfromDict(data) Marche pas namefield pas connu
             model = TableModel()
+            print "DATA Std",data
             model.importDict(data)
             #self.redrawTable()
         else:
@@ -1346,7 +1350,7 @@ class Std(TableCanvas):
                             reverseorder=reverseorder,
                             editable=editable,
                             rowheaderwidth=rowheaderwidth,
-                            showkeynamesinheader=True,
+                            showkeynamesinheader=showkeynamesinheader,
                             scrollregion=(0, 0, 150, 100))
         self.createTableFrame()
        #for key in kwargs:
@@ -1378,7 +1382,7 @@ class Std(TableCanvas):
         return data
 
     def create_table_rules(self,by_req=False):
-        sheetdata = {"columnames": {"Rule ID": "", "Rule Tag": "","Version": "", "Status": ""},
+        sheetdata = {"columnnames": {"Rule ID": "", "Rule Tag": "","Version": "", "Status": ""},
                 "columnorder":{1:"Rule ID",2:"Rule Tag",3:"Version",4:"Status"},
                 "columnlabels":{"Rule ID":"Rule ID", "Rule Tag":"Rule Tag","Version":"Version", "Status":"Status"},
                 "columntypes":{"Rule ID":"text","Rule Tag":"text","Version":"text","Status":"text"}}
@@ -1403,14 +1407,6 @@ class Std(TableCanvas):
                 sheetdata[index]["Version"] = version
                 sheetdata[index]["Status"] = status
                 index += 1
-            #index_max = model.getRowCount()
-            #while index <= index_max:
-            #    sheetdata[index] = {}
-            #    sheetdata[index]["Rule ID"] = ""
-            #    sheetdata[index]["Rule Tag"] = ""
-            #    sheetdata[index]["Version"] = ""
-            #    sheetdata[index]["Status"] = ""
-            #    index += 1
         return sheetdata
 
     def user_handle_left_click(self,event):
@@ -1665,17 +1661,56 @@ class Std(TableCanvas):
 
 class Std_Req(Std):
     def __init__(self,
-             parent=None,
-             model=None,
-             width=None,
-             height=None,
-             rows=10,
-             cols=5,
-             editable=False,
-             database=None,
-             sds_type=None,
-             **kwargs):
-        Std.__init__(self,parent,model,width,height,rows,cols,editable,database,sds_type,**kwargs)
+                 parent=None,
+                 import_dict=True,
+                 model=None,
+                 req=False,
+                 width=None,
+                 height=None,
+                 rows=10,
+                 cols=5,
+                 editable=False,
+                 database=None,
+                 sds_type=None,
+                 **kwargs):
+
+        Std.__init__(self,
+                     parent=parent,
+                     import_dict=import_dict,
+                     model=model,
+                     req=req,
+                     width=width,
+                     height=height,
+                     rows=rows,
+                     cols=cols,
+                     editable=editable,
+                     database=database,
+                     sds_type=sds_type,
+                     **kwargs)
+        print "WH",self.width,self.height
+        data = self.model.getData()
+        print "getData",data
+
+    def create_table_reqs(self):
+        # data = {"columnnames":{"Requirement Tag":"", "Version":""},
+        #         "columnorder":{1:"Requirement Tag",2:"Version"},
+        #         "columnlabels":{"Requirement Tag":"Requirement Tag", "Version":"Version"},
+        #         "columntypes":{"Requirement Tag":"text","Version":"text"}}
+        data = {}
+        swrd = ExtractReq()
+        result = swrd.restoreFromSQLite()
+        sorted_result = sorted(result,key=lambda x: x[0])
+        index = 1
+        self.reqs_tag_vs_id = {}
+        # TODO: Ajouter un lien entre id et tag
+        for req_id,tag,body,issue,refer,status,derived,terminal,rationale,safety,additional in sorted_result:
+            self.reqs_tag_vs_id[tag]=req_id
+            data[index] = {}
+            data[index]["Requirement"] = tag
+            data[index]["Version"] = issue
+            #data[index]["Status"] = status
+            index += 1
+        return data
 
     def setList(self,
                 by_req=False):
@@ -1707,16 +1742,16 @@ class Std_Req(Std):
         for req_id,tag,body,issue,refer,status,derived,terminal,rationale,safety,additional in project_list:
             self.reqs_tag_vs_id[tag]=req_id
             data[index] = {}
-            data[index]["Req ID"] = tag
-            #data[index]["Version"] = issue
+            data[index]["Requirement Tag"] = tag
+            data[index]["Version"] = issue
             #data[index]["Status"] = status
             index += 1
         index_max = self.model.getRowCount()
         print "index_max", index_max
         while index <= index_max:
             data[index] = {}
-            data[index]["Req ID"] = ""
-            #data[index]["Version"] = ""
+            data[index]["Requirement Tag"] = ""
+            data[index]["Version"] = ""
             #data[index]["Status"] = ""
             index += 1
         model = TableModel()
@@ -1743,7 +1778,7 @@ class Std_Req(Std):
         clicks = (rclicked, cclicked)
         print 'clicks:', clicks
         column_name = self.model.getColumnLabel(cclicked)
-        rule_id_column = re.search(r'Req ID',column_name)
+        rule_id_column = re.search(r'Requirement',column_name)
         if not rule_id_column:
             #absrow = self.get_AbsoluteRow(row)
             model=self.getModel()
@@ -1977,22 +2012,27 @@ class ManageStdGui(Frame,
         checksheet_name(sheetname)
         page = self.notebook.add(sheetname)
         #Create the table and model if data present
-        if sheetdata is not None:
-            if import_dict:
-                model = TableModel()
-                model.importDict(sheetdata)
-            else:
-                model = TableModel(newdict=sheetdata)
-                #model.importDict(sheetdata)
-            print "Std_Req"
+        if 1==1:
+            # if import_dict:
+            #     model = TableModel()
+            #     model.importDict(sheetdata)
+            # else:
+            #     model = TableModel(newdict=sheetdata)
+            #     #model.importDict(sheetdata)
+            # print "Std_Req"
             self.currenttable = Std_Req(page,
-                                    model=model,
                                     reverseorder=1,
+                                    req=True,
                                     editable=True,
-                                    rowheaderwidth=100,
+                                    import_dict=True,
+                                    cols=2,
+                                    rows=6,
+                                    rowheaderwidth=150,
                                     showkeynamesinheader=True,
                                     database=self.database,
                                     sds_type=self.sds_type,
+                                    width=800,
+                                    height=600
                                     )
         else:
             self.currenttable = Std_Req(page,
@@ -2000,9 +2040,9 @@ class ManageStdGui(Frame,
                                     sds_type=self.sds_type)
 
         #Load preferences into table
-        self.currenttable.loadPrefs()
+        #self.currenttable.loadPrefs()
         #This handles all the canvas and header in the frame passed to constructor
-        self.currenttable.createTableFrame()
+        #self.currenttable.createTableFrame()
         #add the table to the sheet dict
         self.sheets[sheetname] = self.currenttable
         self.saved = 0
@@ -2188,25 +2228,30 @@ class ManageStdGui(Frame,
             self.overall_frame.destroy()
         Frame.__init__(self,self.fenetre)
         page = fenetre
-        self.overall_frame = LabelFrame(page, bd=0, text='')
+        self.overall_frame = Frame(page,
+                                    bd=0,
+                                    bg='red',
+                                    width=800,
+                                    height=600)
         self.overall_frame.pack(anchor=W)
         self.notebook = Pmw.NoteBook(self.overall_frame, raisecommand=self.setcurrenttable)
         self.notebook.pack(fill='both', expand=1, padx=4, pady=4)
-        data = {"colnames": {"Requirement ID": ""},
-                "columnorder":{1:"Requirement ID"},
-                "columnlabels":{},
-                "columntypes":{"Requirement ID":"text"}}
+        # data = {"columnames": {"Requirement Tag": "","Version":""},
+        #         "columnorder":{1:"Requirement Tag",2:"Version"},
+        #         "columnlabels":{"Requirement Tag":"Requirement Tag","Version":"Version"},
+        #         "columntypes":{"Requirement Tag":"text","Version":"text"}}
         self.sheets = {}
-        self.add_Sheet_Req(sheetname=self.dico_sheetnames['by_req'],sheetdata=data)
-        self.currenttable.setList()
-        self.currenttable.do_bindings()
-        ok_button = Button(self.overall_frame, text='OK', command=self.fenetre.destroy)
+        self.add_Sheet_Req(sheetname=self.dico_sheetnames['by_req'])
+                           #sheetdata=data)
+        #self.currenttable.setList()
+        #self.currenttable.do_bindings()
+        ok_button = Button(self.overall_frame, text='OK', command=destroy_app)
         ok_button.pack(side=LEFT, anchor=E)
         refresh_button = Button(self.overall_frame,
                                 text='Refresh',
                                 command=self.currenttable.refreshReq)
         refresh_button.pack(side=LEFT, anchor=E)
-        cancel_button = Button(self.overall_frame, text='Quit', command=self.fenetre.destroy)
+        cancel_button = Button(self.overall_frame, text='Quit', command=destroy_app)
         cancel_button.pack(anchor=E)
 
     def createMainWin(self):
