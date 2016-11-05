@@ -2230,7 +2230,6 @@ class ManageStdGui(Frame,
         page = fenetre
         self.overall_frame = Frame(page,
                                     bd=0,
-                                    bg='red',
                                     width=800,
                                     height=600)
         self.overall_frame.pack(anchor=W)
@@ -2245,6 +2244,7 @@ class ManageStdGui(Frame,
                            #sheetdata=data)
         #self.currenttable.setList()
         #self.currenttable.do_bindings()
+        self.notebook.setnaturalsize()
         ok_button = Button(self.overall_frame, text='OK', command=destroy_app)
         ok_button.pack(side=LEFT, anchor=E)
         refresh_button = Button(self.overall_frame,
