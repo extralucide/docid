@@ -176,6 +176,10 @@ class SQLite():
             self.con.close()
 
 class StdMngt(SQLite):
+
+    def __init__(self,database="db/stds_rules.db3"):
+        SQLite.__init__(self,database)
+
     @staticmethod
     def getUserRole(login,
                      database="db/sdts_rules.db3"):
@@ -281,6 +285,22 @@ class StdMngt(SQLite):
             data = result
         return data
 
+    @staticmethod
+    def getAll_SDTS_Req_Rule_Tag(baseline=None,
+                                database="db/srts_rules.db3"):
+        table = "rules"
+        # TODO: Implement baseline management
+        query = "SELECT tag FROM {:s} WHERE (by_req LIKE '1' AND ((status != 'OBSOLETE' AND status != 'DELETED') OR status IS NULL))".format(table)
+        print "getAll_SDTS_Req_Rule_Tag:",query
+        result = Tool.sqlite_query(query,database=database)
+        if result is not None:
+            sorted_result = sorted(result, key=lambda x: x[0])
+        else:
+            sorted_result = ()
+        text_result = map(lambda rule:"{:s}_{:s}{:s}".format("SDS","REQ_",str(rule[0]).zfill(3)),sorted_result)
+        print "text_result",text_result
+        return text_result
+
     # sdts_rules.db3
     @staticmethod
     def getAll_SDTS_Rule_by_req(by_req=True,
@@ -311,23 +331,25 @@ class StdMngt(SQLite):
         return data
 
     @staticmethod
-    def updateDo(id,txt,database="db/sdts_rules.db3"):
+    def updateDo(objective_id,txt,database="db/sdts_rules.db3"):
         #now = datetime.datetime.now()
         con = lite.connect(database, isolation_level=None)
         cur = con.cursor()
-        cur.execute("SELECT id FROM do_178_objectives WHERE id LIKE '{:d}'  LIMIT 1".format(id))
+        cur.execute("SELECT id FROM do_178_objectives WHERE id LIKE '{:d}'  LIMIT 1".format(objective_id))
         data = cur.fetchone()
         if data is not None:
-            id = data[0]
-            cur.execute("UPDATE do_178_objectives SET description=? WHERE id= ?",(txt,id))
+            objective_id = data[0]
+            cur.execute("UPDATE do_178_objectives SET description=? WHERE id= ?",(txt,objective_id))
 
     @staticmethod
     def updateRuleStatus(tag,
                          status,
+                         version=None,
                          database="db/sdts_rules.db3"):
         #now = datetime.datetime.now()
         con = lite.connect(database, isolation_level=None)
         cur = con.cursor()
+        # TODO: Add status
         cur.execute("SELECT id,tag FROM rules WHERE tag LIKE '{:s}' LIMIT 1".format(tag))
         data = cur.fetchone()
         print "DATA",data
@@ -368,17 +390,22 @@ class StdMngt(SQLite):
 
     @staticmethod
     def addLinkRule2Objective(rule_id,objective_id,database="db/sdts_rules.db3"):
+        # rule_is <=> tag
         #TODO: write addLinkRule2Objective function
         print "write addLinkRule2Objective function",rule_id,objective_id
         con = lite.connect(database, isolation_level=None)
         cur = con.cursor()
-        #cur.execute("SELECT rules.id FROM rules_vs_comments WHERE rule_id LIKE '" + id + "'  LIMIT 1")
-        #data = cur.fetchone()
-        #if data is not None:
+        cur.execute("SELECT rule_id FROM rules_vs_objectives WHERE rule_id = {:s} AND objective_id = {:s}".format(str(rule_id),objective_id))
+        data = cur.fetchone()
+        if data is None:
         #   id = data[0]
         #   cur.execute("UPDATE rules SET description=? WHERE id= ?",(txt,id))
         #else:
-        cur.execute("INSERT INTO rules_vs_objectives(rule_id,objective_id) VALUES(?,?)",(rule_id,objective_id))
+            cur.execute("INSERT INTO rules_vs_objectives(rule_id,objective_id) VALUES(?,?)",(rule_id,objective_id))
+            return True
+        else:
+            print "Link already created."
+            return False
 
     @staticmethod
     def readComments(id,database="db/sdts_rules.db3",table = "rules_vs_comments"):
@@ -404,10 +431,10 @@ class StdMngt(SQLite):
         return data
 
     @staticmethod
-    def readCommentByID(comment_id,database="db/sdts_rules.db3"):
-        table = "rules_vs_comments"
+    def readCommentByID(comment_id,database="db/sdts_rules.db3",table="rules_vs_comments"):
         print ("rule id:",comment_id)
-        query = "SELECT id,user_login,date,comment,status,rule_id FROM {:s} WHERE id LIKE '{:d}' ".format(table,comment_id)
+        query = "SELECT id,user_login,date,comment,status,rule_id,violation FROM {:s} WHERE id LIKE '{:d}' ".format(table,comment_id)
+        print "QUERY: ReqMngt.readCommentByID",query
         result = Tool.sqlite_query_one(query,database=database)
         if result is None:
             data = False
@@ -434,20 +461,24 @@ class StdMngt(SQLite):
         cur.execute("INSERT INTO responses_to_comments(comment_id,user_login,date,response) VALUES(?,?,?,?)",(id,user_login,date,txt))
 
     @staticmethod
-    def addCommentRule(id,user_login="Nobody",date="",txt="",database="db/sdts_rules.db3"):
+    def addCommentRule(rule_id,
+                       user_login="Nobody",
+                       date="",
+                       txt="",
+                       database="db/sdts_rules.db3"):
         con = lite.connect(database, isolation_level=None)
         cur = con.cursor()
-        cur.execute("INSERT INTO rules_vs_comments(rule_id,user_login,date,comment) VALUES(?,?,?,?)",(id,user_login,date,txt))
+        cur.execute("INSERT INTO rules_vs_comments(rule_id,user_login,date,comment) VALUES(?,?,?,?)",(rule_id,user_login,date,txt))
 
     @staticmethod
-    def UpdateComment(id,user_login="Nobody",date="",txt="",status="",database="db/sdts_rules.db3"):
+    def UpdateComment(comment_id,user_login="Nobody",date="",txt="",status="",database="db/sdts_rules.db3"):
         con = lite.connect(database, isolation_level=None)
         cur = con.cursor()
-        cur.execute("SELECT id FROM rules_vs_comments WHERE id LIKE '{:d}'  LIMIT 1".format(id))
+        cur.execute("SELECT id FROM rules_vs_comments WHERE id LIKE '{:d}'  LIMIT 1".format(comment_id))
         data = cur.fetchone()
         if data is not None:
-           id = data[0]
-           cur.execute("UPDATE rules_vs_comments SET user_login=?,date=?,comment=?,status=? WHERE id= ?",(user_login,date,txt,status,id))
+           comment_id = data[0]
+           cur.execute("UPDATE rules_vs_comments SET user_login=?,date=?,comment=?,status=? WHERE id= ?",(user_login,date,txt,status,comment_id))
 
     @staticmethod
     def UpdateResponse(id,user_login="Nobody",date="",txt="",database="db/sdts_rules.db3"):
@@ -459,6 +490,49 @@ class StdMngt(SQLite):
            id = data[0]
            cur.execute("UPDATE responses_to_comments SET user_login=?,date=?,response=? WHERE id= ?",(user_login,date,txt,id))
 
+class ReqMngt(StdMngt):
+    def __init__(self,database="db/stds_rules.db3"):
+        StdMngt(self,database)
+
+    @staticmethod
+    def readCommentByID(comment_id,database="db/sdts_rules.db3",table="rules_vs_comments"):
+        print ("rule id:",comment_id)
+        query = "SELECT id,user_login,date,comment,status,rule_id,violation FROM {:s} WHERE id LIKE '{:d}' ".format(table,comment_id)
+        print "QUERY: StdMngt.readCommentByID",query
+        result = Tool.sqlite_query_one(query,database=database)
+        if result is None:
+            data = False
+        else:
+            data = result
+        return data
+
+    @staticmethod
+    def UpdateComment(comment_id,
+                      user_login="Nobody",
+                      date="",
+                      txt="",
+                      status="",
+                      violation="",
+                      database="db/swrd.db3"):
+        # Update comment for requirement
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("SELECT id FROM rules_vs_comments WHERE id LIKE '{:d}'  LIMIT 1".format(comment_id))
+        data = cur.fetchone()
+        if data is not None:
+           comment_id = data[0]
+           cur.execute("UPDATE rules_vs_comments SET user_login=?,date=?,comment=?,status=?,violation=? WHERE id= ?",(user_login,date,txt,status,violation,comment_id))
+
+    @staticmethod
+    def addCommentRule(rule_id,
+                       user_login="Nobody",
+                       date="",
+                       txt="",
+                       violation="",
+                       database="db/swrd.db3"):
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("INSERT INTO comments(rule_id,user_login,date,comment,violation) VALUES(?,?,?,?,?)",(rule_id,user_login,date,txt,violation))
 #
 # Class Tool
 #

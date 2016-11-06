@@ -5,7 +5,6 @@ import platform
 import re
 import getpass
 from os.path import join
-from tool import Tool
 import threading
 from synergy_thread import ThreadQuery
 try:
@@ -32,7 +31,7 @@ from tkintertable.TableModels import TableModel
 from tkintertable.TableFormula import Formula
 from check_llr import CheckLLR
 from check_is import CheckIS
-from tool import SQLite
+from tool import Tool,SQLite,StdMngt,ReqMngt
 from tkinterhtml import HtmlFrame,TkinterHtml
 
 class scrollTxtArea:
@@ -478,11 +477,11 @@ class smallWindows(Frame,
         return update_text
 
     def get_version(self):
-        version=self.entry_version.get()
+        version = self.entry_version.get()
         return version
 
     def get_status(self):
-        status=self.status_listbox.get(ACTIVE)
+        status = self.status_listbox.get(ACTIVE)
         return status
 
     def remove_comment(self,event,comment_id,rule_id,rule_tag,user_login):
@@ -498,7 +497,7 @@ class smallWindows(Frame,
             self.exit()
 
     def add_comment(self,rule_id,rule_tag,callback_refresh):
-        txt=self.read()
+        txt = self.read()
         now = datetime.now()
         date = now.strftime("%A, %d. %B %Y %I:%M%p")
         user_login = getpass.getuser()
@@ -619,48 +618,32 @@ class smallWindows(Frame,
         InspectionWorkflow = ("TO BE DISCUSSED","ACCEPTED","CORRECTED","REJECTED")
         sql_comment_id,user_login,date,comment,status,rule_id = Tool.readCommentByID(comment_id)
         self.edit_comment_windows = smallWindows(master=self.display_rule)
-        self.edit_comment_windows.create(title="Comment")
+        self.edit_comment_windows.create(title="Update comment {:d} written by {:s} on {:s} for rule {:s}".format(sql_comment_id,user_login,date,rule_tag))
         left_frame = Frame(self.edit_comment_windows.display_rule)
-        self.comment_text = self.edit_comment_windows.create_text(title="Update comment {:d} written by {:s} on {:s} for rule {:s}".format(sql_comment_id,user_login,date,rule_tag),
+        self.comment_text = self.edit_comment_windows.create_text(title="Comment for {:s}".format(rule_tag),
                                     frame=left_frame,
                                     height=8,
                                     side=TOP)
         print "self.comment_text",self.comment_text
         formatted_comment = Tool.replaceNonASCII(comment)
         self.edit_comment_windows.write(txt='{:s}'.format(formatted_comment))
+        #right_frame = Frame(self.edit_comment_windows.display_rule,width=50)
+
         # Display comments
         self.responses_frame = self.edit_comment_windows.create_text(title="Responses for comments {:d}".format(sql_comment_id),
                                                                 frame=left_frame,
                                                                 height=8)
         self.refreshResponses(comment_id)
-        if 0==1:
-            responses = Tool.readResponses(comment_id)
-            if responses:
-                print "COMMENTS",responses
-                inter = 0
-                for response_id,user_login,date,response in responses:
-                    if inter % 2 == 0:
-                        color = 'gray88'
-                    else:
-                        color = 'lightgrey'
-                    handle = "handle_{:d}".format(inter)
-                    #self.comment_windows.write(txt='{:d}) {:s} {:s}: {:s}\n'.format(id,user_login,date,comment),
-                    self.edit_comment_windows.write(txt='{:d}) {:s} [{:s} - {:s}]\n'.format(response_id,response,user_login,date),
-                                          frame=self.responses_frame.text,
-                                           color=color,
-                                           handle=handle,
-                                           hlink = response_id,
-                                           callback=lambda event, arg1=response_id: self.editResponseWindow(event,response_id),
-                                           run=True)
-                    inter += 1
 
         left_frame.pack(side=LEFT)
-        # Rule status
-        self.edit_comment_windows.create_combobox(self.edit_comment_windows.display_rule,
-                                        width=40,
-                                        text="Status",
-                                        list_items=InspectionWorkflow,
-                                        callback=self.status_listbox_onselect)
+        # Comment status
+        self.status_listbox = self.edit_comment_windows.create_combobox(self.edit_comment_windows.display_rule,
+                                                                        width=40,
+                                                                        text="Status",
+                                                                        list_items=InspectionWorkflow,
+                                                                        callback=self.status_listbox_onselect)
+
+        # Update
         self.edit_comment_windows.status_focus(status,
                                      list_items=InspectionWorkflow)
         self.edit_comment_windows.add_button(text="Update",
@@ -670,7 +653,7 @@ class smallWindows(Frame,
         self.edit_comment_windows.add_button(text="Respond",
                                    func_help="Add a response",
                                    side=TOP,
-                                   callback=lambda arg1=comment_id: self.edit_comment_windows.display_input_new_response_windows(comment_id))
+                                   callback=lambda arg1=comment_id,arg2=self.refreshResponses: self.display_input_new_response_windows(comment_id,arg2))
         self.edit_comment_windows.add_button(text="Quit",
                                    func_help="Back to the rule",
                                    side=TOP,
@@ -726,6 +709,14 @@ class smallWindows(Frame,
         #comment_windows.set_id(self.rule_id)
         comment_windows.create(title="Add a new comment")
         comment_windows.create_text(title="Comment for rule {:s}".format(rule_tag))
+        # Discrepancy deals with a rule in the listbox
+        list_rules = Tool.getAll_SDTS_Req_Rule_Tag()
+        # TODO: Create callback
+        comment_windows.create_combobox(self.display_rule,
+                            width=40,
+                            text="Rule violated",
+                            list_items=list_rules,
+                            callback=None)
         comment_windows.add_button(text="Add",
                                    func_help="Add a comment",
                                    side=TOP,
@@ -735,14 +726,15 @@ class smallWindows(Frame,
                                    side=TOP,
                                    callback=comment_windows.exit)
 
-    def display_input_new_response_windows(self,comment_id):
+    def display_input_new_response_windows(self,comment_id,callback_refresh):
+        # TODO: Corriger AttributeError: smallWindows instance has no attribute 'responses_frame' line 771, in refreshResponses
         comment_windows = smallWindows(master=self.display_rule)
         comment_windows.create(title="Response")
         comment_windows.create_text(title="Response to comment {:d}".format(comment_id))
         comment_windows.add_button(text="OK",
                                    func_help="Add a response",
                                    side=TOP,
-                                   callback=lambda arg1=comment_id,arg2=self.refreshResponses:comment_windows.add_response(arg1,arg2))
+                                   callback=lambda arg1=comment_id,arg2=callback_refresh:comment_windows.add_response(arg1,arg2))
         comment_windows.add_button(text="Quit",
                                    func_help="Back",
                                    side=TOP,
@@ -762,7 +754,8 @@ class smallWindows(Frame,
                     color = 'lightgrey'
                 handle = "handle_{:d}".format(inter)
                 #self.comment_windows.write(txt='{:d}) {:s} {:s}: {:s}\n'.format(id,user_login,date,comment),
-                self.edit_comment_windows.write(txt='{:d}) {:s} [{:s} - {:s}]\n'.format(response_id,response,user_login,date),
+                response_ascii = Tool.removeNonAscii(response)
+                self.edit_comment_windows.write(txt='{:d}) {:s} [{:s} - {:s}]\n'.format(response_id,response_ascii,user_login,date),
                                       frame=self.responses_frame.text,
                                        color=color,
                                        handle=handle,
@@ -818,7 +811,7 @@ class smallWindows(Frame,
                                         callback=self.comment_windows.exit)
 
     def getDesignReviewDoObjectives(self):
-        result = Tool.getDesignReviewDoObjectives()
+        result = Tool.getDesignReviewDoObjectives(database=self.database)
         list_objectives = []
         for objective_id,chapter,objective,description,objective_type in result:
             list_objectives.append("{:d}) {:s} {:s} {:s}".format(objective_id,objective_type,chapter,objective))
@@ -987,18 +980,18 @@ class smallWindows(Frame,
                        width=80,
                        list_items=("APPROVED","MODIFIED","TO BE MODIFIED","DELETED"),
                        callback=None):
-
-        self.status_listbox = Pmw.ComboBox(frame,
-                label_text = text,
-                labelpos = 'nw',
-                sticky = 'w',
-                selectioncommand = self.set_listbox_selection,
-                scrolledlist_items = list_items,
-                dropdown = 0,
-        )
+        # TODO: generic name  for combobox
+        status_listbox = Pmw.ComboBox(frame,
+                                            label_text = text,
+                                            labelpos = 'nw',
+                                            sticky = 'w',
+                                            selectioncommand = self.set_listbox_selection,
+                                            scrolledlist_items = list_items,
+                                            dropdown = 0)
 
         #self.status_listbox.pack(fill=BOTH, expand=1,anchor=W)
-        self.status_listbox.pack(anchor=W)
+        status_listbox.pack(anchor=W)
+        return status_listbox
 
     def overListbox_deprecated(self,event,listbox):
         index = listbox.nearest(event.y)
@@ -1058,7 +1051,8 @@ class smallWindows(Frame,
 
     def create_rule(self,
                     text="Description",
-                    rule_tag="",
+                    rule_tag=1,
+                    full_rule_tag="",
                    width=80,
                    height=20,
                    callback=None,
@@ -1108,7 +1102,7 @@ class smallWindows(Frame,
         bottom_frame = Frame(self.display_rule, bg="red",width=600)
         show_comments_button = Button(bottom_frame,
                                       text='Show Comments',
-                                      command=lambda arg1=rule_tag: self.display_comment_windows(rule_tag))
+                                      command=lambda arg1=full_rule_tag: self.display_comment_windows(arg1))
         show_comments_button.pack(side=LEFT,anchor=E)
         ok_button = Button(bottom_frame, text='Update', command=lambda arg=callback3: callback(callback3))
         ok_button.pack(side=LEFT, anchor=E)
@@ -1216,6 +1210,115 @@ class smallWindows(Frame,
         self.rule_id = rule_id
 
 class smallWindowsReq(smallWindows):
+
+    def __init__(self,
+                 master=None,
+                 database=None,
+                 review_type=None):
+        smallWindows.__init__(self,master,database,review_type)
+
+    def get_violation(self):
+        violation = self.violation_listbox.get(ACTIVE)
+        return violation
+
+    def edit_comment(self,comment_id,rule_id,rule_tag):
+        txt = self.read(self.comment_text.text)
+        now = datetime.now()
+        date = now.strftime("%A, %d. %B %Y %I:%M%p")
+        print "NOW:",date
+        user_login = getpass.getuser()
+        status = self.get_status()
+        if tkMessageBox.askyesno("Update Comment", "Are you sure?"):
+            ReqMngt.UpdateComment(comment_id,
+                                    user_login=user_login,
+                                    date=date,
+                                    txt=txt,
+                                    status=status)
+            self.refreshComments(rule_id=rule_id,rule_tag=rule_tag)
+        self.exit()
+
+    def add_comment(self,
+                    rule_id,
+                    rule_tag,
+                    callback_refresh):
+        txt = self.read()
+        violation = self.get_violation()
+        now = datetime.now()
+        date = now.strftime("%A, %d. %B %Y %I:%M%p")
+        user_login = getpass.getuser()
+        if tkMessageBox.askyesno("Add Comment to requirement {:s}".format(rule_tag), "Are you sure to add a comment ?"):
+            ReqMngt.addCommentRule(rule_id,
+                                    user_login=user_login,
+                                    date=date,
+                                    txt=txt,
+                                    violation=violation)
+            callback_refresh(rule_id,rule_tag)
+            self.exit()
+
+    def violation_focus(self,violation,list_items=("RULE_01","RULE_02","RULE_03","RULE_04")):
+        if violation in list_items:
+            num = list_items.index(violation)
+            print "Violation Num:",num
+            self.violation_listbox.selectitem(num,setentry=1)
+
+    def editCommentWindow(self, event, comment_id,rule_tag):
+        # Edit comment
+        InspectionWorkflow = ("TO BE DISCUSSED","ACCEPTED","CORRECTED","REJECTED")
+        sql_comment_id,user_login,date,comment,status,rule_id,violation = ReqMngt.readCommentByID(comment_id,
+                                                                                                   database= self.database,
+                                                                                                   table=" comments")
+        self.edit_comment_windows = smallWindows(master=self.display_rule)
+        self.edit_comment_windows.create(title="Update comment {:d} written by {:s} on {:s} for rule {:s}".format(sql_comment_id,user_login,date,rule_tag))
+        left_frame = Frame(self.edit_comment_windows.display_rule)
+        self.comment_text = self.edit_comment_windows.create_text(title="Comment for {:s}".format(rule_tag),
+                                    frame=left_frame,
+                                    height=8,
+                                    side=TOP)
+        print "self.comment_text",self.comment_text
+        formatted_comment = Tool.replaceNonASCII(comment)
+        self.edit_comment_windows.write(txt='{:s}'.format(formatted_comment))
+        #right_frame = Frame(self.edit_comment_windows.display_rule,width=50)
+
+        # Display comments
+        self.responses_frame = self.edit_comment_windows.create_text(title="Responses for comments {:d}".format(sql_comment_id),
+                                                                frame=left_frame,
+                                                                height=8)
+        self.refreshResponses(comment_id)
+
+        left_frame.pack(side=LEFT)
+        # Comment status
+        self.status_listbox = self.edit_comment_windows.create_combobox(self.edit_comment_windows.display_rule,
+                                                                        width=40,
+                                                                        text="Status",
+                                                                        list_items=InspectionWorkflow,
+                                                                        callback=self.status_listbox_onselect)
+        # Discrepancy deals with a rule in the listbox
+        list_rules = Tool.getAll_SDTS_Req_Rule_Tag()
+        # TODO: Create callback
+        self.violation_listbox = self.edit_comment_windows.create_combobox(self.edit_comment_windows.display_rule,
+                                                                            width=40,
+                                                                            text="Rule violated",
+                                                                            list_items=list_rules,
+                                                                            callback=None)
+        # Update Status
+        self.edit_comment_windows.status_focus(status,
+                                     list_items=InspectionWorkflow)
+        # Update Violation
+        self.edit_comment_windows.violation_focus(violation,
+                                     list_items=list_rules)
+        self.edit_comment_windows.add_button(text="Update",
+                                   func_help="Update comment",
+                                   side=TOP,
+                                   callback=lambda arg1=comment_id,arg2=rule_id,arg3=rule_tag: self.edit_comment(arg1,arg2,arg3))
+        self.edit_comment_windows.add_button(text="Respond",
+                                   func_help="Add a response",
+                                   side=TOP,
+                                   callback=lambda arg1=comment_id,arg2=self.refreshResponses: self.display_input_new_response_windows(comment_id,arg2))
+        self.edit_comment_windows.add_button(text="Quit",
+                                   func_help="Back to the rule",
+                                   side=TOP,
+                                   callback=self.edit_comment_windows.exit)
+
     def create_rule(self,
                 text="Description",
                 rule_tag="",
@@ -1252,11 +1355,11 @@ class smallWindowsReq(smallWindows):
 
         self.objectives_frame.pack()
         # Rule status
-        self.create_combobox(right_frame,
-                            width=40,
-                            text="Status",
-                            list_items=("MATURE","TBD","TBC"),
-                            callback=self.status_listbox_onselect)
+        self.status_listbox = self.create_combobox(right_frame,
+                                                    width=40,
+                                                    text="Status",
+                                                    list_items=("MATURE","TBD","TBC"),
+                                                    callback=self.status_listbox_onselect)
 
         self.entry_version = self.createEntry(frame=right_frame,
                                               tag='Version',
@@ -1533,6 +1636,7 @@ class Std(TableCanvas):
                         # Description
                         self.small_windows.create_rule(text="Description of the rule in markdown language",
                                                        rule_tag=int_tag,
+                                                       full_rule_tag=rule,
                                                        callback=callback,
                                                        callback2=self.refreshObjectives,
                                                        callback3=callback_refresh_all)
@@ -2318,7 +2422,7 @@ if __name__ == '__main__':
     icone = "ico_sys_desktop.ico"
     fenetre.iconbitmap(icone)
     fenetre.resizable(False, False)
-    fenetre.title('Standards Management')
+    fenetre.title('Specifications Reviewer')
     queue_gui_thread = Queue.Queue()
     queue_thread_gui = Queue.Queue()
 
@@ -2342,6 +2446,7 @@ if __name__ == '__main__':
     menubar.add_separator()
     menubar.add_command(label="View HTML", command=std_win.online_documentation)
     menubar.add_separator()
+    menubar.add_command(label="Quit", command=destroy_app)
     #menubar.add_command(label="Preferences", command=std_win.showtablePrefs)
     #menubar.add_command(label="Save Preferences", command=std_win.applyPrefs)
     mainmenu.add_cascade(label="File", menu=menubar)
@@ -2362,6 +2467,10 @@ if __name__ == '__main__':
     managebar.add_command(label="SDTS", command=std_win.displaySDTS)
     managebar.add_command(label="SCS", command=std_win.displaySCS)
     mainmenu.add_cascade(label="Display", menu=managebar)
+    helpbar = Menu(mainmenu)
+    helpbar.add_command(label="Documentation", command=None)
+    helpbar.add_command(label="About", command=None)
+    mainmenu.add_cascade(label="Help", menu=helpbar)
     fenetre.configure(menu=mainmenu)
     fenetre.geometry('800x600+200+100')
     fenetre.protocol("WM_DELETE_WINDOW", destroy_app)
