@@ -434,7 +434,7 @@ class StdMngt(SQLite):
     def readCommentByID(comment_id,database="db/sdts_rules.db3",table="rules_vs_comments"):
         print ("rule id:",comment_id)
         query = "SELECT id,user_login,date,comment,status,rule_id,violation FROM {:s} WHERE id LIKE '{:d}' ".format(table,comment_id)
-        print "QUERY: ReqMngt.readCommentByID",query
+        print "QUERY: StdMngt.readCommentByID",query
         result = Tool.sqlite_query_one(query,database=database)
         if result is None:
             data = False
@@ -498,7 +498,7 @@ class ReqMngt(StdMngt):
     def readCommentByID(comment_id,database="db/sdts_rules.db3",table="rules_vs_comments"):
         print ("rule id:",comment_id)
         query = "SELECT id,user_login,date,comment,status,rule_id,violation FROM {:s} WHERE id LIKE '{:d}' ".format(table,comment_id)
-        print "QUERY: StdMngt.readCommentByID",query
+        print "QUERY: ReqMngt.readCommentByID",query
         result = Tool.sqlite_query_one(query,database=database)
         if result is None:
             data = False
@@ -517,11 +517,11 @@ class ReqMngt(StdMngt):
         # Update comment for requirement
         con = lite.connect(database, isolation_level=None)
         cur = con.cursor()
-        cur.execute("SELECT id FROM rules_vs_comments WHERE id LIKE '{:d}'  LIMIT 1".format(comment_id))
+        cur.execute("SELECT id FROM comments WHERE id LIKE '{:d}'  LIMIT 1".format(comment_id))
         data = cur.fetchone()
         if data is not None:
            comment_id = data[0]
-           cur.execute("UPDATE rules_vs_comments SET user_login=?,date=?,comment=?,status=?,violation=? WHERE id= ?",(user_login,date,txt,status,violation,comment_id))
+           cur.execute("UPDATE comments SET user_login=?,date=?,comment=?,status=?,violation=? WHERE id= ?",(user_login,date,txt,status,violation,comment_id))
 
     @staticmethod
     def addCommentRule(rule_id,
@@ -1628,6 +1628,7 @@ class Tool(StdMngt,SQLite):
             result = None
             con = False
         finally:
+            print "RESULT database query",database,query,result
             if con:
                 con.close()
         return result
