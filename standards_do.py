@@ -794,7 +794,7 @@ class smallWindows(Frame,
         self.comment_windows.set_id(self.rule_id)
         print "self.rule_id",self.rule_id
         self.comment_windows.create(title="List of comments for rule {:s}".format(rule_tag))
-        self.comment_windows.create_text(title="Comments")
+        self.comment_windows.create_text(title="Comments",height=20)
         self.comment_windows.add_button(text="Add",
                                         func_help="Add a comment",
                                         side=TOP,
@@ -1233,7 +1233,7 @@ class smallWindowsReq(smallWindows):
         self.comment_windows.set_id(self.rule_id)
         print "self.rule_id",self.rule_id
         self.comment_windows.create(title="List of comments for rule {:s}".format(rule_tag))
-        self.comment_windows.create_text(title="Comments")
+        self.comment_windows.create_text(title="Comments",height=20)
         self.comment_windows.add_button(text="Add",
                                         func_help="Add a comment",
                                         side=TOP,
