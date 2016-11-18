@@ -443,10 +443,11 @@ class StdMngt(SQLite):
         return data
 
     @staticmethod
-    def readResponse(id,database="db/sdts_rules.db3"):
+    def readResponse(response_id,database="db/sdts_rules.db3"):
         table = "responses_to_comments"
-        print ("rule id:",id)
-        query = "SELECT id,user_login,date,response,status,comment_id FROM {:s} WHERE id LIKE '{:d}' ".format(table,id)
+        print ("rule id:",response_id,database)
+        query = "SELECT id,user_login,date,response,status,comment_id FROM {:s} WHERE id LIKE '{:d}' ".format(table,response_id)
+        print "readResponse QUERY", query
         result = Tool.sqlite_query_one(query,database=database)
         if result is None:
             data = False
@@ -495,7 +496,7 @@ class ReqMngt(StdMngt):
         StdMngt(self,database)
 
     @staticmethod
-    def readCommentByID(comment_id,database="db/sdts_rules.db3",table="rules_vs_comments"):
+    def readCommentByID(comment_id,database="db/swrd.db3",table="rules_vs_comments"):
         print ("rule id:",comment_id)
         query = "SELECT id,user_login,date,comment,status,rule_id,violation FROM {:s} WHERE id LIKE '{:d}' ".format(table,comment_id)
         print "QUERY: ReqMngt.readCommentByID",query
@@ -533,6 +534,40 @@ class ReqMngt(StdMngt):
         con = lite.connect(database, isolation_level=None)
         cur = con.cursor()
         cur.execute("INSERT INTO comments(rule_id,user_login,date,comment,violation) VALUES(?,?,?,?,?)",(rule_id,user_login,date,txt,violation))
+
+    @staticmethod
+    def ResponseToComment(id,user_login="Nobody",date="",txt="",database="db/swrd.db3"):
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("INSERT INTO responses_to_comments(comment_id,user_login,date,response) VALUES(?,?,?,?)",(id,user_login,date,txt))
+
+    @staticmethod
+    def readResponse(response_id,database="db/swrd.db3"):
+        data = StdMngt.readResponse(response_id,database=database)
+        #table = "responses_to_comments"
+        #print ("rule id:",id)
+        #query = "SELECT id,user_login,date,response,status,comment_id FROM {:s} WHERE id LIKE '{:d}' ".format(table,response_id)
+        #result = Tool.sqlite_query_one(query,database=database)
+        #if result is None:
+        #    data = False
+        #else:
+        #    data = result
+        return data
+
+    @staticmethod
+    def readResponses(comment_id,database="db/swrd.db3"):
+        data = StdMngt.readResponses(comment_id,database=database)
+        return data
+
+    @staticmethod
+    def UpdateResponse(id,user_login="Nobody",date="",txt="",database="db/swrd.db3"):
+        con = lite.connect(database, isolation_level=None)
+        cur = con.cursor()
+        cur.execute("SELECT id FROM responses_to_comments WHERE id LIKE '{:d}'  LIMIT 1".format(id))
+        data = cur.fetchone()
+        if data is not None:
+           id = data[0]
+           cur.execute("UPDATE responses_to_comments SET user_login=?,date=?,response=? WHERE id= ?",(user_login,date,txt,id))
 #
 # Class Tool
 #

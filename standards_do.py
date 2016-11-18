@@ -55,7 +55,7 @@ class scrollTxtArea:
                 height=16):
         #add a frame and put a text area into it
         textPad = Frame(frame)
-        self.text = Text(textPad,
+        self.text = ThreadSafeConsole(textPad,
                          height=height,
                          width=width,
                          wrap=wrap)
@@ -533,9 +533,13 @@ class smallWindows(Frame,
               hlink=None,
               callback=None,
               callback_delete=None,
-              run=False):
+              run=False,
+              textarea=None):
         if frame is None:
-            frame = self.help_text
+            if textarea is not None:
+                frame = textarea
+            else:
+                frame = self.help_text
         if not run:
             frame.delete(0.0, END)
         if color is not None:
@@ -569,7 +573,7 @@ class smallWindows(Frame,
         self.exit()
 
     def edit_response(self,response_id,comment_id):
-        txt=self.read(self.response_text.text)
+        txt = self.read(self.response_text.text)
         now = datetime.now()
         date = now.strftime("%A, %d. %B %Y %I:%M%p")
         print "NOW:",date
@@ -612,7 +616,7 @@ class smallWindows(Frame,
         response_windows.add_button(text="Update",
                                    func_help="Update response",
                                    side=TOP,
-                                   callback=lambda arg1=response_id,arg2=comment_id: self.edit_response(arg1,arg2))
+                                   callback=lambda arg1=response_id,arg2=comment_id: response_windows.edit_response(arg1,arg2))
         response_windows.add_button(text="Quit",func_help="Back to the rule",side=TOP,callback=response_windows.exit)
 
     def editCommentWindow(self, event, comment_id,rule_tag):
@@ -940,7 +944,8 @@ class smallWindows(Frame,
                     callback=None,
                     exit_button=False,
                     preview_html=False,
-                    pre_text=""):
+                    pre_text="",
+                    patch=False):
         if frame is None:
             frame = self.display_rule
         description_frame = Frame(frame)
@@ -955,7 +960,8 @@ class smallWindows(Frame,
         #scrolltxt_first_area.text.bind("<Button-3>",self.popupMenu)
         help_frame.pack(anchor=W)
         description_frame.pack(anchor=N,side=side)
-        self.help_text = scrolltxt_first_area.text
+        if not patch:
+            self.help_text = scrolltxt_first_area.text
         if callback is not None:
             ok_button = Button(frame, text='Update', command=callback)
             ok_button.pack(side=BOTTOM, anchor=E,fill=X)
@@ -982,8 +988,9 @@ class smallWindows(Frame,
                                             labelpos = 'nw',
                                             scrolledlist_items = list_items,
                                             dropdown = 0)
-
-        listbox.configure(selectioncommand = lambda event,listbox=listbox:self.set_listbox_selection(event,listbox))
+        if callback is None:
+            callback = self.set_listbox_selection
+        listbox.configure(selectioncommand = lambda event,listbox=listbox:callback(event,listbox))
         #self.status_listbox.pack(fill=BOTH, expand=1,anchor=W)
         listbox.pack(anchor=W)
         return listbox
@@ -1032,7 +1039,7 @@ class smallWindows(Frame,
         self.status_listbox.bind("<MouseWheel>", self.crlistbox_scrollEvent)
         self.status_listbox.bind("<Key-Up>", lambda event, arg=self.status_listbox: self.up_event(event, arg))
         self.status_listbox.bind("<Key-Down>", lambda event, arg=self.status_listbox: self.down_event(event, arg))
-        self.status_listbox.bind("<ButtonRelease-1>", self.set_listbox_selection)
+        self.status_listbox.bind("<ButtonRelease-1>", lambda event, arg=self.status_listbox: self.set_listbox_selection(event, arg))
         inter = 0
         for status in list_items:
             self.status_listbox.insert(END, status)
@@ -1149,6 +1156,34 @@ class smallWindowsReq(smallWindows):
                  review_type=None):
         smallWindows.__init__(self,master,database,review_type)
 
+    def rule_violated_listbox_onselect(self,event,listbox):
+        index = listbox.curselection()[0]
+        if index != ():
+            rule_violated = listbox.get(index)
+        else:
+            rule_violated = None
+        print "RULE VIOLATED SELECTED",rule_violated
+        m = re.match(r'.*_0?([0-9]{1,3})',rule_violated)
+        if m:
+            rule_id = m.group(1).lstrip("0")
+        description,status,version = StdMngt.getSDTS_Rule(tag=rule_id,database="db/sdts_rules.db3")
+        self.selected_rule_display.text.delete(0.0,END)
+        self.selected_rule_display.text.insert(END,description)
+
+    def display_input_new_response_windows(self,comment_id,callback_refresh):
+        # TODO: Corriger AttributeError: smallWindows instance has no attribute 'responses_frame' line 771, in refreshResponses
+        comment_windows = smallWindowsReq(master=self.display_rule)
+        comment_windows.create(title="Response")
+        comment_windows.create_text(title="Response to comment {:d}".format(comment_id))
+        comment_windows.add_button(text="OK",
+                                   func_help="Add a response",
+                                   side=TOP,
+                                   callback=lambda arg1=comment_id,arg2=callback_refresh:comment_windows.add_response(arg1,arg2))
+        comment_windows.add_button(text="Quit",
+                                   func_help="Back",
+                                   side=TOP,
+                                   callback=comment_windows.exit)
+
     def display_input_new_comment_windows(self,rule_id,rule_tag,callback_refresh=None):
         self.comment_windows = smallWindowsReq(master=self.display_rule)
         #comment_windows.set_id(self.rule_id)
@@ -1173,11 +1208,11 @@ class smallWindowsReq(smallWindows):
                                    side=TOP,
                                    callback=self.comment_windows.exit)
 
-    def refreshComments(self,rule_id,rule_tag):
+    def refreshComments(self,rule_id,rule_tag,textarea):
         # Enable writing
         print "Refresh Comments",rule_id,rule_tag
-        self.help_text.config(state=NORMAL)
-        self.help_text.delete(0.0, END)
+        textarea.config(state=NORMAL)
+        textarea.delete(0.0, END)
         comments = Tool.readComments(rule_id,database=self.database,table="comments")
         if comments:
             print "COMMENTS",comments
@@ -1196,15 +1231,16 @@ class smallWindowsReq(smallWindows):
                            hlink = comment_id,
                            callback=lambda event, arg1=comment_id,arg2=rule_tag: self.editCommentWindow(event,arg1,arg2),
                            callback_delete=lambda event, arg1=comment_id,arg2=rule_id,arg3=rule_tag,arg4=user_login: self.remove_comment(event,arg1,arg2,arg3,arg4),
-                           run=True)
+                           run=True,
+                           textarea=textarea)
                 inter += 1
         # Disable writing
-        self.help_text.config(state=DISABLED)
+        textarea.config(state=DISABLED)
 
-    def refreshResponses(self,comment_id):
-        self.responses_frame.text.config(state=NORMAL)
-        self.responses_frame.text.delete(0.0, END)
-        responses = Tool.readResponses(comment_id,database=self.database)
+    def refreshResponses(self,comment_id,response_area):
+        response_area.text.config(state=NORMAL)
+        response_area.text.delete(0.0, END)
+        responses = ReqMngt.readResponses(comment_id)
         if responses:
             print "COMMENTS",responses
             inter = 0
@@ -1216,15 +1252,15 @@ class smallWindowsReq(smallWindows):
                 handle = "handle_{:d}".format(inter)
                 #self.comment_windows.write(txt='{:d}) {:s} {:s}: {:s}\n'.format(id,user_login,date,comment),
                 response_ascii = Tool.removeNonAscii(response)
-                self.edit_comment_windows.write(txt='{:d}) {:s} [{:s} - {:s}]\n'.format(response_id,response_ascii,user_login,date),
-                                      frame=self.responses_frame.text,
+                self.write(txt='{:d}) {:s} [{:s} - {:s}]\n'.format(response_id,response_ascii,user_login,date),
+                                      frame=response_area.text,
                                        color=color,
                                        handle=handle,
                                        hlink = response_id,
                                        callback=lambda event, arg1=response_id: self.editResponseWindow(event,response_id),
                                        run=True)
                 inter += 1
-        self.responses_frame.text.config(state=DISABLED)
+        response_area.text.config(state=DISABLED)
 
     def display_comment_windows(self,rule_tag=""):
         self.comment_windows = smallWindowsReq(master=self.display_rule,
@@ -1237,8 +1273,8 @@ class smallWindowsReq(smallWindows):
         self.comment_windows.add_button(text="Add",
                                         func_help="Add a comment",
                                         side=TOP,
-                                        callback=lambda arg1=self.rule_id,arg2=rule_tag,arg3=self.comment_windows.refreshComments: self.display_input_new_comment_windows(arg1,arg2,arg3))
-        self.comment_windows.refreshComments(self.rule_id,rule_tag)
+                                        callback=lambda arg1=self.rule_id,arg2=rule_tag,arg3=self.comment_windows.help_text: self.display_input_new_comment_windows(arg1,arg2,arg3))
+        self.comment_windows.refreshComments(self.rule_id,rule_tag,self.comment_windows.help_text)
         self.comment_windows.add_button(text="Quit",
                                         func_help="Back to the rule",
                                         side=TOP,
@@ -1254,7 +1290,36 @@ class smallWindowsReq(smallWindows):
         violation = self.violation_listbox.get(ACTIVE)
         return violation
 
-    def edit_comment(self,comment_id,rule_id,rule_tag):
+    def edit_response(self,response_id,comment_id,response_area):
+        txt = self.read(response_area.text)
+        now = datetime.now()
+        date = now.strftime("%A, %d. %B %Y %I:%M%p")
+        print "NOW:",date
+        user_login = getpass.getuser()
+        if tkMessageBox.askyesno("Update Response", "Are you sure?"):
+            ReqMngt.UpdateResponse(response_id,
+                                user_login=user_login,
+                                date=date,
+                                txt=txt)
+            self.refreshResponses(comment_id,response_area)
+        self.exit()
+
+    def add_response(self,comment_id,response_area):
+        txt=self.read()
+        now = datetime.now()
+        date = now.strftime("%A, %d. %B %Y %I:%M%p")
+        user_login = getpass.getuser()
+        if tkMessageBox.askyesno("Add a response", "Are you sure to add a response?"):
+            ReqMngt.ResponseToComment(comment_id,
+                                user_login=user_login,
+                                date=date,
+                                txt=txt)
+            #callback_refresh(comment_id)
+            self.refreshResponses(comment_id,response_area)
+            # destroy window
+            self.exit()
+
+    def edit_comment(self,comment_id,rule_id,rule_tag,listcomment_area):
         txt = self.read(self.comment_text.text)
         now = datetime.now()
         date = now.strftime("%A, %d. %B %Y %I:%M%p")
@@ -1270,7 +1335,8 @@ class smallWindowsReq(smallWindows):
                                     status=status,
                                     violation=violation)
             self.refreshComments(rule_id=rule_id,
-                                 rule_tag=rule_tag)
+                                 rule_tag=rule_tag,
+                                 textarea=listcomment_area)
         self.exit()
 
     def add_comment(self,
@@ -1288,7 +1354,7 @@ class smallWindowsReq(smallWindows):
                                     date=date,
                                     txt=txt,
                                     violation=violation)
-            callback_refresh(rule_id,rule_tag)
+            self.refreshComments(rule_id,rule_tag,callback_refresh)
             self.exit()
 
     def violation_focus(self,violation,list_items=("RULE_01","RULE_02","RULE_03","RULE_04")):
@@ -1296,6 +1362,25 @@ class smallWindowsReq(smallWindows):
             num = list_items.index(violation)
             print "Violation Num:",num
             self.violation_listbox.selectitem(num,setentry=1)
+
+    def editResponseWindow(self, event, response_id,callback_refresh):
+        # Edit comment
+        InspectionWorkflow = ("TO BE DISCUSSED","ACCEPTED","CORRECTED","REJECTED")
+        sql_response_id,user_login,date,response,status,comment_id = ReqMngt.readResponse(response_id)
+        response_windows = smallWindowsReq(master=self.display_rule)
+        response_windows.create(title="Response")
+        left_frame = Frame(response_windows.display_rule)
+        self.response_text = response_windows.create_text(title="Response {:d} written by {:s} on {:s}".format(sql_response_id,user_login,date),
+                                                        frame=left_frame,
+                                                        height=8,
+                                                        side=TOP)
+        response_windows.write(txt='{:s}'.format(response))
+        left_frame.pack(side=LEFT)
+        response_windows.add_button(text="Update",
+                                   func_help="Update response",
+                                   side=TOP,
+                                   callback=lambda arg1=response_id,arg2=comment_id,response=self.response_text: response_windows.edit_response(arg1,arg2,response))
+        response_windows.add_button(text="Quit",func_help="Back to the rule",side=TOP,callback=response_windows.exit)
 
     def editCommentWindow(self, event, comment_id,rule_tag):
         # Edit comment
@@ -1318,9 +1403,10 @@ class smallWindowsReq(smallWindows):
         # Display comments
         self.responses_frame = self.edit_comment_windows.create_text(title="Responses for comments {:d}".format(sql_comment_id),
                                                                 frame=left_frame,
+                                                                side=TOP,
                                                                 height=8)
-        self.refreshResponses(comment_id)
-
+        self.refreshResponses(comment_id,self.responses_frame)
+        self.edit_comment_windows.selected_rule_display = self.edit_comment_windows.create_text(title="Rule description",frame=left_frame,height=8,patch=True)
         left_frame.pack(side=LEFT)
         # Comment status
         self.edit_comment_windows.status_listbox = self.edit_comment_windows.create_combobox(self.edit_comment_windows.display_rule,
@@ -1335,7 +1421,7 @@ class smallWindowsReq(smallWindows):
                                                                                                 width=40,
                                                                                                 text="Rule violated",
                                                                                                 list_items=list_rules,
-                                                                                                callback=None)
+                                                                                                callback=self.edit_comment_windows.rule_violated_listbox_onselect)
         # Update Status
         self.edit_comment_windows.status_focus(status,
                                      list_items=InspectionWorkflow)
@@ -1345,11 +1431,11 @@ class smallWindowsReq(smallWindows):
         self.edit_comment_windows.add_button(text="Update",
                                                func_help="Update comment",
                                                side=TOP,
-                                               callback=lambda arg1=comment_id,arg2=rule_id,arg3=rule_tag: self.edit_comment_windows.edit_comment(arg1,arg2,arg3))
+                                               callback=lambda arg1=comment_id,arg2=rule_id,arg3=rule_tag,arg4=self.help_text: self.edit_comment_windows.edit_comment(arg1,arg2,arg3,arg4))
         self.edit_comment_windows.add_button(text="Respond",
                                    func_help="Add a response",
                                    side=TOP,
-                                   callback=lambda arg1=comment_id,arg2=self.refreshResponses: self.display_input_new_response_windows(comment_id,arg2))
+                                   callback=lambda arg1=comment_id,arg2=self.responses_frame: self.edit_comment_windows.display_input_new_response_windows(comment_id,arg2))
         self.edit_comment_windows.add_button(text="Quit",
                                    func_help="Back to the rule",
                                    side=TOP,
@@ -1979,6 +2065,37 @@ class Std_Req(Std):
             self.bind('<Shift-Button-1>',self.handle_right_click)
         else:
             self.bind("<Button-3>", self.handle_right_click)
+
+class ThreadSafeConsole(Text):
+    """
+    This class create a widget Text thread safe
+    """
+
+    def __init__(self, master, **options):
+        Text.__init__(self, master, **options)
+        self.queue = Queue.Queue()
+        self.update_me()
+
+    def write(self, line):
+        self.queue.put(line)
+
+    def clear(self):
+        self.queue.put(None)
+
+    def update_me(self):
+        try:
+            while 1:
+                line = self.queue.get_nowait()
+                if line is None:
+                    self.delete(1.0, END)
+                else:
+                    self.insert(END, str(line))
+                self.see(END)
+                self.update_idletasks()
+        except Queue.Empty:
+            pass
+        self.after(100, self.update_me)
+
 
 class ThreadSafeListbox(Listbox):
     """
